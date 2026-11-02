@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
+import Ring from "../components/Ring";
 import { knownMd5, releaseNumbers, reserveNumbers, syncAccounts, writeLogs, type LogInput } from "../lib/db";
 import { formatBytes } from "../lib/format";
 import { md5OfFile } from "../lib/md5";
 import { maxNumber } from "../lib/naming";
 import { planUpload, summarize, type PlanEntry, type PlanFile, type PlanInput } from "../lib/plan";
 import { executeUpload, type UploadProgress, type UploadResult } from "../lib/upload";
-import { useCountUp } from "../lib/useCountUp";
 import type { Account, Crumb, FolderContent } from "../lib/types";
 
 type Phase = "analyse" | "review" | "upload" | "done";
@@ -16,34 +16,6 @@ const REASON: Record<string, string> = {
   zahlenschutz: "Zahlen-Schutz",
   konflikt: "Namenskonflikt",
 };
-
-function Ring({ value, total, label }: { value: number; total: number; label: string }) {
-  const r = 70;
-  const c = 2 * Math.PI * r;
-  const pct = total > 0 ? Math.min(1, value / total) : 0;
-  const shown = useCountUp(value, 400);
-  return (
-    <div className="progress-ring">
-      <svg viewBox="0 0 168 168" width={168} height={168}>
-        <defs>
-          <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#8b5cf6" />
-            <stop offset="55%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#22d3ee" />
-          </linearGradient>
-        </defs>
-        <circle className="track" cx="84" cy="84" r={r} />
-        <circle className="value" cx="84" cy="84" r={r} strokeDasharray={c} strokeDashoffset={c * (1 - pct)} />
-      </svg>
-      <div className="center">
-        <strong>{Math.round(shown)}</strong>
-        <span>
-          von {total} {label}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 export default function UploadSheet({
   files,

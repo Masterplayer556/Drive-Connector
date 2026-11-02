@@ -7,7 +7,7 @@ import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
 import { AREA_KEYS } from "../lib/areas";
 import { cachedFolder, invalidateAll, invalidateFolder, loadFolder, patchFolder, prefetchFolder } from "../lib/cache";
-import { syncAccounts, writeLog } from "../lib/db";
+import { fetchBigFolders, fetchStats, fetchSubtreeFiles, syncAccounts, writeLog } from "../lib/db";
 import { createLogicalFolder, trashFiles, trashLogicalFolder } from "../lib/folders";
 import { formatBytes } from "../lib/format";
 import { renameItem } from "../lib/google";
@@ -17,8 +17,12 @@ import { navigate } from "../lib/route";
 import { accountColor, folderHue } from "../lib/theme";
 import type { Account, Crumb, FolderContent, Item, LogicalFolder } from "../lib/types";
 import { useCountUp } from "../lib/useCountUp";
+import { computeInsights, type BigFolder, type Insight, type PoolStats } from "../lib/insights";
 
 const UploadSheet = lazy(() => import("./UploadSheet"));
+const AutoUploadSheet = lazy(() => import("./AutoUploadSheet"));
+const SortSheet = lazy(() => import("../components/SortSheet"));
+const DownloadSheet = lazy(() => import("../components/DownloadSheet"));
 const Viewer = lazy(() => import("../components/Viewer"));
 
 const ROOT: Crumb = { name: "Drive", path: "", key: "" };
@@ -58,6 +62,9 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewer, setViewer] = useState<number | null>(null);
   const [uploadFiles, setUploadFiles] = useState<File[] | null>(null);
+  const [autoFiles, setAutoFiles] = useState<File[] | null>(null);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [download, setDownload] = useState<{ items: Item[]; mode: "photos" | "zip"; title: string; basePath: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [tick, setTick] = useState(0);
   const [pull, setPull] = useState(0);
@@ -103,6 +110,21 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
     setStack((s) => [...s, { name: f.name, path: f.path || childPath(s[s.length - 1].path, f.name), key: f.key }]);
     window.scrollTo({ top: 0 });
   };
+  const openPath = (path: string) => {
+    const segs = path.split("/");
+    let key = "";
+    let p = "";
+    const crumbs: Crumb[] = [ROOT];
+    for (const seg of segs) {
+      key = childKey(key, seg);
+      p = childPath(p, seg);
+      crumbs.push({ name: seg, path: p, key });
+    }
+    setDirection("forward");
+    setStack(crumbs);
+    window.scrollTo({ top: 0 });
+  };
+
   const goTo = (index: number) => {
     if (index === stack.length - 1) return;
     setDirection("back");
@@ -183,6 +205,20 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
 
   const files = useMemo(() => content?.files ?? [], [content]);
   const selectedItems = files.filter((f) => selected.has(itemKey(f)));
+
+  const selectAll = () =>
+    setSelected((s) => (s.size === files.length ? new Set() : new Set(files.map(itemKey))));
+
+  const zipFolder = async () => {
+    setMenuOpen(false);
+    try {
+      const items = await fetchSubtreeFiles(current.path);
+      if (!items.length) return ui.toast("Keine Fotos in diesem Ordner", "info");
+      setDownload({ items, mode: "zip", title: current.name, basePath: current.path });
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
 
   const deleteSelected = async () => {
     if (!selectedItems.length) return;
@@ -328,6 +364,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
         <Menu
           onNewFolder={newFolder}
           onRefresh={refresh}
+          onZip={isRoot ? undefined : zipFolder}
           onDelete={isRoot ? undefined : deleteFolder}
           onClose={() => setMenuOpen(false)}
         />
@@ -346,6 +383,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
             accounts={accounts}
             content={content}
             onOpen={open}
+            onOpenPath={openPath}
             onRenameLegacy={renameLegacyArea}
           />
         ) : (
@@ -404,14 +442,47 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
       {selectMode ? (
         <div className="actionbar glass">
           <span>
-            <b>{selected.size}</b> ausgewählt
+            <b>{selected.size}</b>
+            <button className="link small" style={{ marginLeft: 8 }} onClick={selectAll}>
+              {selected.size === files.length ? "Keine" : "Alle"}
+            </button>
           </span>
-          <button className="btn small danger-solid" disabled={!selected.size} onClick={deleteSelected}>
-            <Icon name="trash" size={17} /> Löschen
-          </button>
+          <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
+            <button className="btn small" disabled={!selected.size} onClick={() => setSortOpen(true)} aria-label="Sortieren">
+              <Icon name="sortNum" size={17} />
+            </button>
+            <button
+              className="btn small"
+              disabled={!selected.size}
+              onClick={() => setDownload({ items: selectedItems, mode: "photos", title: current.name, basePath: current.path })}
+              aria-label="Sichern"
+            >
+              <Icon name="download" size={17} />
+            </button>
+            <button className="btn small danger-solid" disabled={!selected.size} onClick={deleteSelected} aria-label="Löschen">
+              <Icon name="trash" size={17} />
+            </button>
+          </div>
         </div>
+      ) : isRoot ? (
+        accounts.length > 0 && (
+          <label className="fab">
+            <Icon name="upload" size={20} /> Fotos sichern
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                const list = e.target.files ? [...e.target.files] : [];
+                e.target.value = "";
+                if (list.length) setAutoFiles(list);
+              }}
+            />
+          </label>
+        )
       ) : (
-        !isRoot && (
+        (
           <label className="fab">
             <Icon name="upload" size={20} /> Hochladen
             <input
@@ -455,6 +526,46 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
             }}
           />
         )}
+        {autoFiles && (
+          <AutoUploadSheet
+            files={autoFiles}
+            accounts={accounts}
+            onClose={(changed) => {
+              setAutoFiles(null);
+              if (changed) {
+                invalidateAll();
+                reload();
+              }
+            }}
+          />
+        )}
+
+        {sortOpen && content && (
+          <SortSheet
+            selected={selectedItems}
+            folderFiles={content.files}
+            folderPath={current.path}
+            onClose={(changed) => {
+              setSortOpen(false);
+              if (changed) {
+                setSelectMode(false);
+                setSelected(new Set());
+                invalidateFolder(current.key);
+                reload();
+              }
+            }}
+          />
+        )}
+
+        {download && (
+          <DownloadSheet
+            items={download.items}
+            mode={download.mode}
+            title={download.title}
+            basePath={download.basePath}
+            onClose={() => setDownload(null)}
+          />
+        )}
       </Suspense>
     </div>
   );
@@ -463,11 +574,13 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
 function Menu({
   onNewFolder,
   onRefresh,
+  onZip,
   onDelete,
   onClose,
 }: {
   onNewFolder: () => void;
   onRefresh: () => void;
+  onZip?: () => void;
   onDelete?: () => void;
   onClose: () => void;
 }) {
@@ -481,6 +594,11 @@ function Menu({
         <button onClick={onRefresh}>
           <Icon name="refresh" size={20} /> Synchronisieren
         </button>
+        {onZip && (
+          <button onClick={onZip}>
+            <Icon name="download" size={20} /> Ordner als ZIP sichern
+          </button>
+        )}
         {onDelete && (
           <button className="danger" onClick={onDelete}>
             <Icon name="trash" size={20} /> Ordner löschen
@@ -519,17 +637,73 @@ function FolderGrid({ folders, onOpen }: { folders: LogicalFolder[]; onOpen: (f:
   );
 }
 
+// Hinweise (Regel 4, 9, 10) – Kennzahlen werden kurz zwischengespeichert
+let insightCache: { at: number; stats: PoolStats; big: BigFolder[] } | null = null;
+
+function useInsights(accounts: Account[]): Insight[] {
+  const [data, setData] = useState(insightCache);
+  useEffect(() => {
+    if (insightCache && Date.now() - insightCache.at < 60_000) return;
+    Promise.all([fetchStats(), fetchBigFolders(13.5 * 1024 ** 3)])
+      .then(([stats, big]) => {
+        insightCache = { at: Date.now(), stats, big };
+        setData(insightCache);
+      })
+      .catch(() => undefined);
+  }, [accounts]);
+  return useMemo(() => computeInsights(accounts, data?.stats ?? null, data?.big ?? []), [accounts, data]);
+}
+
+const INSIGHT_ICON = { crit: "alert", warn: "alert", info: "info" } as const;
+
+function Insights({ items, onOpenPath }: { items: Insight[]; onOpenPath: (path: string) => void }) {
+  if (!items.length) return null;
+  return (
+    <>
+      <div className="section-title">
+        <span>Hinweise</span>
+      </div>
+      <div className="insights stagger">
+        {items.map((it, i) => (
+          <button
+            key={it.id}
+            className={`insight glass ${it.level}`}
+            style={{ ["--i" as string]: i }}
+            onClick={() => {
+              if (!it.action) return;
+              if (it.action.kind === "route") navigate(it.action.to);
+              else onOpenPath(it.action.path);
+            }}
+          >
+            <span className="insight-icon">
+              <Icon name={it.id === "forecast" ? "chart" : it.id === "dup" ? "copy" : INSIGHT_ICON[it.level]} size={18} />
+            </span>
+            <span className="insight-text">
+              <strong>{it.title}</strong>
+              <span>{it.text}</span>
+            </span>
+            {it.action && <Icon name="chevronRight" size={16} className="faint" />}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function RootContent({
   accounts,
   content,
   onOpen,
+  onOpenPath,
   onRenameLegacy,
 }: {
   accounts: Account[];
   content: FolderContent | null;
   onOpen: (f: LogicalFolder) => void;
+  onOpenPath: (path: string) => void;
   onRenameLegacy: (f: LogicalFolder) => void;
 }) {
+  const insights = useInsights(accounts);
   const active = accounts.filter((a) => a.status === "active");
   const total = active.reduce((s, a) => s + (a.quota_limit ?? 0), 0);
   const used = active.reduce((s, a) => s + (a.quota_usage ?? 0), 0);
@@ -584,6 +758,8 @@ function RootContent({
           </div>
         </div>
       </section>
+
+      <Insights items={insights} onOpenPath={onOpenPath} />
 
       {legacy && !archiv && (
         <button className="banner pressable" onClick={() => onRenameLegacy(legacy)}>

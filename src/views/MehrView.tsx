@@ -142,6 +142,20 @@ export default function MehrView({ session, accounts }: { session: Session; acco
           onClick={() => navigate("einrichtung")}
         />
         <Item
+          icon="copy"
+          bg="linear-gradient(135deg,#22d3ee,#3b82f6)"
+          title="Duplikate"
+          sub="Doppelte Fotos finden und aufräumen"
+          onClick={() => navigate("duplikate")}
+        />
+        <Item
+          icon="trash"
+          bg="linear-gradient(135deg,#fb7185,#f97316)"
+          title="Papierkorb"
+          sub="Wiederherstellen, endgültig löschen, automatisch leeren"
+          onClick={() => navigate("papierkorb")}
+        />
+        <Item
           icon="refresh"
           bg="linear-gradient(135deg,#60a5fa,#6366f1)"
           title="Komplett neu einlesen"

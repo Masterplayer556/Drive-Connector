@@ -3,7 +3,8 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Icon, { type IconName } from "./components/Icon";
 import { LineSkeleton } from "./components/Skeleton";
 import Splash from "./components/Splash";
-import { UIProvider } from "./components/ui";
+import { UIProvider, useUI } from "./components/ui";
+import { autoPurgeIfDue } from "./lib/trash";
 import { clearLocalCaches, readCachedAccounts, writeCachedAccounts } from "./lib/cache";
 import { fetchAccounts } from "./lib/db";
 import { clearTokens, loadTokens } from "./lib/google";
@@ -18,6 +19,8 @@ const KontenView = lazy(() => import("./views/KontenView"));
 const ProtokollView = lazy(() => import("./views/ProtokollView"));
 const MehrView = lazy(() => import("./views/MehrView"));
 const EinrichtungView = lazy(() => import("./views/EinrichtungView"));
+const DuplikateView = lazy(() => import("./views/DuplikateView"));
+const PapierkorbView = lazy(() => import("./views/PapierkorbView"));
 
 type Phase = "loading" | "login" | "mfa" | "ready" | "error";
 
@@ -48,6 +51,7 @@ export default function App() {
 }
 
 function Shell() {
+  const { toast } = useUI();
   const [session, setSession] = useState<Session | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +82,9 @@ function Shell() {
   }, []);
 
   const reloadAccounts = useCallback(async () => {
-    setAccounts(await fetchAccounts());
+    const list = await fetchAccounts();
+    setAccounts(list);
+    return list;
   }, [setAccounts]);
 
   const refreshTokens = useCallback(async () => {
@@ -98,7 +104,10 @@ function Shell() {
       if (cached && cached.length) {
         // Sofort anzeigen, im Hintergrund aktualisieren
         setPhase("ready");
-        void Promise.all([refreshTokens(), reloadAccounts()]).catch(() => undefined);
+        void Promise.all([refreshTokens(), reloadAccounts()])
+          .then(([, list]) => autoPurgeIfDue(list))
+          .then((r) => r?.count && toast(`Papierkorb: ${r.count} alte Einträge gelöscht`, "info"))
+          .catch(() => undefined);
       } else {
         // Erster Start: Besitzer-Prüfung abwarten
         setPhase("loading");
@@ -137,7 +146,7 @@ function Shell() {
     );
   }
 
-  const active = route.name === "einrichtung" ? "mehr" : route.name;
+  const active = ["einrichtung", "duplikate", "papierkorb"].includes(route.name) ? "mehr" : route.name;
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.name === active));
 
   const current = session;
@@ -169,7 +178,16 @@ function Shell() {
           )}
           {route.name === "protokoll" && <ProtokollView />}
           {route.name === "mehr" && <MehrView session={current} accounts={accounts} />}
-          {route.name === "einrichtung" && <EinrichtungView accounts={accounts} reload={reloadAccounts} />}
+          {route.name === "einrichtung" && (
+            <EinrichtungView
+              accounts={accounts}
+              reload={async () => {
+                await reloadAccounts();
+              }}
+            />
+          )}
+          {route.name === "duplikate" && <DuplikateView accounts={accounts} />}
+          {route.name === "papierkorb" && <PapierkorbView accounts={accounts} />}
         </Suspense>
       </>
     );

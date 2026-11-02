@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
-export type RouteName = "drive" | "konten" | "protokoll" | "mehr" | "einrichtung";
+export type RouteName = "drive" | "konten" | "protokoll" | "mehr" | "einrichtung" | "duplikate" | "papierkorb";
 
 export interface Route {
   name: RouteName;
   params: URLSearchParams;
 }
 
-const NAMES: RouteName[] = ["drive", "konten", "protokoll", "mehr", "einrichtung"];
+const NAMES: RouteName[] = ["drive", "konten", "protokoll", "mehr", "einrichtung", "duplikate", "papierkorb"];
 
 function parse(): Route {
   const hash = window.location.hash.replace(/^#\/?/, "");

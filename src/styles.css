@@ -550,24 +550,26 @@ p {
   }
 }
 
+/* „backwards“ statt „both“: nach dem Einblenden bleibt kein transform hängen –
+   sonst richten sich fest positionierte Elemente (Leisten, Sheets) nach der Seite statt nach dem Bildschirm */
 .enter {
-  animation: fadeUp 0.5s var(--ease) both;
+  animation: fadeUp 0.5s var(--ease) backwards;
 }
 
 .page-forward {
-  animation: slideFromRight 0.38s var(--ease) both;
+  animation: slideFromRight 0.38s var(--ease) backwards;
 }
 
 .page-back {
-  animation: slideFromLeft 0.38s var(--ease) both;
+  animation: slideFromLeft 0.38s var(--ease) backwards;
 }
 
 .page-fade {
-  animation: fadeUp 0.4s var(--ease) both;
+  animation: fadeUp 0.4s var(--ease) backwards;
 }
 
 .stagger > * {
-  animation: fadeUp 0.5s var(--ease) both;
+  animation: fadeUp 0.5s var(--ease) backwards;
   animation-delay: calc(min(var(--i, 0), 18) * 28ms);
 }
 
@@ -2762,4 +2764,159 @@ p {
   background:
     var(--lg-fill),
     rgba(var(--surface-rgb), 0.78);
+}
+
+.stat-chip.on {
+  color: var(--on-accent);
+  background:
+    radial-gradient(120% 90% at 30% -10%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 60%),
+    var(--grad);
+}
+
+.stat-chip.done {
+  opacity: 0.55;
+}
+
+/* ---------- Duplikate ---------- */
+.dup-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dup-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(110px, 1fr);
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dup-row::-webkit-scrollbar {
+  display: none;
+}
+
+.dup-item {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: var(--text);
+  min-width: 0;
+  transition: transform 0.4s var(--spring), opacity 0.25s;
+}
+
+.dup-item:not(.keep) {
+  opacity: 0.6;
+}
+
+.dup-item.keep .thumb-wrap {
+  outline: 3px solid rgb(var(--accent-rgb));
+  outline-offset: -3px;
+}
+
+.dup-keep {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--on-accent);
+  background: var(--grad);
+  animation: popIn 0.35s var(--spring) both;
+}
+
+.dup-path {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.66rem;
+  color: var(--muted);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dup-path .dot {
+  width: 7px;
+  height: 7px;
+}
+
+.folder.picked {
+  box-shadow:
+    inset 0 0 0 2px rgb(var(--accent-rgb)),
+    var(--lg-shadow);
+}
+
+/* ---------- Hinweise ---------- */
+.insights {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 18px 4px;
+}
+
+.insight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 18px;
+  text-align: left;
+  color: var(--text);
+  transition: transform 0.4s var(--spring);
+}
+
+.insight:active {
+  transform: scale(0.97);
+}
+
+.insight-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, rgb(var(--accent3-rgb)), rgb(var(--accent2-rgb)));
+}
+
+.insight.warn .insight-icon {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+}
+
+.insight.crit .insight-icon {
+  background: linear-gradient(135deg, #f43f5e, #be123c);
+  animation: pulseGlow 2.4s ease-in-out infinite;
+}
+
+.insight-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insight-text strong {
+  font-size: 0.92rem;
+}
+
+.insight-text span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Platz unten, solange Aktionsleiste oder Hochladen-Knopf über dem Inhalt schweben */
+.main:has(.actionbar),
+.main:has(.fab) {
+  padding-bottom: calc(190px + var(--safe-bottom));
 }

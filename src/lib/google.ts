@@ -177,3 +177,77 @@ export function renameItem(accountId: string, id: string, name: string): Promise
     body: JSON.stringify({ name }),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Etappe 1: Papierkorb, Speicher, Umbenennen mit Beschreibung
+// ---------------------------------------------------------------------------
+export interface TrashFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: string;
+  trashedTime?: string;
+  parents?: string[];
+  explicitlyTrashed?: boolean;
+}
+
+/** Vom Nutzer selbst gelöschte Einträge (nicht die Inhalte gelöschter Ordner). */
+export async function listTrash(accountId: string): Promise<TrashFile[]> {
+  const out: TrashFile[] = [];
+  let pageToken: string | undefined;
+  do {
+    const p = new URLSearchParams({
+      q: "trashed = true and 'me' in owners",
+      fields: "nextPageToken,files(id,name,mimeType,size,trashedTime,parents,explicitlyTrashed)",
+      pageSize: "1000",
+    });
+    if (pageToken) p.set("pageToken", pageToken);
+    const r = await driveJson<{ nextPageToken?: string; files: TrashFile[] }>(accountId, `${DRIVE}/files?${p}`);
+    out.push(...r.files.filter((f) => f.explicitlyTrashed !== false));
+    pageToken = r.nextPageToken;
+  } while (pageToken);
+  return out;
+}
+
+export function restoreItem(accountId: string, id: string): Promise<DriveFile> {
+  return driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?fields=id`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ trashed: false }),
+  });
+}
+
+export function deleteForever(accountId: string, id: string): Promise<void> {
+  return driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function emptyTrash(accountId: string): Promise<void> {
+  return driveJson(accountId, `${DRIVE}/files/trash`, { method: "DELETE" });
+}
+
+export interface Quota {
+  limit: number | null;
+  usage: number;
+  trash: number;
+}
+
+export async function getQuota(accountId: string): Promise<Quota> {
+  const r = await driveJson<{ storageQuota: { limit?: string; usage?: string; usageInDriveTrash?: string } }>(
+    accountId,
+    `${DRIVE}/about?fields=storageQuota`,
+  );
+  return {
+    limit: r.storageQuota.limit ? Number(r.storageQuota.limit) : null,
+    usage: Number(r.storageQuota.usage ?? 0),
+    trash: Number(r.storageQuota.usageInDriveTrash ?? 0),
+  };
+}
+
+/** Name und/oder Beschreibung ändern (Sortieren-Knopf, Regel 12). */
+export function updateItem(accountId: string, id: string, body: { name?: string; description?: string }): Promise<DriveFile> {
+  return driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?fields=id,name`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}

@@ -1,4 +1,5 @@
 // Lesen aus dem Index (Postgres) und Schreiben ins Protokoll.
+import type { BigFolder, PoolStats } from "./insights";
 import { childKey, naturalCompare } from "./naming";
 import { callFunction, supabase } from "./supabase";
 import type { Account, FolderContent, Item, LogEntry, LogicalFolder, LogKind, Role } from "./types";
@@ -164,4 +165,66 @@ export interface SyncResult {
 export async function syncAccounts(accountIds?: string[], full = false): Promise<SyncResult[]> {
   const r = await callFunction<{ results: SyncResult[] }>("sync", { account_ids: accountIds, full });
   return r.results;
+}
+
+// ---------------------------------------------------------------------------
+// Etappe 1: Kennzahlen, grosse Ordner, Duplikate, Einstellungen, Unterbaum
+// ---------------------------------------------------------------------------
+
+export async function fetchStats(): Promise<PoolStats> {
+  const { data, error } = await supabase.rpc("pool_stats");
+  if (error) throw new Error(error.message);
+  return data as PoolStats;
+}
+
+export async function fetchBigFolders(minBytes: number): Promise<BigFolder[]> {
+  const { data, error } = await supabase.rpc("big_folders", { p_min: minBytes });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as BigFolder[];
+}
+
+export interface DuplicateGroup {
+  md5: string;
+  total: number;
+  items: Item[];
+}
+
+export async function fetchDuplicates(): Promise<DuplicateGroup[]> {
+  const { data, error } = await supabase.rpc("find_duplicates");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as DuplicateGroup[];
+}
+
+export interface Settings {
+  trash_auto_days: number | null;
+}
+
+export async function fetchSettings(): Promise<Settings> {
+  const { data, error } = await supabase.from("settings").select("trash_auto_days").maybeSingle();
+  if (error) throw new Error(error.message);
+  return { trash_auto_days: data?.trash_auto_days ?? null };
+}
+
+export async function saveSettings(patch: Partial<Settings>): Promise<void> {
+  const { data: s } = await supabase.auth.getSession();
+  const owner_id = s.session?.user.id;
+  if (!owner_id) throw new Error("Nicht angemeldet");
+  const { error } = await supabase
+    .from("settings")
+    .upsert({ owner_id, ...patch, updated_at: new Date().toISOString() }, { onConflict: "owner_id" });
+  if (error) throw new Error(error.message);
+}
+
+/** Alle Fotos in einem Ordner und seinen Unterordnern (für ZIP-Download). */
+export async function fetchSubtreeFiles(path: string): Promise<Item[]> {
+  const rows = await fetchAll<Item>((from, to) =>
+    supabase
+      .from("items")
+      .select(ITEM_COLS)
+      .eq("is_folder", false)
+      .ilike("path", `${escapeLike(path)}/%`)
+      .order("path")
+      .range(from, to),
+  );
+  return rows;
 }
