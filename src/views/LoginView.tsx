@@ -17,31 +17,34 @@ export default function LoginView() {
   };
 
   return (
-    <form className="center stack narrow" onSubmit={submit}>
-      <img src="./icons/icon-192.png" alt="" width={72} height={72} className="logo" />
-      <h1>Drive Pool</h1>
-      <input
-        className="input"
-        type="email"
-        autoComplete="username"
-        placeholder="E-Mail"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-      />
-      <input
-        className="input"
-        type="password"
-        autoComplete="current-password"
-        placeholder="Passwort"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-      />
-      {error && <p className="error">{error}</p>}
-      <button className="btn primary" disabled={busy}>
-        {busy ? "Anmelden …" : "Anmelden"}
-      </button>
-    </form>
+    <div className="auth">
+      <form className="auth-card glass" onSubmit={submit}>
+        <img src="./icons/icon-192.png" alt="" className="logo" />
+        <h1 className="grad-text">Drive Pool</h1>
+        <p className="sub">Alle deine Drives. Ein Ort.</p>
+        <input
+          className="input"
+          type="email"
+          autoComplete="username"
+          placeholder="E-Mail"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          className="input"
+          type="password"
+          autoComplete="current-password"
+          placeholder="Passwort"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        {error && <p className="error small">{error}</p>}
+        <button className="btn primary" disabled={busy}>
+          {busy ? <span className="spinner" /> : "Anmelden"}
+        </button>
+      </form>
+    </div>
   );
 }

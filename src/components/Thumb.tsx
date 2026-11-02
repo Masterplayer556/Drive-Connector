@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { sizedThumb } from "../lib/google";
 import { functionsUrl, supabase } from "../lib/supabase";
 import type { Item } from "../lib/types";
+import Icon from "./Icon";
 
 const blobCache = new Map<string, string>();
 
@@ -24,15 +25,19 @@ export async function proxiedThumb(item: Item, size: number): Promise<string> {
   return url;
 }
 
+const SIZE = 360;
+
 export default function Thumb({ item, link, ready }: { item: Item; link?: string; ready: boolean }) {
-  const [src, setSrc] = useState<string | null>(link ? sizedThumb(link, 400) : null);
+  const [src, setSrc] = useState<string | null>(link ? sizedThumb(link, SIZE) : null);
+  const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [triedProxy, setTriedProxy] = useState(false);
 
   useEffect(() => {
-    setSrc(link ? sizedThumb(link, 400) : null);
-    setFailed(false);
-    setTriedProxy(false);
+    if (link) {
+      setSrc(sizedThumb(link, SIZE));
+      setFailed(false);
+    }
   }, [link]);
 
   const fallback = () => {
@@ -41,7 +46,7 @@ export default function Thumb({ item, link, ready }: { item: Item; link?: string
       return;
     }
     setTriedProxy(true);
-    proxiedThumb(item, 400)
+    proxiedThumb(item, SIZE)
       .then(setSrc)
       .catch(() => setFailed(true));
   };
@@ -53,18 +58,25 @@ export default function Thumb({ item, link, ready }: { item: Item; link?: string
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, link, item.drive_id]);
 
-  if (failed || !src) {
-    return <div className="thumb placeholder">{failed ? "🖼️" : ""}</div>;
-  }
   return (
-    <img
-      className="thumb"
-      src={src}
-      alt={item.name}
-      loading="lazy"
-      decoding="async"
-      referrerPolicy="no-referrer"
-      onError={fallback}
-    />
+    <div className={`thumb-wrap ${!loaded && !failed ? "skeleton" : ""}`}>
+      {src && !failed && (
+        <img
+          className={`thumb ${loaded ? "loaded" : ""}`}
+          src={src}
+          alt={item.name}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onLoad={() => setLoaded(true)}
+          onError={fallback}
+        />
+      )}
+      {failed && (
+        <div className="thumb-placeholder">
+          <Icon name="image" />
+        </div>
+      )}
+    </div>
   );
 }

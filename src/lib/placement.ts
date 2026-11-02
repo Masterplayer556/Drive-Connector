@@ -17,10 +17,11 @@ export function accountStates(accounts: Account[]): AccountState[] {
   }));
 }
 
-/** Bereich (Schule/Privat) aus dem obersten Ordner des Pfads. */
+/** Bereich aus dem obersten Ordner des Pfads („Archiv“, früher „Schule“ → Rolle "schule"; „Privat“). */
 export function areaOf(path: string): Role | null {
   const top = path.split("/")[0]?.toLowerCase();
-  return top === "schule" ? "schule" : top === "privat" ? "privat" : null;
+  if (top === "archiv" || top === "schule") return "schule";
+  return top === "privat" ? "privat" : null;
 }
 
 function mostFree(list: AccountState[]): string | null {

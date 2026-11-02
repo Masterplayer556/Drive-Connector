@@ -28,6 +28,7 @@ describe("chooseAccount", () => {
 
 describe("areaOf", () => {
   it("liest den Bereich aus dem Pfad", () => {
+    expect(areaOf("Archiv/Mathe")).toBe("schule");
     expect(areaOf("Schule/Mathe")).toBe("schule");
     expect(areaOf("privat")).toBe("privat");
     expect(areaOf("Anderes")).toBeNull();
