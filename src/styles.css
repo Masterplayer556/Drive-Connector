@@ -1434,7 +1434,38 @@ p {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  touch-action: pan-y;
+  touch-action: none;
+}
+
+/* Zoomen: Bilder liegen in einer gemeinsamen Ebene, die skaliert/verschoben wird */
+.viewer-zoom {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 50% 50%;
+  transition: transform 0.3s var(--ease);
+  will-change: transform;
+}
+.viewer-zoom.live {
+  transition: none;
+}
+.viewer-full {
+  animation: fadeIn 0.3s ease both;
+}
+.zoom-chip {
+  position: fixed;
+  left: 50%;
+  top: calc(var(--safe-top) + 64px);
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+  animation: fadeIn 0.2s ease both;
 }
 
 
@@ -1982,16 +2013,33 @@ p {
 
 /* ---------- Ziehen zum Aktualisieren ---------- */
 .ptr {
-  display: flex;
-  justify-content: center;
-  overflow: hidden;
-  transition: height 0.3s var(--ease);
+  /* Schwebt über der Titelleiste statt dahinter (fixiert, nicht im Seitenfluss) */
+  position: fixed;
+  left: 50%;
+  top: calc(var(--safe-top) - 44px);
+  z-index: 30;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, var(--pull, 0px)) scale(0.6);
+  transition: transform 0.35s var(--ease), opacity 0.25s;
+}
+.ptr.dragging {
+  transition: none;
+  opacity: 1;
+  transform: translate(-50%, var(--pull)) scale(0.85);
+}
+.ptr.armed,
+.ptr.spinning {
+  opacity: 1;
+  transform: translate(-50%, var(--pull)) scale(1);
+}
+.ptr.spinning {
+  transition: transform 0.35s var(--ease), opacity 0.25s;
 }
 
 .ptr-inner {
-  width: 38px;
-  height: 38px;
-  margin-top: 6px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -2001,7 +2049,7 @@ p {
   box-shadow: 0 8px 22px rgba(var(--glow-rgb), 0.5);
 }
 
-.ptr-inner.spinning .icon {
+.ptr.spinning .icon {
   animation: spin 0.8s linear infinite;
 }
 

@@ -53,6 +53,9 @@ function greeting(): string {
 
 type Direction = "forward" | "back" | "fade";
 
+/** Ab dieser Zugweite (px) wird beim Loslassen aktualisiert */
+const PULL_TRIGGER = 60;
+
 export default function DriveView({ accounts }: { accounts: Account[] }) {
   const ui = useUI();
   const [stack, setStack] = useState<Crumb[]>(loadStack);
@@ -199,12 +202,25 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   const refresh = async () => {
     setMenuOpen(false);
     setRefreshing(true);
+    // 1. Sofort neu aus dem Index laden (schnell) …
+    invalidateAll();
+    reload();
+    const spin = setTimeout(() => setRefreshing(false), 900);
+    // 2. … und im Hintergrund mit Google abgleichen; bei Änderungen nochmals neu laden
     try {
-      await syncAndReload();
-      ui.toast("Alles aktuell", "ok");
+      const results = await syncAccounts();
+      const changed = results.reduce((s, r) => s + (r.changed ?? 0), 0);
+      if (changed > 0) {
+        invalidateAll();
+        reload();
+        ui.toast(`${changed.toLocaleString("de-CH")} Änderung${changed === 1 ? "" : "en"} übernommen`, "ok");
+      }
+      const failed = results.filter((r) => r.error);
+      if (failed.length) ui.toast(`Abgleich fehlgeschlagen: ${failed.map((f) => f.email).join(", ")}`, "error");
     } catch (e) {
       ui.toast(e instanceof Error ? e.message : String(e), "error");
     } finally {
+      clearTimeout(spin);
       setRefreshing(false);
     }
   };
@@ -284,18 +300,23 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   const onTouchStart = (e: React.TouchEvent) => {
     if (window.scrollY <= 0 && !refreshing && viewer === null && !uploadFiles) pullStart.current = e.touches[0].clientY;
   };
+  const pullRef = useRef(0);
   const onTouchMove = (e: React.TouchEvent) => {
     if (pullStart.current === null) return;
     const d = e.touches[0].clientY - pullStart.current;
-    if (d > 0) setPull(Math.min(d * 0.45, 90));
-    else {
+    if (d > 0 && window.scrollY <= 0) {
+      pullRef.current = Math.min(d * 0.5, 110);
+      setPull(pullRef.current);
+    } else {
       pullStart.current = null;
+      pullRef.current = 0;
       setPull(0);
     }
   };
   const onTouchEnd = () => {
-    if (pull > 58) void refresh();
+    if (pullStart.current !== null && pullRef.current >= PULL_TRIGGER) void refresh();
     pullStart.current = null;
+    pullRef.current = 0;
     setPull(0);
   };
 
@@ -304,11 +325,12 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
 
   return (
     <div className="view" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-      <div className="ptr" style={{ height: refreshing ? 52 : pull }}>
-        <div
-          className={`ptr-inner ${refreshing ? "spinning" : ""}`}
-          style={{ transform: refreshing ? undefined : `rotate(${pull * 4}deg) scale(${Math.min(1, pull / 58)})` }}
-        >
+      <div
+        className={`ptr ${refreshing ? "spinning" : ""} ${pull ? "dragging" : ""} ${pull >= PULL_TRIGGER ? "armed" : ""}`}
+        style={{ ["--pull" as string]: `${refreshing ? 64 : pull}px` }}
+        aria-hidden={!refreshing && !pull}
+      >
+        <div className="ptr-inner" style={{ transform: refreshing ? undefined : `rotate(${pull * 4}deg)` }}>
           <Icon name="refresh" size={20} />
         </div>
       </div>
