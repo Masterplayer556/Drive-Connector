@@ -86,7 +86,7 @@ Jede Gruppe ist eine Einheit und liegt möglichst komplett in einem Konto. Neue 
   1. Konto A gibt den Ordner intern für Konto B frei.
   2. Konto B erstellt eine **serverseitige Kopie** bei Google (Daten laufen nicht über Backend oder Handy).
   3. Vergleich von **MD5-Prüfsumme und Grösse**.
-  4. Erst bei Übereinstimmung wird das Original **endgültig** gelöscht.
+  4. Erst bei Übereinstimmung wird das Original in den **Papierkorb** des Quellkontos gelegt; Google löscht es dort nach **30 Tagen endgültig** (so lange zurückholbar – der Platz wird erst dann frei).
 - Läuft nachts als Job in Teilschritten (Warteschlange).
 - Wird ein neues Konto verbunden, erstellt die App sofort einen Rebalancing-Vorschlag.
 - Nebenwirkung: Kopien erhalten neue Google-IDs, alte Teilen-Links verfallen.
