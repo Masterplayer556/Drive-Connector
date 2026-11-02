@@ -59,7 +59,7 @@ Ordner verschiedener Konten werden über den Pfad zusammengeführt. Oberste Eben
 ### Regel 2 – Dateien bleiben in ihrem Ordner, kein automatisches Umbenennen
 - Die App benennt **nie von sich aus** um. Ausnahmen sind nur Regel 11, 12 und 14.
 - Beim Verschieben zwischen Konten bleibt der Name 1:1 erhalten.
-- **Namenskonflikt** (z. B. zweites `1.png` im selben Ordner): Die App hängt nichts an, sondern stoppt und fragt nach.
+- **Namenskonflikt** (z. B. zweites `1.png` im selben Ordner): Die App hängt nichts an, sondern stoppt und fragt nach – „überspringen“ oder „mit `Foto_Datum`-Namen hochladen“.
 
 ### Regel 3 – Platzierung neuer Fotos
 - Ein neues Foto landet im Konto, in dem sein Ordner bereits liegt.
@@ -217,7 +217,7 @@ Die App führt ein einsehbares Protokoll (filterbar) über Uploads, Umbenennunge
 
 ## 5. Phasen
 
-1. **MVP**
+1. **MVP** ✅ umgesetzt (Einrichtung siehe [SETUP.md](SETUP.md))
    - Google-Cloud-Projekt + Supabase einrichten
    - Konten verbinden, Gesamtspeicher anzeigen
    - Einrichtungs-Assistent (`Schule/` / `Privat/`)
