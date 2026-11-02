@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import Icon from "../components/Icon";
 import { supabase } from "../lib/supabase";
 
 export default function MfaView({ onDone }: { onDone: () => void }) {
@@ -20,31 +21,37 @@ export default function MfaView({ onDone }: { onDone: () => void }) {
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setCode("");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <form className="center stack narrow" onSubmit={submit}>
-      <h1>Bestätigung</h1>
-      <p className="muted">Gib den 6-stelligen Code aus deiner Authenticator-App ein.</p>
-      <input
-        className="input code"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        maxLength={6}
-        value={code}
-        onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-        autoFocus
-      />
-      {error && <p className="error">{error}</p>}
-      <button className="btn primary" disabled={busy || code.length !== 6}>
-        Bestätigen
-      </button>
-      <button type="button" className="btn ghost" onClick={() => supabase.auth.signOut()}>
-        Abmelden
-      </button>
-    </form>
+    <div className="auth">
+      <form className="auth-card glass" onSubmit={submit}>
+        <div className="empty-icon" style={{ alignSelf: "center" }}>
+          <Icon name="shield" size={34} />
+        </div>
+        <h1>Bestätigung</h1>
+        <p className="sub">Code aus deiner Authenticator-App</p>
+        <input
+          className="input code"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+          autoFocus
+        />
+        {error && <p className="error small">{error}</p>}
+        <button className="btn primary" disabled={busy || code.length !== 6}>
+          {busy ? <span className="spinner" /> : "Bestätigen"}
+        </button>
+        <button type="button" className="btn ghost" onClick={() => supabase.auth.signOut()}>
+          Abmelden
+        </button>
+      </form>
+    </div>
   );
 }

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { formatBytes, formatDateTime } from "../lib/format";
 import { downloadBlob, sizedThumb } from "../lib/google";
+import { accountColor } from "../lib/theme";
 import type { Account, Item } from "../lib/types";
+import Icon from "./Icon";
 
 export default function Viewer({
   items,
@@ -22,10 +24,14 @@ export default function Viewer({
   const link = links.get(item.drive_id);
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
+  const [dx, setDx] = useState(0);
+  const [closing, setClosing] = useState(false);
+  const startX = useRef<number | null>(null);
 
   useEffect(() => {
     let revoke: string | null = null;
     setError(false);
+    setDx(0);
     if (link) {
       setSrc(sizedThumb(link, 1600));
     } else {
@@ -42,6 +48,14 @@ export default function Viewer({
     };
   }, [item, link]);
 
+  // Nachbarbilder vorladen → Wischen fühlt sich sofort an
+  useEffect(() => {
+    for (const j of [index - 1, index + 1]) {
+      const l = items[j] && links.get(items[j].drive_id);
+      if (l) new Image().src = sizedThumb(l, 1600);
+    }
+  }, [index, items, links]);
+
   const onImgError = () => {
     if (src?.startsWith("blob:")) return setError(true);
     downloadBlob(item.account_id, item.drive_id)
@@ -49,52 +63,66 @@ export default function Viewer({
       .catch(() => setError(true));
   };
 
-  const account = accounts.find((a) => a.id === item.account_id);
-  const touchX = useRef<number | null>(null);
+  const close = () => {
+    setClosing(true);
+    setTimeout(onClose, 180);
+  };
+
+  const accIndex = accounts.findIndex((a) => a.id === item.account_id);
+  const account = accounts[accIndex];
 
   return (
-    <div
-      className="viewer"
-      onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
-      onTouchEnd={(e) => {
-        if (touchX.current === null) return;
-        const dx = e.changedTouches[0].clientX - touchX.current;
-        if (dx > 60 && index > 0) onIndex(index - 1);
-        if (dx < -60 && index < items.length - 1) onIndex(index + 1);
-        touchX.current = null;
-      }}
-    >
+    <div className={`viewer ${closing ? "closing" : ""}`}>
       <div className="viewer-top">
-        <button className="btn ghost" onClick={onClose}>
-          ✕
+        <button className="icon-btn" onClick={close} aria-label="Schliessen">
+          <Icon name="x" />
         </button>
         <span className="viewer-title">{item.name}</span>
-        <span className="muted">
-          {index + 1}/{items.length}
+        <span className="muted small">
+          {index + 1} / {items.length}
         </span>
       </div>
-      <div className="viewer-img">
+      <div
+        className="viewer-stage"
+        onTouchStart={(e) => (startX.current = e.touches[0].clientX)}
+        onTouchMove={(e) => {
+          if (startX.current !== null) setDx(e.touches[0].clientX - startX.current);
+        }}
+        onTouchEnd={() => {
+          if (dx > 70 && index > 0) onIndex(index - 1);
+          else if (dx < -70 && index < items.length - 1) onIndex(index + 1);
+          else setDx(0);
+          startX.current = null;
+        }}
+      >
         {error ? (
           <p className="muted">Bild konnte nicht geladen werden.</p>
         ) : src ? (
-          <img src={src} alt={item.name} referrerPolicy="no-referrer" onError={onImgError} />
+          <img
+            key={item.drive_id}
+            className={startX.current !== null ? "dragging" : ""}
+            src={src}
+            alt={item.name}
+            referrerPolicy="no-referrer"
+            onError={onImgError}
+            style={{ transform: dx ? `translateX(${dx}px) rotate(${dx / 40}deg)` : undefined, opacity: 1 - Math.min(Math.abs(dx) / 600, 0.4) }}
+          />
         ) : (
-          <p className="muted">Lädt …</p>
+          <div className="spinner" />
         )}
       </div>
-      <div className="viewer-info muted">
-        {formatBytes(item.size)}
-        {item.taken_at && <> · aufgenommen {formatDateTime(item.taken_at)}</>}
-        {account && <> · {account.email}</>}
-        {item.description && <div>{item.description}</div>}
-      </div>
-      <div className="viewer-nav">
-        <button className="btn" disabled={index === 0} onClick={() => onIndex(index - 1)}>
-          ‹ Zurück
-        </button>
-        <button className="btn" disabled={index === items.length - 1} onClick={() => onIndex(index + 1)}>
-          Weiter ›
-        </button>
+      <div className="viewer-info glass">
+        <span className="chip">
+          <Icon name="image" size={15} /> {formatBytes(item.size)}
+        </span>
+        {item.taken_at && <span className="chip">📅 {formatDateTime(item.taken_at)}</span>}
+        {account && (
+          <span className="chip">
+            <span className="dot" style={{ background: accountColor(accIndex), color: accountColor(accIndex) }} />
+            {account.email}
+          </span>
+        )}
+        {item.description && <span className="chip">{item.description}</span>}
       </div>
     </div>
   );

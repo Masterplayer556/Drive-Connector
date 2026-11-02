@@ -16,7 +16,7 @@ Die Dateien bleiben in den einzelnen Google-Konten gespeichert – die App ist n
 
 | Ebene | Verhalten |
 |---|---|
-| **Frontend (was ich sehe)** | Eine einzige Ordnerstruktur, als wäre alles in einem Drive. Ganz oben: `Privat/` und `Schule/`. |
+| **Frontend (was ich sehe)** | Eine einzige Ordnerstruktur, als wäre alles in einem Drive. Ganz oben: `Privat/` und `Archiv/`. |
 | **Backend (wo es liegt)** | Egal. Ein Ordner kann in einem Konto liegen oder auf mehrere Konten verteilt sein. |
 | **Fix** | Ein Foto bleibt immer in dem Ordner, dem es zugeteilt wurde. Die App ändert nur das *Konto*, nie den *Ordner*. |
 
@@ -25,8 +25,8 @@ Die Dateien bleiben in den einzelnen Google-Konten gespeichert – die App ist n
 Ordner mit demselben Pfad in verschiedenen Konten gelten als **ein** Ordner.
 
 ```
-Konto A:  Schule/Mathe/   1.png … 40.png    ┐
-Konto B:  Schule/Mathe/   41.png … 60.png   ┴─►  Frontend:  Schule/Mathe/   1.png … 60.png
+Konto A:  Archiv/Mathe/   1.png … 40.png    ┐
+Konto B:  Archiv/Mathe/   41.png … 60.png   ┴─►  Frontend:  Archiv/Mathe/   1.png … 60.png
 ```
 
 - Wird ein Ordner in einem Konto ohne seinen Elternordner angelegt, erstellt die App den Pfad dort automatisch (leere Hilfsordner, 0 Byte).
@@ -39,22 +39,24 @@ Konto B:  Schule/Mathe/   41.png … 60.png   ┴─►  Frontend:  Schule/Mathe
 
 | Konto | Inhalt heute | Rolle |
 |---|---|---|
-| 1 | Grosser Ordner mit vielen Unterordnern | Schule |
-| 2 | ca. 6 freistehende Ordner | Schule |
-| 3 | 2 Ordner ohne Unterordner | Schule |
+| 1 | Grosser Ordner mit vielen Unterordnern | Archiv |
+| 2 | ca. 6 freistehende Ordner | Archiv |
+| 3 | 2 Ordner ohne Unterordner | Archiv |
 | 4 | 6 Ordner ohne Unterordner | **Privat-Konto** (Fotos landen bevorzugt hier) |
 
 4 × 15 GB = **60 GB**. Google Fotos belegt überall 0 GB.
-Rebalancing darf Ordner zwischen allen Konten verschieben – auch zwischen Privat- und Schul-Konten.
+Rebalancing darf Ordner zwischen allen Konten verschieben – auch zwischen Privat- und Archiv-Konten.
 
-**Einmalige Einrichtung:** Ein Assistent fragt für jeden bestehenden Ordner „Schule oder Privat?“ und verschiebt ihn innerhalb seines Kontos unter `Schule/` bzw. `Privat/` (kein Kopieren, kein Umbenennen).
+**Einmalige Einrichtung:** Ein Assistent fragt für jeden bestehenden Ordner „Archiv oder Privat?“ und verschiebt ihn innerhalb seines Kontos unter `Archiv/` bzw. `Privat/` (kein Kopieren, kein Umbenennen).
 
 ---
 
 ## 2. Regelwerk
 
+> Hinweis: Der Bereich „Schule“ wurde in „Archiv“ umbenannt.
+
 ### Regel 1 – Ein Drive im Frontend
-Ordner verschiedener Konten werden über den Pfad zusammengeführt. Oberste Ebene: `Privat/` und `Schule/`.
+Ordner verschiedener Konten werden über den Pfad zusammengeführt. Oberste Ebene: `Privat/` und `Archiv/`.
 
 ### Regel 2 – Dateien bleiben in ihrem Ordner, kein automatisches Umbenennen
 - Die App benennt **nie von sich aus** um. Ausnahmen sind nur Regel 11, 12 und 14.
@@ -72,12 +74,12 @@ Ordner verschiedener Konten werden über den Pfad zusammengeführt. Oberste Eben
 Erreicht ein Ordner **ohne Unterordner** 15 GB oder mehr, macht die App nichts:
 der **Upload wird blockiert** und ich erhalte eine **Push-Nachricht**. Ich löse das Problem selbst.
 
-### Regel 5 – Gruppenregel für den grossen Schulordner
+### Regel 5 – Gruppenregel für den grossen Archivordner
 Nur für diesen einen Ordner: Seine Unterordner werden nach Anfangsbuchstaben in Gruppen geteilt (z. B. **A–M** / **N–Z**).
 Jede Gruppe ist eine Einheit und liegt möglichst komplett in einem Konto. Neue Unterordner gehen in ihre Buchstabengruppe.
 
 ### Regel 6 – Rebalancing (nur Vorschläge)
-- Die App erstellt **Pläne**, z. B. „`Schule/Reisen/` von Konto 2 nach Konto 3 → 4,2 GB frei“. Ich tippe auf **Ausführen** oder **Ablehnen**.
+- Die App erstellt **Pläne**, z. B. „`Archiv/Reisen/` von Konto 2 nach Konto 3 → 4,2 GB frei“. Ich tippe auf **Ausführen** oder **Ablehnen**.
 - Einheit = ein Ordner mit seinen direkten Dateien (Unterordner sind eigene Einheiten).
 - Ziel: möglichst viele Einheiten ganz in einem Konto, möglichst grosse freie Blöcke.
 - Ablauf beim Verschieben (ohne dass eine Datei geöffnet wird):
@@ -117,7 +119,7 @@ Ordner können gesperrt werden. Gesperrte Ordner werden **nie** verschoben oder 
   - Ordner ohne Unterordner ≥ 15 GB (Regel 4)
   - Konto nicht mehr erreichbar (Zugriff entzogen, Passwort geändert)
   - Bericht nach ausgeführtem Rebalancing
-- Anzeige: Gesamtspeicher, Balken pro Konto, Füllstand pro Hauptordner (`Schule` / `Privat`).
+- Anzeige: Gesamtspeicher, Balken pro Konto, Füllstand pro Hauptordner (`Archiv` / `Privat`).
 
 ### Regel 11 – Reihenfolge-Upload (optional)
 - Schalter **„Reihenfolge festlegen“** beim Upload.
@@ -188,7 +190,7 @@ Die App führt ein einsehbares Protokoll (filterbar) über Uploads, Umbenennunge
 | Kosten | ~0 CHF (Gratis-Stufen), optional eigene Domain |
 
 ### Grobes Datenmodell
-- `accounts` – Google-Konto, Rolle (Schule/Privat), Token (verschlüsselt), Quota, Status
+- `accounts` – Google-Konto, Rolle (Archiv/Privat; intern `schule` = Archiv), Token (verschlüsselt), Quota, Status
 - `files` – Google-ID, Konto, logischer Pfad, Name, Grösse, MD5, Aufnahmedatum, Originalname
 - `folders` – logischer Pfad, Konto(en), gesperrt ja/nein, Gruppenregel
 - `rebalance_plans` – Vorschläge mit Schritten und Status
@@ -220,7 +222,7 @@ Die App führt ein einsehbares Protokoll (filterbar) über Uploads, Umbenennunge
 1. **MVP** ✅ umgesetzt (Einrichtung siehe [SETUP.md](SETUP.md))
    - Google-Cloud-Projekt + Supabase einrichten
    - Konten verbinden, Gesamtspeicher anzeigen
-   - Einrichtungs-Assistent (`Schule/` / `Privat/`)
+   - Einrichtungs-Assistent (`Archiv/` / `Privat/`)
    - Zusammengeführte Ordneransicht (Galerie), Ordner erstellen, löschen
    - Foto-Upload mit Duplikat-Prüfung, Zahlen-Schutz, Reihenfolge-Upload
    - Protokoll

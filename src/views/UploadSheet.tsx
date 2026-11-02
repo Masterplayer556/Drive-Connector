@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Icon from "../components/Icon";
 import { knownMd5, releaseNumbers, reserveNumbers, syncAccounts, writeLogs, type LogInput } from "../lib/db";
 import { formatBytes } from "../lib/format";
 import { md5OfFile } from "../lib/md5";
 import { maxNumber } from "../lib/naming";
 import { planUpload, summarize, type PlanEntry, type PlanFile, type PlanInput } from "../lib/plan";
 import { executeUpload, type UploadProgress, type UploadResult } from "../lib/upload";
+import { useCountUp } from "../lib/useCountUp";
 import type { Account, Crumb, FolderContent } from "../lib/types";
 
 type Phase = "analyse" | "review" | "upload" | "done";
@@ -14,6 +16,34 @@ const REASON: Record<string, string> = {
   zahlenschutz: "Zahlen-Schutz",
   konflikt: "Namenskonflikt",
 };
+
+function Ring({ value, total, label }: { value: number; total: number; label: string }) {
+  const r = 70;
+  const c = 2 * Math.PI * r;
+  const pct = total > 0 ? Math.min(1, value / total) : 0;
+  const shown = useCountUp(value, 400);
+  return (
+    <div className="progress-ring">
+      <svg viewBox="0 0 168 168" width={168} height={168}>
+        <defs>
+          <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#8b5cf6" />
+            <stop offset="55%" stopColor="#3b82f6" />
+            <stop offset="100%" stopColor="#22d3ee" />
+          </linearGradient>
+        </defs>
+        <circle className="track" cx="84" cy="84" r={r} />
+        <circle className="value" cx="84" cy="84" r={r} strokeDasharray={c} strokeDashoffset={c * (1 - pct)} />
+      </svg>
+      <div className="center">
+        <strong>{Math.round(shown)}</strong>
+        <span>
+          von {total} {label}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function UploadSheet({
   files,
@@ -39,6 +69,8 @@ export default function UploadSheet({
   const [result, setResult] = useState<{ upload: UploadResult; plan: PlanEntry[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNames, setShowNames] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const background = useRef<Promise<unknown> | null>(null);
 
   const byId = useMemo(() => new Map(files.map((f, i) => [`f${i}`, f])), [files]);
   const previews = useMemo(() => new Map([...byId].map(([id, f]) => [id, URL.createObjectURL(f)])), [byId]);
@@ -98,9 +130,9 @@ export default function UploadSheet({
   const start = async () => {
     setPhase("upload");
     setError(null);
-    let finalPlan = plan;
     let reserved: number[] = [];
     try {
+      let finalPlan: PlanEntry[];
       if (orderMode && sum.numbered > 0) {
         const first = await reserveNumbers(target.key, sum.numbered);
         reserved = Array.from({ length: sum.numbered }, (_, i) => first + i);
@@ -149,201 +181,277 @@ export default function UploadSheet({
           message: `Ordner „${target.path}“ hat 15 GB erreicht – ${s.limit} Foto(s) nicht hochgeladen`,
         });
       }
-      await writeLogs(logs);
-      if (upload.accountIds.length) await syncAccounts(upload.accountIds);
+
+      // Protokoll + Index im Hintergrund – Ergebnis sofort zeigen
+      const toRelease = reserved;
+      reserved = [];
+      background.current = Promise.all([
+        writeLogs(logs),
+        upload.accountIds.length ? syncAccounts(upload.accountIds) : Promise.resolve(),
+      ])
+        .catch(() => undefined)
+        .finally(() => releaseNumbers(target.key, toRelease).catch(() => undefined));
+
       setResult({ upload, plan: finalPlan });
       setPhase("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("done");
-    } finally {
-      // Nach dem Sync sind hochgeladene Nummern im Index – Reservierungen freigeben
       await releaseNumbers(target.key, reserved).catch(() => undefined);
     }
   };
 
+  const close = async () => {
+    setClosing(true);
+    if (background.current) await background.current;
+    onClose(phase === "done");
+  };
+
   const totalBytes = plan.filter((e) => e.status === "upload").reduce((s, e) => s + e.size, 0);
+  const done = result ? summarize(result.plan) : null;
+  const renamedCount = result ? result.upload.uploaded.filter((u) => u.renamed && u.renamed !== "reihenfolge").length : 0;
 
   return (
-    <div className="sheet">
-      <div className="sheet-head">
-        <strong>Hochladen nach „{target.path}“</strong>
-        {phase !== "upload" && (
-          <button className="btn ghost" onClick={() => onClose(phase === "done")}>
-            ✕
-          </button>
-        )}
-      </div>
-
-      {error && <div className="banner error">{error}</div>}
-
-      {phase === "analyse" && !error && (
-        <div className="stack pad">
-          <p>
-            Prüfe Fotos … {analysed}/{files.length}
-          </p>
-          <div className="bar">
-            <div className="bar-fill" style={{ width: `${(analysed / files.length) * 100}%` }} />
+    <>
+      <div className="sheet-backdrop" />
+      <div className="sheet">
+        <div className="sheet-grip" />
+        <div className="sheet-head">
+          <div style={{ minWidth: 0 }}>
+            <div className="muted small ellipsis">nach „{target.path}“</div>
+            <h2>
+              {phase === "analyse" && "Fotos prüfen"}
+              {phase === "review" && `${files.length} Foto${files.length === 1 ? "" : "s"}`}
+              {phase === "upload" && "Lade hoch"}
+              {phase === "done" && "Fertig"}
+            </h2>
           </div>
+          {phase !== "upload" && (
+            <button className="icon-btn" onClick={close} disabled={closing} aria-label="Schliessen">
+              {closing ? <span className="spinner" /> : <Icon name="x" />}
+            </button>
+          )}
         </div>
-      )}
 
-      {phase === "review" && (
-        <div className="stack pad">
-          <label className="switch">
-            <input
-              type="checkbox"
-              checked={orderMode}
-              onChange={(e) => {
-                setOrderMode(e.target.checked);
-                setOrder([]);
-              }}
-            />
-            <span>Reihenfolge festlegen</span>
-          </label>
-          {orderMode && (
+        <div className="sheet-body">
+          {error && (
+            <div className="banner error" style={{ margin: 0, width: "100%" }}>
+              <Icon name="alert" size={18} />
+              {error}
+            </div>
+          )}
+
+          {phase === "analyse" && !error && <Ring value={analysed} total={files.length} label="geprüft" />}
+
+          {phase === "review" && (
             <>
-              <p className="muted small">
-                Tippe die Fotos in der gewünschten Reihenfolge an. Nicht angetippte folgen danach. Es wird ab{" "}
-                <strong>{baseInput.startNumber}</strong> gezählt.
-              </p>
-              <div className="row">
-                <button className="btn small" onClick={() => setOrder(planFiles.map((f) => f.id))}>
-                  Auswahlreihenfolge übernehmen
-                </button>
-                <button className="btn small ghost" onClick={() => setOrder([])}>
-                  Zurücksetzen
-                </button>
+              <label className="switch-row glass">
+                <span>
+                  <strong>Reihenfolge festlegen</strong>
+                  <div className="muted small">
+                    {orderMode ? `Nummern ab ${baseInput.startNumber}` : "Fotos der Reihe nach nummerieren"}
+                  </div>
+                </span>
+                <span className="switch">
+                  <input
+                    type="checkbox"
+                    checked={orderMode}
+                    onChange={(e) => {
+                      setOrderMode(e.target.checked);
+                      setOrder([]);
+                    }}
+                  />
+                  <span />
+                </span>
+              </label>
+
+              {orderMode && (
+                <div className="stack" style={{ gap: 8 }}>
+                  <span className="muted small">
+                    Tippe die Fotos in der gewünschten Reihenfolge an ({order.filter((id) => plan.find((e) => e.id === id)?.status === "upload").length}/{sum.numbered} gewählt).
+                  </span>
+                  <div className="row">
+                    <button className="btn small" onClick={() => setOrder(planFiles.map((f) => f.id))}>
+                      Alle der Reihe nach
+                    </button>
+                    {order.length > 0 && (
+                      <button className="btn small ghost" onClick={() => setOrder([])}>
+                        Zurücksetzen
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid stagger">
+                {planFiles.map((f, i) => {
+                  const entry = plan.find((e) => e.id === f.id)!;
+                  const pos = order.indexOf(f.id);
+                  return (
+                    <button
+                      key={f.id}
+                      className={`cell ${entry.status !== "upload" ? "dimmed" : ""} ${pos >= 0 ? "selected" : ""}`}
+                      style={{ ["--i" as string]: i }}
+                      onClick={() => orderMode && entry.status === "upload" && toggleOrder(f.id)}
+                    >
+                      <div className="thumb-wrap">
+                        <img className="thumb loaded" src={previews.get(f.id)} alt={f.name} />
+                        {entry.status === "duplicate" && <span className="tag">Duplikat</span>}
+                        {entry.status === "conflict" && <span className="tag">Konflikt</span>}
+                        {entry.status === "limit" && <span className="tag">15 GB</span>}
+                      </div>
+                      {orderMode && pos >= 0 && <span className="badge">{pos + 1}</span>}
+                      <span className="cell-name">{entry.targetName}</span>
+                    </button>
+                  );
+                })}
               </div>
+
+              {conflictsWithoutRename > 0 && !orderMode && (
+                <div className="card glass stack" style={{ margin: 0 }}>
+                  <strong>
+                    {conflictsWithoutRename} Name{conflictsWithoutRename === 1 ? "" : "n"} gibt es hier schon
+                  </strong>
+                  <label className={`choice ${conflictMode === "skip" ? "on" : ""}`}>
+                    <input type="radio" checked={conflictMode === "skip"} onChange={() => setConflictMode("skip")} />
+                    Überspringen
+                  </label>
+                  <label className={`choice ${conflictMode === "rename" ? "on" : ""}`}>
+                    <input type="radio" checked={conflictMode === "rename"} onChange={() => setConflictMode("rename")} />
+                    Mit „Foto_Datum“-Namen hochladen
+                  </label>
+                </div>
+              )}
+
+              {sum.limit > 0 && (
+                <div className="banner warn" style={{ margin: 0, width: "100%" }}>
+                  <Icon name="alert" size={18} />
+                  <span>
+                    Dieser Ordner hat keine Unterordner und erreicht 15 GB. {sum.limit} Foto(s) werden nicht hochgeladen –
+                    bitte teile den Ordner selbst auf.
+                  </span>
+                </div>
+              )}
+
+              <div className="stat-chips">
+                <span className="stat-chip">
+                  <b>{sum.upload}</b> neu · {formatBytes(totalBytes)}
+                </span>
+                {sum.duplicate > 0 && (
+                  <span className="stat-chip">
+                    <b>{sum.duplicate}</b> Duplikate
+                  </span>
+                )}
+                {sum.renamed > 0 && (
+                  <span className="stat-chip">
+                    <b>{sum.renamed}</b> umbenannt
+                  </span>
+                )}
+                {sum.numbered > 0 && (
+                  <span className="stat-chip">
+                    <b>{sum.numbered}</b> nummeriert
+                  </span>
+                )}
+                {sum.conflict > 0 && (
+                  <span className="stat-chip">
+                    <b>{sum.conflict}</b> übersprungen
+                  </span>
+                )}
+              </div>
+
+              <button className="link small" style={{ alignSelf: "center" }} onClick={() => setShowNames((s) => !s)}>
+                {showNames ? "Namen ausblenden" : "Neue Namen anzeigen"}
+              </button>
+              {showNames && (
+                <ul className="names">
+                  {plan
+                    .filter((e) => e.status === "upload")
+                    .map((e) => (
+                      <li key={e.id}>
+                        {e.originalName === e.targetName ? e.targetName : `${e.originalName} → ${e.targetName}`}
+                      </li>
+                    ))}
+                </ul>
+              )}
+
+              <button className="btn primary block" disabled={sum.upload === 0} onClick={start}>
+                <Icon name="upload" size={19} /> {sum.upload} Foto{sum.upload === 1 ? "" : "s"} hochladen
+              </button>
             </>
           )}
 
-          <div className="grid">
-            {planFiles.map((f) => {
-              const entry = plan.find((e) => e.id === f.id)!;
-              const pos = order.indexOf(f.id);
-              return (
-                <button
-                  key={f.id}
-                  className={`cell ${entry.status !== "upload" ? "dimmed" : ""}`}
-                  onClick={() => orderMode && entry.status === "upload" && toggleOrder(f.id)}
-                >
-                  <img className="thumb" src={previews.get(f.id)} alt={f.name} />
-                  {orderMode && pos >= 0 && <span className="badge">{pos + 1}</span>}
-                  {entry.status === "duplicate" && <span className="tag">Duplikat</span>}
-                  {entry.status === "conflict" && <span className="tag">Konflikt</span>}
-                  {entry.status === "limit" && <span className="tag">15 GB</span>}
-                  <span className="cell-name">{entry.targetName}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {conflictsWithoutRename > 0 && !orderMode && (
-            <div className="card stack">
-              <p>
-                <strong>{conflictsWithoutRename}</strong> Foto(s) haben einen Namen, den es in diesem Ordner schon gibt.
+          {phase === "upload" && (
+            <>
+              <Ring value={progress?.done ?? 0} total={progress?.total ?? sum.upload} label="hochgeladen" />
+              {progress && progress.failed > 0 && (
+                <p className="error small" style={{ textAlign: "center" }}>
+                  {progress.failed} Fehler
+                </p>
+              )}
+              <p className="muted small" style={{ textAlign: "center" }}>
+                Bitte die App offen lassen – der Bildschirm bleibt an.
               </p>
-              <label className="radio">
-                <input type="radio" checked={conflictMode === "skip"} onChange={() => setConflictMode("skip")} />
-                Überspringen
-              </label>
-              <label className="radio">
-                <input type="radio" checked={conflictMode === "rename"} onChange={() => setConflictMode("rename")} />
-                Mit „Foto_Datum“-Namen hochladen
-              </label>
-            </div>
+            </>
           )}
 
-          {sum.limit > 0 && (
-            <div className="banner warn">
-              Dieser Ordner hat keine Unterordner und erreicht 15 GB. {sum.limit} Foto(s) werden nicht hochgeladen –
-              bitte teile den Ordner selbst auf.
-            </div>
+          {phase === "done" && result && done && (
+            <>
+              <div className="done-check">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </div>
+              <h2 style={{ textAlign: "center" }}>
+                {result.upload.uploaded.length} Foto{result.upload.uploaded.length === 1 ? "" : "s"} hochgeladen
+              </h2>
+              <div className="stat-chips">
+                {done.duplicate > 0 && (
+                  <span className="stat-chip">
+                    <b>{done.duplicate}</b> Duplikate übersprungen
+                  </span>
+                )}
+                {renamedCount > 0 && (
+                  <span className="stat-chip">
+                    <b>{renamedCount}</b> umbenannt
+                  </span>
+                )}
+                {done.conflict > 0 && (
+                  <span className="stat-chip">
+                    <b>{done.conflict}</b> Konflikte übersprungen
+                  </span>
+                )}
+                {done.limit > 0 && (
+                  <span className="stat-chip">
+                    <b>{done.limit}</b> blockiert (15 GB)
+                  </span>
+                )}
+              </div>
+              {result.upload.failed.length > 0 && (
+                <div className="banner error" style={{ margin: 0, width: "100%", display: "block" }}>
+                  <strong>{result.upload.failed.length} fehlgeschlagen</strong>
+                  <ul className="names">
+                    {result.upload.failed.map((f) => (
+                      <li key={f.entry.id}>
+                        {f.entry.originalName}: {f.error}
+                      </li>
+                    ))}
+                  </ul>
+                  Wähle die Fotos einfach nochmals aus – bereits hochgeladene werden übersprungen.
+                </div>
+              )}
+              <button className="btn primary block" onClick={close} disabled={closing}>
+                {closing ? <span className="spinner" /> : "Fertig"}
+              </button>
+            </>
           )}
 
-          <div className="card small">
-            <div>
-              <strong>{sum.upload}</strong> werden hochgeladen ({formatBytes(totalBytes)})
-            </div>
-            {sum.duplicate > 0 && <div>{sum.duplicate} Duplikat(e) werden übersprungen</div>}
-            {sum.renamed > 0 && <div>{sum.renamed} werden umbenannt (Zahlen-Schutz / Konflikt)</div>}
-            {sum.numbered > 0 && <div>{sum.numbered} werden nummeriert</div>}
-            {sum.conflict > 0 && <div>{sum.conflict} Konflikt(e) werden übersprungen</div>}
-            <button className="link" onClick={() => setShowNames((s) => !s)}>
-              {showNames ? "Namen ausblenden" : "Neue Namen anzeigen"}
+          {phase === "done" && !result && (
+            <button className="btn primary block" onClick={close} disabled={closing}>
+              Schliessen
             </button>
-            {showNames && (
-              <ul className="names">
-                {plan
-                  .filter((e) => e.status === "upload")
-                  .map((e) => (
-                    <li key={e.id}>
-                      {e.originalName === e.targetName ? e.targetName : `${e.originalName} → ${e.targetName}`}
-                    </li>
-                  ))}
-              </ul>
-            )}
-          </div>
-
-          <button className="btn primary" disabled={sum.upload === 0} onClick={start}>
-            Hochladen ({sum.upload})
-          </button>
-        </div>
-      )}
-
-      {phase === "upload" && (
-        <div className="stack pad">
-          <p>
-            Lade hoch … {progress?.done ?? 0}/{progress?.total ?? sum.upload}
-            {progress && progress.failed > 0 && <> · {progress.failed} Fehler</>}
-          </p>
-          <div className="bar">
-            <div
-              className="bar-fill"
-              style={{ width: `${progress && progress.total ? (progress.done / progress.total) * 100 : 0}%` }}
-            />
-          </div>
-          <p className="muted small">Bitte die App offen lassen – der Bildschirm bleibt an.</p>
-        </div>
-      )}
-
-      {phase === "done" && result && (
-        <div className="stack pad">
-          <p>
-            <strong>{result.upload.uploaded.length} hochgeladen</strong>
-            {summarize(result.plan).duplicate > 0 && <> · {summarize(result.plan).duplicate} Duplikate übersprungen</>}
-            {result.upload.uploaded.filter((u) => u.renamed && u.renamed !== "reihenfolge").length > 0 && (
-              <> · {result.upload.uploaded.filter((u) => u.renamed && u.renamed !== "reihenfolge").length} umbenannt</>
-            )}
-            {summarize(result.plan).conflict > 0 && <> · {summarize(result.plan).conflict} Konflikte übersprungen</>}
-            {summarize(result.plan).limit > 0 && <> · {summarize(result.plan).limit} blockiert (15 GB)</>}
-          </p>
-          {result.upload.failed.length > 0 && (
-            <div className="banner error">
-              <strong>{result.upload.failed.length} fehlgeschlagen:</strong>
-              <ul className="names">
-                {result.upload.failed.map((f) => (
-                  <li key={f.entry.id}>
-                    {f.entry.originalName}: {f.error}
-                  </li>
-                ))}
-              </ul>
-              Wähle die Fotos einfach nochmals aus – bereits hochgeladene werden übersprungen.
-            </div>
           )}
-          <button className="btn primary" onClick={() => onClose(true)}>
-            Schliessen
-          </button>
         </div>
-      )}
-      {phase === "done" && !result && (
-        <div className="stack pad">
-          <button className="btn primary" onClick={() => onClose(true)}>
-            Schliessen
-          </button>
-        </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }

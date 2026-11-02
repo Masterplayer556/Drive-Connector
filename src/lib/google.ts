@@ -191,3 +191,12 @@ export async function downloadBlob(accountId: string, id: string): Promise<Blob>
 export function sizedThumb(link: string, size: number): string {
   return /=s\d+(-[a-z0-9-]+)?$/.test(link) ? link.replace(/=s\d+(-[a-z0-9-]+)?$/, `=s${size}`) : `${link}=s${size}`;
 }
+
+/** Umbenennen (nur auf ausdrücklichen Wunsch, z. B. „Schule“ → „Archiv“). */
+export function renameItem(accountId: string, id: string, name: string): Promise<DriveFile> {
+  return driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?fields=id,name`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}

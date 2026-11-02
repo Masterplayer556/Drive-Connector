@@ -1,3 +1,4 @@
+/** Bereich eines Kontos. "schule" = Archiv (früherer Name, bleibt in der Datenbank so). */
 export type Role = "schule" | "privat";
 
 export interface Account {

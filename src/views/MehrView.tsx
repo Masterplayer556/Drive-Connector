@@ -1,8 +1,13 @@
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
+import Icon, { type IconName } from "../components/Icon";
+import Topbar from "../components/Topbar";
+import { useUI } from "../components/ui";
+import { invalidateAll } from "../lib/cache";
 import { syncAccounts } from "../lib/db";
 import { navigate } from "../lib/route";
 import { supabase } from "../lib/supabase";
+import type { Account } from "../lib/types";
 
 interface Enroll {
   factorId: string;
@@ -10,18 +15,48 @@ interface Enroll {
   secret: string;
 }
 
-export default function MehrView({ session }: { session: Session }) {
+function Item({
+  icon,
+  bg,
+  title,
+  sub,
+  onClick,
+  danger,
+  right,
+}: {
+  icon: IconName;
+  bg: string;
+  title: string;
+  sub?: string;
+  onClick?: () => void;
+  danger?: boolean;
+  right?: React.ReactNode;
+}) {
+  return (
+    <button className={`list-item ${danger ? "danger" : ""}`} onClick={onClick}>
+      <span className="li-icon" style={{ background: bg }}>
+        <Icon name={icon} size={18} />
+      </span>
+      <span className="li-text">
+        {title}
+        {sub && <small>{sub}</small>}
+      </span>
+      {right ?? (onClick && <Icon name="chevronRight" size={18} className="faint" />)}
+    </button>
+  );
+}
+
+export default function MehrView({ session, accounts }: { session: Session; accounts: Account[] }) {
+  const ui = useUI();
   const [hasMfa, setHasMfa] = useState<boolean | null>(null);
   const [factorId, setFactorId] = useState<string | null>(null);
   const [enroll, setEnroll] = useState<Enroll | null>(null);
   const [code, setCode] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const loadFactors = async () => {
     const { data, error } = await supabase.auth.mfa.listFactors();
-    if (error) return setError(error.message);
+    if (error) return ui.toast(error.message, "error");
     const f = data.totp.find((x) => x.status === "verified");
     setHasMfa(!!f);
     setFactorId(f?.id ?? null);
@@ -29,94 +64,108 @@ export default function MehrView({ session }: { session: Session }) {
 
   useEffect(() => {
     void loadFactors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startEnroll = async () => {
-    setError(null);
-    // Unbestätigte alte Versuche entfernen
     const { data: list } = await supabase.auth.mfa.listFactors();
     for (const f of list?.all ?? []) {
       if (f.status !== "verified") await supabase.auth.mfa.unenroll({ factorId: f.id });
     }
     const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "Drive Pool" });
-    if (error) return setError(error.message);
+    if (error) return ui.toast(error.message, "error");
     setEnroll({ factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret });
   };
 
   const confirmEnroll = async () => {
     if (!enroll) return;
     const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: enroll.factorId, code: code.trim() });
-    if (error) return setError(error.message);
+    if (error) return ui.toast(error.message, "error");
     setEnroll(null);
     setCode("");
-    setMessage("Zwei-Faktor-Schutz ist aktiv.");
+    ui.toast("Zwei-Faktor-Schutz ist aktiv", "ok");
     await loadFactors();
   };
 
   const removeMfa = async () => {
-    if (!factorId || !window.confirm("Zwei-Faktor-Schutz wirklich entfernen?")) return;
+    if (!factorId) return;
+    const ok = await ui.confirm({
+      title: "2FA entfernen?",
+      message: "Danach reicht wieder nur das Passwort zum Anmelden.",
+      confirmLabel: "Entfernen",
+      danger: true,
+    });
+    if (!ok) return;
     const { error } = await supabase.auth.mfa.unenroll({ factorId });
-    if (error) return setError(error.message);
-    setMessage("Zwei-Faktor-Schutz entfernt.");
+    if (error) return ui.toast(error.message, "error");
+    ui.toast("Zwei-Faktor-Schutz entfernt", "ok");
     await loadFactors();
   };
 
   const fullSync = async () => {
-    if (!window.confirm("Alle Konten komplett neu einlesen? Das kann ein paar Minuten dauern.")) return;
-    setBusy("Lese alles neu ein …");
-    setError(null);
+    const ok = await ui.confirm({
+      title: "Alles neu einlesen?",
+      message: "Alle Konten werden komplett neu eingelesen. Das kann ein paar Minuten dauern.",
+      confirmLabel: "Neu einlesen",
+    });
+    if (!ok) return;
+    setSyncing(true);
     try {
       const r = await syncAccounts(undefined, true);
       const failed = r.filter((x) => x.error);
-      if (failed.length) setError(failed.map((f) => `${f.email}: ${f.error}`).join("\n"));
-      else setMessage("Alle Konten neu eingelesen.");
+      if (failed.length) ui.toast(failed.map((f) => `${f.email}: ${f.error}`).join("\n"), "error");
+      else ui.toast("Alle Konten neu eingelesen", "ok");
+      invalidateAll();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
     } finally {
-      setBusy(null);
+      setSyncing(false);
     }
   };
 
+  const logout = async () => {
+    const ok = await ui.confirm({ title: "Abmelden?", confirmLabel: "Abmelden", danger: true });
+    if (ok) await supabase.auth.signOut();
+  };
+
   return (
-    <div className="view">
-      <header className="header">
-        <h2>Mehr</h2>
-      </header>
-      {message && <div className="banner ok">{message}</div>}
-      {error && <div className="banner error pre">{error}</div>}
-      {busy && <div className="banner">{busy}</div>}
+    <div className="view page-fade">
+      <Topbar eyebrow={session.user.email} title="Mehr" />
 
-      <section className="card stack">
-        <div className="muted small">Angemeldet als</div>
-        <div>{session.user.email}</div>
-      </section>
+      <div className="list glass enter">
+        <Item
+          icon="compass"
+          bg="linear-gradient(135deg,#a78bfa,#ec4899)"
+          title="Einrichtung"
+          sub="Ordner Archiv oder Privat zuordnen"
+          onClick={() => navigate("einrichtung")}
+        />
+        <Item
+          icon="refresh"
+          bg="linear-gradient(135deg,#60a5fa,#6366f1)"
+          title="Komplett neu einlesen"
+          sub={`${accounts.length} Konten`}
+          onClick={syncing ? undefined : fullSync}
+          right={syncing ? <span className="spinner" /> : undefined}
+        />
+      </div>
 
-      <section className="card stack">
-        <strong>Ordner</strong>
-        <button className="btn" onClick={() => navigate("einrichtung")}>
-          🧭 Einrichtung (Schule / Privat zuordnen)
-        </button>
-        <button className="btn" disabled={!!busy} onClick={fullSync}>
-          🔄 Alle Konten komplett neu einlesen
-        </button>
-      </section>
-
-      <section className="card stack">
-        <strong>Zwei-Faktor-Schutz (2FA)</strong>
+      <div className="list glass enter" style={{ animationDelay: "60ms" }}>
         {hasMfa === null ? (
-          <span className="muted">Lädt …</span>
+          <Item icon="shield" bg="linear-gradient(135deg,#4ade80,#16a34a)" title="Zwei-Faktor-Schutz" sub="Lädt …" />
         ) : hasMfa ? (
-          <>
-            <span className="muted small">Aktiv – beim Anmelden wird ein Code aus deiner Authenticator-App verlangt.</span>
-            <button className="btn danger" onClick={removeMfa}>
-              2FA entfernen
-            </button>
-          </>
+          <Item
+            icon="shield"
+            bg="linear-gradient(135deg,#4ade80,#16a34a)"
+            title="Zwei-Faktor-Schutz"
+            sub="Aktiv – antippen zum Entfernen"
+            onClick={removeMfa}
+          />
         ) : enroll ? (
-          <>
+          <div className="stack" style={{ padding: 16 }}>
+            <strong>2FA einrichten</strong>
             <span className="muted small">
-              Scanne den QR-Code mit einer Authenticator-App (z. B. Passwörter-App auf dem iPhone, Google Authenticator)
-              oder gib den Schlüssel ein.
+              Scanne den QR-Code mit der Passwörter-App des iPhones oder einer Authenticator-App.
             </span>
             <img className="qr" src={enroll.qr} alt="QR-Code" />
             <code className="secret">{enroll.secret}</code>
@@ -125,30 +174,32 @@ export default function MehrView({ session }: { session: Session }) {
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={6}
-              placeholder="6-stelliger Code"
+              placeholder="000000"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
             />
             <button className="btn primary" disabled={code.length !== 6} onClick={confirmEnroll}>
               Bestätigen
             </button>
-          </>
+          </div>
         ) : (
-          <>
-            <span className="muted small">Empfohlen: Die App hat Vollzugriff auf alle deine Drives.</span>
-            <button className="btn" onClick={startEnroll}>
-              2FA einrichten
-            </button>
-          </>
+          <Item
+            icon="shield"
+            bg="linear-gradient(135deg,#fbbf24,#f97316)"
+            title="Zwei-Faktor-Schutz einrichten"
+            sub="Empfohlen – die App hat Zugriff auf alle Drives"
+            onClick={startEnroll}
+          />
         )}
-      </section>
-
-      <div className="stack pad">
-        <button className="btn ghost" onClick={() => supabase.auth.signOut()}>
-          Abmelden
-        </button>
-        <p className="muted small center-text">Drive Pool · Phase 1</p>
       </div>
+
+      <div className="list glass enter" style={{ animationDelay: "120ms" }}>
+        <Item icon="logout" bg="linear-gradient(135deg,#fb7185,#e11d48)" title="Abmelden" danger onClick={logout} />
+      </div>
+
+      <p className="faint small" style={{ textAlign: "center", marginTop: 18 }}>
+        Drive Pool · Design „Aurora“
+      </p>
     </div>
   );
 }

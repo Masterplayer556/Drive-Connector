@@ -93,7 +93,7 @@ Diese Schritte machst du einmal. Alles, was mit ✅ markiert ist, ist schon erle
    - Beim Zugriff auf Google Drive das **Häkchen setzen** → **Weiter**.
    - Du landest wieder in der App, das Konto wird eingelesen.
 5. Für jedes weitere Konto wiederholen. Beim Privat-Konto oben rechts **Privat** wählen.
-6. **Mehr → Einrichtung:** bestehende Ordner „Schule“ oder „Privat“ zuordnen → **Übernehmen**.
+6. **Mehr → Einrichtung:** bestehende Ordner „Archiv“ oder „Privat“ zuordnen → **Übernehmen**.
 7. Empfohlen: **Mehr → 2FA einrichten** (z. B. mit der Passwörter-App des iPhones).
 
 ---

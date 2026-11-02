@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import Icon, { type IconName } from "../components/Icon";
+import { LineSkeleton } from "../components/Skeleton";
+import Topbar from "../components/Topbar";
 import { fetchLog } from "../lib/db";
 import { formatDateTime } from "../lib/format";
 import type { LogEntry, LogKind } from "../lib/types";
@@ -14,16 +17,16 @@ const FILTERS: { kind: LogKind | null; label: string }[] = [
   { kind: "error", label: "Fehler" },
 ];
 
-const ICON: Record<LogKind, string> = {
-  upload: "⬆️",
-  rename: "✏️",
-  delete: "🗑️",
-  move: "↔️",
-  folder: "📁",
-  account: "☁️",
-  sync: "🔄",
-  error: "⚠️",
-  setup: "🧭",
+const STYLE: Record<LogKind, { icon: IconName; bg: string }> = {
+  upload: { icon: "upload", bg: "linear-gradient(135deg,#8b5cf6,#3b82f6)" },
+  rename: { icon: "pencil", bg: "linear-gradient(135deg,#f59e0b,#f97316)" },
+  delete: { icon: "trash", bg: "linear-gradient(135deg,#f43f5e,#be123c)" },
+  move: { icon: "chevronRight", bg: "linear-gradient(135deg,#14b8a6,#0ea5e9)" },
+  folder: { icon: "folder", bg: "linear-gradient(135deg,#22d3ee,#3b82f6)" },
+  account: { icon: "cloud", bg: "linear-gradient(135deg,#4ade80,#16a34a)" },
+  sync: { icon: "refresh", bg: "linear-gradient(135deg,#60a5fa,#6366f1)" },
+  error: { icon: "alert", bg: "linear-gradient(135deg,#fb7185,#e11d48)" },
+  setup: { icon: "compass", bg: "linear-gradient(135deg,#a78bfa,#ec4899)" },
 };
 
 export default function ProtokollView() {
@@ -40,10 +43,8 @@ export default function ProtokollView() {
   }, [kind]);
 
   return (
-    <div className="view">
-      <header className="header">
-        <h2>Protokoll</h2>
-      </header>
+    <div className="view page-fade">
+      <Topbar eyebrow="Alles, was passiert ist" title="Protokoll" />
       <div className="chips">
         {FILTERS.map((f) => (
           <button key={f.label} className={`chip ${kind === f.kind ? "on" : ""}`} onClick={() => setKind(f.kind)}>
@@ -51,25 +52,40 @@ export default function ProtokollView() {
           </button>
         ))}
       </div>
-      {error && <div className="banner error">{error}</div>}
+      {error && (
+        <div className="banner error">
+          <Icon name="alert" size={18} />
+          {error}
+        </div>
+      )}
       {entries === null ? (
-        <p className="muted pad">Lädt …</p>
+        <LineSkeleton count={8} />
       ) : entries.length === 0 ? (
-        <p className="muted pad">Noch keine Einträge.</p>
+        <div className="empty">
+          <div className="empty-icon">
+            <Icon name="activity" size={32} />
+          </div>
+          <strong>Noch keine Einträge</strong>
+        </div>
       ) : (
-        <ul className="log">
-          {entries.map((e) => (
-            <li key={e.id} onClick={() => setOpen(open === e.id ? null : e.id)}>
-              <span className="log-icon">{ICON[e.kind] ?? "•"}</span>
-              <div className="log-body">
-                <div>{e.message}</div>
-                <div className="muted small">{formatDateTime(e.created_at)}</div>
-                {open === e.id && e.details != null && (
-                  <pre className="log-details">{JSON.stringify(e.details, null, 2)}</pre>
-                )}
-              </div>
-            </li>
-          ))}
+        <ul className="timeline stagger">
+          {entries.map((e, i) => {
+            const st = STYLE[e.kind] ?? STYLE.sync;
+            return (
+              <li key={e.id} style={{ ["--i" as string]: i }} onClick={() => setOpen(open === e.id ? null : e.id)}>
+                <span className="tl-icon" style={{ background: st.bg }}>
+                  <Icon name={st.icon} size={18} />
+                </span>
+                <div className="tl-body glass">
+                  <div>{e.message}</div>
+                  <div className="faint small">{formatDateTime(e.created_at)}</div>
+                  {open === e.id && e.details != null && (
+                    <pre className="tl-details">{JSON.stringify(e.details, null, 2)}</pre>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
