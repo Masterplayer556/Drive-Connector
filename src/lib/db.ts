@@ -159,12 +159,25 @@ export interface SyncResult {
   email: string;
   mode?: "full" | "changes";
   changed?: number;
+  /** Es warten noch weitere Änderungen – der Server liest sie im nächsten Aufruf ein. */
+  more?: boolean;
   error?: string;
 }
 
 export async function syncAccounts(accountIds?: string[], full = false): Promise<SyncResult[]> {
-  const r = await callFunction<{ results: SyncResult[] }>("sync", { account_ids: accountIds, full });
-  return r.results;
+  let r = await callFunction<{ results: SyncResult[] }>("sync", { account_ids: accountIds, full });
+  const results = new Map(r.results.map((x) => [x.account_id, x]));
+  // Viele angesammelte Änderungen: weiterlesen, bis alles da ist (höchstens 10 Runden)
+  for (let round = 0; round < 10; round++) {
+    const open = [...results.values()].filter((x) => x.more && !x.error).map((x) => x.account_id);
+    if (!open.length) break;
+    r = await callFunction<{ results: SyncResult[] }>("sync", { account_ids: open });
+    for (const x of r.results) {
+      const prev = results.get(x.account_id);
+      results.set(x.account_id, { ...x, changed: (prev?.changed ?? 0) + (x.changed ?? 0) });
+    }
+  }
+  return [...results.values()];
 }
 
 // ---------------------------------------------------------------------------
@@ -227,4 +240,115 @@ export async function fetchSubtreeFiles(path: string): Promise<Item[]> {
       .range(from, to),
   );
   return rows;
+}
+
+/** Wie viele Fotos stecken in einem Ordner (inkl. Unterordner)? Für die Lösch-Rückfrage. */
+export async function countSubtreeFiles(path: string): Promise<number | null> {
+  const { count, error } = await supabase
+    .from("items")
+    .select("drive_id", { count: "exact", head: true })
+    .eq("is_folder", false)
+    .ilike("path", `${escapeLike(path)}/%`);
+  return error ? null : count;
+}
+
+// ---------------------------------------------------------------------------
+// Etappe 2: Suche, Favoriten, Teilen-Links, Statistik
+// ---------------------------------------------------------------------------
+export async function searchItems(query: string, limit = 200): Promise<Item[]> {
+  const { data, error } = await supabase.rpc("search_items", { p_query: query, p_limit: limit });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Item[];
+}
+
+export async function fetchFavoriteKeys(): Promise<Set<string>> {
+  const { data, error } = await supabase.from("favorites").select("account_id,drive_id");
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((f) => `${f.account_id}|${f.drive_id}`));
+}
+
+export async function fetchFavoriteItems(): Promise<Item[]> {
+  const { data, error } = await supabase.rpc("favorite_items");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Item[];
+}
+
+export async function setFavorite(item: Item, on: boolean): Promise<void> {
+  if (on) {
+    const { error } = await supabase
+      .from("favorites")
+      .upsert({ account_id: item.account_id, drive_id: item.drive_id }, { onConflict: "owner_id,account_id,drive_id" });
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase.from("favorites").delete().eq("account_id", item.account_id).eq("drive_id", item.drive_id);
+    if (error) throw new Error(error.message);
+  }
+}
+
+export interface Share {
+  id: string;
+  account_id: string;
+  drive_id: string;
+  name: string;
+  permission_id: string;
+  url: string;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export async function fetchShares(): Promise<Share[]> {
+  const { data, error } = await supabase.from("shares").select("*").order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Share[];
+}
+
+export async function insertShare(s: Omit<Share, "id" | "created_at">): Promise<void> {
+  const { error } = await supabase.from("shares").insert(s);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteShareRow(id: string): Promise<void> {
+  const { error } = await supabase.from("shares").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export interface MonthStat {
+  month: string;
+  files: number;
+  bytes: number;
+}
+export interface AreaStat {
+  area: string;
+  files: number;
+  bytes: number;
+}
+export interface FolderStat {
+  parent_key: string;
+  path: string;
+  files: number;
+  bytes: number;
+}
+export interface Snapshot {
+  day: string;
+  usage: number;
+  quota: number;
+  files: number;
+}
+
+export async function fetchStatistics(): Promise<{ months: MonthStat[]; areas: AreaStat[]; folders: FolderStat[]; snapshots: Snapshot[] }> {
+  const [m, a, f, s] = await Promise.all([
+    supabase.rpc("upload_months", { p_months: 12 }),
+    supabase.rpc("area_usage"),
+    supabase.rpc("top_folders", { p_limit: 8 }),
+    supabase.from("usage_snapshots").select("day,usage,quota,files").order("day").limit(400),
+  ]);
+  for (const r of [m, a, f, s]) if (r.error) throw new Error(r.error.message);
+  const num = <T extends object>(rows: T[]) =>
+    rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === "string" && /^\d+$/.test(v) ? Number(v) : v])) as T);
+  return {
+    months: num((m.data ?? []) as MonthStat[]),
+    areas: num((a.data ?? []) as AreaStat[]),
+    folders: num((f.data ?? []) as FolderStat[]),
+    snapshots: num((s.data ?? []) as Snapshot[]),
+  };
 }

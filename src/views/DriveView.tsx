@@ -7,7 +7,7 @@ import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
 import { AREA_KEYS } from "../lib/areas";
 import { cachedFolder, invalidateAll, invalidateFolder, loadFolder, patchFolder, prefetchFolder } from "../lib/cache";
-import { fetchBigFolders, fetchStats, fetchSubtreeFiles, syncAccounts, writeLog } from "../lib/db";
+import { countSubtreeFiles, fetchBigFolders, fetchStats, fetchSubtreeFiles, syncAccounts, writeLog } from "../lib/db";
 import { createLogicalFolder, trashFiles, trashLogicalFolder } from "../lib/folders";
 import { formatBytes } from "../lib/format";
 import { renameItem } from "../lib/google";
@@ -23,6 +23,8 @@ const UploadSheet = lazy(() => import("./UploadSheet"));
 const AutoUploadSheet = lazy(() => import("./AutoUploadSheet"));
 const SortSheet = lazy(() => import("../components/SortSheet"));
 const DownloadSheet = lazy(() => import("../components/DownloadSheet"));
+const MoveSheet = lazy(() => import("../components/MoveSheet"));
+const SearchSheet = lazy(() => import("../components/SearchSheet"));
 const Viewer = lazy(() => import("../components/Viewer"));
 
 const ROOT: Crumb = { name: "Drive", path: "", key: "" };
@@ -64,6 +66,8 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   const [uploadFiles, setUploadFiles] = useState<File[] | null>(null);
   const [autoFiles, setAutoFiles] = useState<File[] | null>(null);
   const [sortOpen, setSortOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [download, setDownload] = useState<{ items: Item[]; mode: "photos" | "zip"; title: string; basePath: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [tick, setTick] = useState(0);
@@ -168,10 +172,12 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   const deleteFolder = async () => {
     setMenuOpen(false);
     if (stack.length < 2) return;
+    const n = await countSubtreeFiles(current.path);
+    const what = n === null ? "allen Fotos" : n === 0 ? "keinen Fotos" : `${n.toLocaleString("de-CH")} Foto${n === 1 ? "" : "s"}`;
     const ok = await ui.confirm({
       title: `„${current.name}“ löschen?`,
-      message: "Der Ordner wird mit allen Fotos und Unterordnern in allen Konten in den Papierkorb verschoben.",
-      confirmLabel: "Löschen",
+      message: `Der Ordner wird mit ${what} und allen Unterordnern in allen Konten in den Papierkorb verschoben. Wiederherstellen geht unter Mehr → Papierkorb (Google leert ihn nach 30 Tagen).`,
+      confirmLabel: n && n >= 100 ? `${n.toLocaleString("de-CH")} Fotos löschen` : "Löschen",
       danger: true,
     });
     if (!ok) return;
@@ -312,9 +318,14 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
           eyebrow={greeting()}
           title={<span className="grad-text">Dein Drive</span>}
           right={
-            <button className="icon-btn" onClick={() => setMenuOpen((m) => !m)} aria-label="Menü">
-              <Icon name="more" />
-            </button>
+            <>
+              <button className="icon-btn" onClick={() => setSearchOpen(true)} aria-label="Suchen">
+                <Icon name="search" />
+              </button>
+              <button className="icon-btn" onClick={() => setMenuOpen((m) => !m)} aria-label="Menü">
+                <Icon name="more" />
+              </button>
+            </>
           }
         >
         </Topbar>
@@ -448,6 +459,9 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
             </button>
           </span>
           <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
+            <button className="btn small" disabled={!selected.size} onClick={() => setMoveOpen(true)} aria-label="Verschieben">
+              <Icon name="move" size={17} />
+            </button>
             <button className="btn small" disabled={!selected.size} onClick={() => setSortOpen(true)} aria-label="Sortieren">
               <Icon name="sortNum" size={17} />
             </button>
@@ -556,6 +570,24 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
             }}
           />
         )}
+
+        {moveOpen && (
+          <MoveSheet
+            items={selectedItems}
+            accounts={accounts}
+            onClose={(changed) => {
+              setMoveOpen(false);
+              if (changed) {
+                setSelectMode(false);
+                setSelected(new Set());
+                invalidateFolder(current.key);
+                reload();
+              }
+            }}
+          />
+        )}
+
+        {searchOpen && <SearchSheet accounts={accounts} onOpenPath={openPath} onClose={() => setSearchOpen(false)} />}
 
         {download && (
           <DownloadSheet

@@ -55,6 +55,7 @@ export function exchangeCode(code: string): Promise<TokenResponse> {
 /** Ruft eine Google-API auf und gibt JSON zurück. */
 export async function gfetch<T = Record<string, unknown>>(token: string, url: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(url, {
+    signal: AbortSignal.timeout(30_000), // nie endlos auf Google warten
     ...init,
     headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
   });

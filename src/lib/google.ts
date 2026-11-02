@@ -251,3 +251,43 @@ export function updateItem(accountId: string, id: string, body: { name?: string;
     body: JSON.stringify(body),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Etappe 2: Teilen-Links (#15)
+// ---------------------------------------------------------------------------
+/** Link für „jeder mit dem Link kann ansehen“. */
+export async function createAnyoneLink(accountId: string, id: string): Promise<{ permissionId: string; url: string }> {
+  const p = await driveJson<{ id: string }>(accountId, `${DRIVE}/files/${encodeURIComponent(id)}/permissions?fields=id`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "anyone", role: "reader", allowFileDiscovery: false }),
+  });
+  return { permissionId: p.id, url: `https://drive.google.com/file/d/${id}/view?usp=sharing` };
+}
+
+export async function deletePermission(accountId: string, id: string, permissionId: string): Promise<void> {
+  try {
+    await driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}/permissions/${encodeURIComponent(permissionId)}`, {
+      method: "DELETE",
+    });
+  } catch (e) {
+    // Schon entfernt (z. B. in Google Drive) → ok
+    if (!String(e).includes("404")) throw e;
+  }
+}
+
+/** Verschieben innerhalb eines Kontos, optional mit neuem Namen (#10). */
+export function moveWithin(
+  accountId: string,
+  id: string,
+  newParent: string,
+  oldParent: string,
+  body: { name?: string; description?: string } = {},
+): Promise<DriveFile> {
+  const p = new URLSearchParams({ addParents: newParent, removeParents: oldParent, fields: "id,parents" });
+  return driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?${p}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}

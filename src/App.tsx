@@ -5,6 +5,8 @@ import { LineSkeleton } from "./components/Skeleton";
 import Splash from "./components/Splash";
 import { UIProvider, useUI } from "./components/ui";
 import { autoPurgeIfDue } from "./lib/trash";
+import LockScreen from "./components/LockScreen";
+import { lockEnabled, watchRelock } from "./lib/lock";
 import { clearLocalCaches, readCachedAccounts, writeCachedAccounts } from "./lib/cache";
 import { fetchAccounts } from "./lib/db";
 import { clearTokens, loadTokens } from "./lib/google";
@@ -21,6 +23,9 @@ const MehrView = lazy(() => import("./views/MehrView"));
 const EinrichtungView = lazy(() => import("./views/EinrichtungView"));
 const DuplikateView = lazy(() => import("./views/DuplikateView"));
 const PapierkorbView = lazy(() => import("./views/PapierkorbView"));
+const FavoritenView = lazy(() => import("./views/FavoritenView"));
+const StatistikView = lazy(() => import("./views/StatistikView"));
+const LinksView = lazy(() => import("./views/LinksView"));
 
 type Phase = "loading" | "login" | "mfa" | "ready" | "error";
 
@@ -58,6 +63,9 @@ function Shell() {
   const [accounts, setAccountsState] = useState<Account[]>(() => readCachedAccounts() ?? []);
   const [tokenErrors, setTokenErrors] = useState<{ email: string; error: string }[]>([]);
   const route = useRoute();
+  const [locked, setLocked] = useState(lockEnabled);
+
+  useEffect(() => watchRelock(() => setLocked(true)), []);
 
   const setAccounts = useCallback((list: Account[]) => {
     setAccountsState(list);
@@ -126,6 +134,7 @@ function Shell() {
     if (userId) void start();
   }, [userId, start]);
 
+  if (locked && session && phase !== "login") return <LockScreen onUnlock={() => setLocked(false)} />;
   if (phase === "loading") return <Splash />;
   if (phase === "login" || !session) return <LoginView />;
   if (phase === "mfa") return <MfaView onDone={start} />;
@@ -146,7 +155,9 @@ function Shell() {
     );
   }
 
-  const active = ["einrichtung", "duplikate", "papierkorb"].includes(route.name) ? "mehr" : route.name;
+  const active = ["einrichtung", "duplikate", "papierkorb", "favoriten", "statistik", "links"].includes(route.name)
+    ? "mehr"
+    : route.name;
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.name === active));
 
   const current = session;
@@ -188,6 +199,9 @@ function Shell() {
           )}
           {route.name === "duplikate" && <DuplikateView accounts={accounts} />}
           {route.name === "papierkorb" && <PapierkorbView accounts={accounts} />}
+          {route.name === "favoriten" && <FavoritenView accounts={accounts} />}
+          {route.name === "statistik" && <StatistikView accounts={accounts} />}
+          {route.name === "links" && <LinksView accounts={accounts} />}
         </Suspense>
       </>
     );

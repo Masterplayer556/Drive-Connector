@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { formatBytes, formatDateTime } from "../lib/format";
 import { downloadBlob } from "../lib/google";
 import { accountColor } from "../lib/theme";
 import { getThumb, peekThumb, VIEW_SIZE } from "../lib/thumbs";
 import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
+import { isFavorite, loadFavorites, onFavoritesChange, toggleFavorite } from "../lib/favorites";
+import { useUI } from "./ui";
+
+const ShareSheet = lazy(() => import("./ShareSheet"));
 
 export default function Viewer({
   items,
@@ -28,6 +32,23 @@ export default function Viewer({
   const [dragging, setDragging] = useState(false);
   const [closing, setClosing] = useState(false);
   const startX = useRef<number | null>(null);
+  const ui = useUI();
+  const [fav, setFav] = useState(() => isFavorite(item));
+  const [sharing, setSharing] = useState(false);
+
+  useEffect(() => {
+    void loadFavorites().then(() => setFav(isFavorite(item)));
+    return onFavoritesChange(() => setFav(isFavorite(item)));
+  }, [item]);
+
+  const heart = async () => {
+    try {
+      const on = await toggleFavorite(item);
+      ui.toast(on ? "Zu Favoriten hinzugefügt" : "Aus Favoriten entfernt", "ok");
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -83,8 +104,14 @@ export default function Viewer({
         </button>
         <span className="viewer-title">{item.name}</span>
         <span className="muted small">
-          {index + 1} / {items.length}
+          {index + 1}/{items.length}
         </span>
+        <button className={`icon-btn glass fav-btn ${fav ? "on" : ""}`} onClick={heart} aria-label="Favorit">
+          <Icon name="heart" size={20} />
+        </button>
+        <button className="icon-btn glass" onClick={() => setSharing(true)} aria-label="Link teilen">
+          <Icon name="link" size={19} />
+        </button>
       </div>
       <div
         className="viewer-stage"
@@ -127,6 +154,11 @@ export default function Viewer({
         )}
         {item.description && <span className="chip-lite">{item.description}</span>}
       </div>
+      {sharing && (
+        <Suspense fallback={null}>
+          <ShareSheet item={item} onClose={() => setSharing(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
