@@ -26,7 +26,7 @@ export default function Donut({ segments, total, size = 132 }: { segments: Segme
   let offset = 0;
   return (
     <div className="donut" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 120 120" width={size} height={size}>
+      <svg viewBox="-10 -10 140 140" width={size} height={size}>
         <circle className="donut-track" cx="60" cy="60" r={r} />
         {segments.map((s, i) => {
           const len = total > 0 ? Math.max(0, (s.value / total) * c - gap) : 0;

@@ -1,6 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import Icon, { type IconName } from "../components/Icon";
+import ThemePicker from "../components/ThemePicker";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
 import { invalidateAll } from "../lib/cache";
@@ -150,6 +151,14 @@ export default function MehrView({ session, accounts }: { session: Session; acco
         />
       </div>
 
+      <div className="section-title">
+        <span>Design</span>
+      </div>
+      <ThemePicker />
+
+      <div className="section-title">
+        <span>Sicherheit</span>
+      </div>
       <div className="list glass enter" style={{ animationDelay: "60ms" }}>
         {hasMfa === null ? (
           <Item icon="shield" bg="linear-gradient(135deg,#4ade80,#16a34a)" title="Zwei-Faktor-Schutz" sub="Lädt …" />
@@ -198,7 +207,7 @@ export default function MehrView({ session, accounts }: { session: Session; acco
       </div>
 
       <p className="faint small" style={{ textAlign: "center", marginTop: 18 }}>
-        Drive Pool · Design „Aurora“
+        Drive Pool
       </p>
     </div>
   );
