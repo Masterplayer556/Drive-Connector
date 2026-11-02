@@ -1,0 +1,17 @@
+project_id = "ijexpqxsbmuxwqibgpdr"
+
+[functions.google-connect]
+verify_jwt = true
+
+# Google leitet ohne Supabase-Login hierher zurück – geprüft wird über den signierten "state".
+[functions.google-callback]
+verify_jwt = false
+
+[functions.google-token]
+verify_jwt = true
+
+[functions.sync]
+verify_jwt = true
+
+[functions.thumb]
+verify_jwt = true
