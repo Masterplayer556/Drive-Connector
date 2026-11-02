@@ -1,5 +1,5 @@
 import type { Session } from "@supabase/supabase-js";
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Icon, { type IconName } from "./components/Icon";
 import { LineSkeleton } from "./components/Skeleton";
 import Splash from "./components/Splash";
@@ -140,9 +140,12 @@ function Shell() {
   const active = route.name === "einrichtung" ? "mehr" : route.name;
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.name === active));
 
-  return (
-    <div className="app">
-      <main className="main">
+  const current = session;
+  return <Chrome activeIndex={activeIndex} active={active}>{body()}</Chrome>;
+
+  function body() {
+    return (
+      <>
         {tokenErrors.length > 0 && route.name !== "konten" && (
           <button className="banner warn pressable" onClick={() => navigate("konten")}>
             <Icon name="alert" size={18} />
@@ -165,12 +168,57 @@ function Shell() {
             />
           )}
           {route.name === "protokoll" && <ProtokollView />}
-          {route.name === "mehr" && <MehrView session={session} accounts={accounts} />}
+          {route.name === "mehr" && <MehrView session={current} accounts={accounts} />}
           {route.name === "einrichtung" && <EinrichtungView accounts={accounts} reload={reloadAccounts} />}
         </Suspense>
-      </main>
-      <nav className="tabbar glass">
-        <span className="tab-indicator" style={{ transform: `translateX(${activeIndex * 100}%)` }} />
+      </>
+    );
+  }
+}
+
+/** Rahmen mit Liquid-Glass-Tab-Leiste: schrumpft beim Runterscrollen, Markierung dehnt sich beim Wechseln. */
+function Chrome({ activeIndex, active, children }: { activeIndex: number; active: RouteName; children: React.ReactNode }) {
+  const [compact, setCompact] = useState(false);
+  const [stretch, setStretch] = useState(false);
+  const first = useRef(true);
+
+  useEffect(() => {
+    let last = window.scrollY;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        if (y > 80 && y > last + 6) setCompact(true);
+        else if (y < last - 6 || y < 40) setCompact(false);
+        last = y;
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    setCompact(false);
+    setStretch(true);
+    const t = setTimeout(() => setStretch(false), 560);
+    return () => clearTimeout(t);
+  }, [activeIndex]);
+
+  return (
+    <div className={`app ${compact ? "compact" : ""}`}>
+      <main className="main">{children}</main>
+      <nav className={`tabbar glass ${compact ? "compact" : ""}`}>
+        <span
+          className={`tab-indicator ${stretch ? "stretch" : ""}`}
+          style={{ transform: `translateX(${activeIndex * 100}%)` }}
+        />
         {TABS.map((t) => (
           <button key={t.name} className={`tab ${active === t.name ? "active" : ""}`} onClick={() => navigate(t.name)}>
             <Icon name={t.icon} size={21} />
