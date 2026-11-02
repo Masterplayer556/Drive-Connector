@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Datenschutz – Drive Pool</title>
+    <style>
+      :root {
+        --bg: #f5f6f8;
+        --text: #111827;
+        --muted: #6b7280;
+        --link: #1d4ed8;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1220;
+          --text: #e5e7eb;
+          --muted: #94a3b8;
+          --link: #60a5fa;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+      h1 {
+        font-size: 1.6rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 1.8em;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      a {
+        color: var(--link);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Datenschutzerklärung – Drive Pool</h1>
+      <p class="muted">Stand: November 2026</p>
+
+      <p>
+        Drive Pool ist eine <strong>private App für eine einzige Person</strong> (den Betreiber). Sie fasst mehrere
+        eigene Google-Drive-Konten des Betreibers in einer Ansicht zusammen. Es gibt keine weiteren Nutzer, keine
+        Registrierung und keine Weitergabe an Dritte.
+      </p>
+
+      <h2>Welche Daten verarbeitet werden</h2>
+      <ul>
+        <li>E-Mail-Adresse und Google-Konto-ID der verbundenen Google-Konten</li>
+        <li>Zugriffsschlüssel (OAuth-Tokens) für Google Drive – verschlüsselt gespeichert</li>
+        <li>
+          Metadaten der Dateien in Google Drive (Name, Ordner, Grösse, Prüfsumme, Aufnahmedatum) für die
+          zusammengeführte Ansicht und die Duplikat-Erkennung
+        </li>
+        <li>Ein Protokoll der Aktionen in der App (z. B. Uploads, Umbenennungen)</li>
+      </ul>
+      <p>Die Fotos selbst bleiben in Google Drive und werden nicht auf anderen Servern gespeichert.</p>
+
+      <h2>Zweck</h2>
+      <p>
+        Die Daten dienen ausschliesslich dazu, die eigenen Google-Drive-Konten des Betreibers anzuzeigen, Fotos
+        hochzuladen, zu ordnen und zu löschen. Es findet keine Werbung, keine Auswertung und kein Verkauf von Daten
+        statt.
+      </p>
+
+      <h2>Wo die Daten gespeichert werden</h2>
+      <ul>
+        <li>Google Drive (Google LLC) – die Fotos und Ordner</li>
+        <li>Supabase (Rechenzentrum in Zürich, Schweiz) – Konten, verschlüsselte Tokens, Datei-Index, Protokoll</li>
+        <li>GitHub Pages – nur die App-Dateien selbst, keine persönlichen Daten</li>
+      </ul>
+
+      <h2>Nutzung von Google-Daten</h2>
+      <p>
+        Die Nutzung von Daten aus Google-APIs hält sich an die
+        <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+        einschliesslich der Anforderungen zur eingeschränkten Nutzung (Limited Use). Daten aus Google Drive werden nicht
+        an Dritte übertragen und nicht für andere Zwecke verwendet.
+      </p>
+
+      <h2>Löschung</h2>
+      <p>
+        Der Zugriff kann jederzeit unter
+        <a href="https://myaccount.google.com/connections">myaccount.google.com/connections</a> entzogen werden.
+        Auf Wunsch des Betreibers werden die zugehörigen Tokens, der Datei-Index und das Protokoll in Supabase gelöscht.
+      </p>
+
+      <h2>Kontakt</h2>
+      <p>Betreiber und Kontakt: der Inhaber des GitHub-Kontos „Masterplayer556“.</p>
+
+      <p><a href="./">Zur App</a></p>
+    </main>
+  </body>
+</html>

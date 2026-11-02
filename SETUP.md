@@ -37,11 +37,16 @@ Diese Schritte machst du einmal. Alles, was mit ✅ markiert ist, ist schon erle
    - Nutzer-Support-E-Mail: deine Adresse
    - Zielgruppe: **Extern**
    - Kontakt-E-Mail: deine Adresse → zustimmen → **Erstellen**
-5. **Zielgruppe** (Audience) → **App veröffentlichen** → bestätigen.
+5. **Branding** → folgende Felder ausfüllen → **Speichern**:
+   - Startseite der App: `https://masterplayer556.github.io/Drive-Connector/`
+   - Link zur Datenschutzerklärung: `https://masterplayer556.github.io/Drive-Connector/datenschutz.html`
+   - (Nutzungsbedingungen: leer lassen)
+   - Autorisierte Domains: `masterplayer556.github.io` – falls Google das verlangt
+6. **Zielgruppe** (Audience) → **App veröffentlichen** → bestätigen.
    Der Status muss **„In Produktion“** sein.
    ⚠️ Wichtig: Im Status „Test“ laufen die Zugriffe nach 7 Tagen ab und du müsstest jede Woche alle Konten neu verbinden.
    Eine Überprüfung durch Google ist **nicht** nötig – die App bleibt „nicht überprüft“, das ist für eine private App okay.
-6. **Clients** → **Client erstellen**
+7. **Clients** → **Client erstellen**
    - Anwendungstyp: **Webanwendung**
    - Name: `Drive Pool`
    - **Autorisierte Weiterleitungs-URIs** → URI hinzufügen:
@@ -49,7 +54,7 @@ Diese Schritte machst du einmal. Alles, was mit ✅ markiert ist, ist schon erle
      https://ijexpqxsbmuxwqibgpdr.supabase.co/functions/v1/google-callback
      ```
    - **Erstellen**
-7. Es erscheinen **Client-ID** und **Clientschlüssel** (Client Secret). Beide kopieren – du brauchst sie im nächsten Schritt.
+8. Es erscheinen **Client-ID** und **Clientschlüssel** (Client Secret). Beide kopieren – du brauchst sie im nächsten Schritt.
    (Den Clientschlüssel zeigt Google nur einmal an. Falls verpasst: beim Client einen neuen Schlüssel hinzufügen.)
 
 ---
@@ -61,8 +66,8 @@ Diese Schritte machst du einmal. Alles, was mit ✅ markiert ist, ist schon erle
 
 | Name | Wert |
 |---|---|
-| `GOOGLE_CLIENT_ID` | die Client-ID aus Schritt 2.7 |
-| `GOOGLE_CLIENT_SECRET` | der Clientschlüssel aus Schritt 2.7 |
+| `GOOGLE_CLIENT_ID` | die Client-ID aus Schritt 2.8 |
+| `GOOGLE_CLIENT_SECRET` | der Clientschlüssel aus Schritt 2.8 |
 
 3. **Save**
 
@@ -98,7 +103,7 @@ Diese Schritte machst du einmal. Alles, was mit ✅ markiert ist, ist schon erle
 | Problem | Lösung |
 |---|---|
 | „Google-Zugangsdaten fehlen“ | Schritt 3 prüfen (Namen exakt so schreiben). |
-| „redirect_uri_mismatch“ bei Google | Die Weiterleitungs-URI in Schritt 2.6 muss exakt stimmen. |
+| „redirect_uri_mismatch“ bei Google | Die Weiterleitungs-URI in Schritt 2.7 muss exakt stimmen. |
 | „Zugriff blockiert“ statt „nicht überprüft“ | In der Google Auth Platform unter **Zielgruppe** prüfen, dass die App veröffentlicht ist. Notlösung: Status „Test“ und deine 4 Konten als Testnutzer eintragen (dann alle 7 Tage neu verbinden). |
 | „Google hat keinen dauerhaften Zugriff geliefert“ | Unter https://myaccount.google.com/connections „Drive Pool“ entfernen und erneut verbinden. |
 | Konto zeigt „bitte neu verbinden“ | In der App unter **Konten → Neu verbinden**. |
