@@ -4,6 +4,7 @@
 import { adminClient } from "../_shared/auth.ts";
 import { DRIVE, getAccessToken, gfetch } from "../_shared/google.ts";
 import { errorResponse, HttpError, json } from "../_shared/http.ts";
+import { runRebalance } from "../_shared/rebalance.ts";
 import { type Account, syncAccount } from "../_shared/sync.ts";
 
 const DEADLINE_MS = 110_000; // Supabase beendet Funktionen nach 150 s
@@ -102,6 +103,17 @@ Deno.serve(async (req) => {
     }
 
     step("Links fertig");
+    // 3b. Offene Rebalancing-Pläne in Teilschritten weiterführen (Warteschlange)
+    let rebalanceMore = false;
+    if (timeLeft() > 25_000) {
+      try {
+        const r = await runRebalance(admin, ownerId, started + DEADLINE_MS - 15_000, (m) => step(m));
+        rebalanceMore = r.more;
+      } catch (e) {
+        failed.push(`Rebalancing: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    step("Rebalancing fertig");
     // 4. Speicherverlauf (ein Eintrag pro Tag)
     const { data: accs } = await admin.from("accounts").select("quota_usage, quota_limit").eq("owner_id", ownerId).eq("status", "active");
     const { count } = await admin
@@ -121,6 +133,7 @@ Deno.serve(async (req) => {
     const parts = [`${changed} Änderungen`];
     if (purged) parts.push(`${purged} aus dem Papierkorb gelöscht`);
     if (expired) parts.push(`${expired} abgelaufene Links entfernt`);
+    if (rebalanceMore) parts.push("Rebalancing läuft weiter");
     if (unfinished.length) parts.push(`noch nicht fertig: ${unfinished.join(", ")} (geht beim nächsten Abgleich weiter)`);
     await admin.from("activity_log").insert({
       owner_id: ownerId,

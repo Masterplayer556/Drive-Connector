@@ -1,4 +1,5 @@
 // Lesen aus dem Index (Postgres) und Schreiben ins Protokoll.
+import type { Plan, Step, Unit } from "./rebalance";
 import type { BigFolder, PoolStats } from "./insights";
 import { childKey, naturalCompare } from "./naming";
 import { callFunction, supabase } from "./supabase";
@@ -351,4 +352,83 @@ export async function fetchStatistics(): Promise<{ months: MonthStat[]; areas: A
     folders: num((f.data ?? []) as FolderStat[]),
     snapshots: num((s.data ?? []) as Snapshot[]),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Etappe 3: Rebalancing (Regal-Ansicht, Sperren, Gruppenregel, Pläne)
+// ---------------------------------------------------------------------------
+export async function fetchUnits(): Promise<Unit[]> {
+  const { data, error } = await supabase.rpc("rebalance_units");
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Unit[]).map((u) => ({ ...u, files: Number(u.files), bytes: Number(u.bytes) }));
+}
+
+export async function fetchLocks(): Promise<Set<string>> {
+  const { data, error } = await supabase.from("folder_locks").select("path_key");
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((l) => l.path_key as string));
+}
+
+export async function setLock(pathKey: string, on: boolean): Promise<void> {
+  const { error } = on
+    ? await supabase.from("folder_locks").upsert({ path_key: pathKey }, { onConflict: "owner_id,path_key" })
+    : await supabase.from("folder_locks").delete().eq("path_key", pathKey);
+  if (error) throw new Error(error.message);
+}
+
+export async function fetchGroupFolder(): Promise<string | null> {
+  const { data, error } = await supabase.from("settings").select("group_folder").maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data?.group_folder as string | null) ?? null;
+}
+
+export async function saveGroupFolder(key: string | null): Promise<void> {
+  const { data: s } = await supabase.auth.getSession();
+  const owner_id = s.session?.user.id;
+  if (!owner_id) throw new Error("Nicht angemeldet");
+  const { error } = await supabase
+    .from("settings")
+    .upsert({ owner_id, group_folder: key, updated_at: new Date().toISOString() }, { onConflict: "owner_id" });
+  if (error) throw new Error(error.message);
+}
+
+export interface PlanRow {
+  id: string;
+  signature: string;
+  steps: Step[];
+  bytes: number;
+  status: "queued" | "running" | "done" | "rejected" | "failed";
+  total: number;
+  done: number;
+  failed: number;
+  message: string | null;
+  created_at: string;
+  finished_at: string | null;
+}
+
+export async function fetchPlans(limit = 20): Promise<PlanRow[]> {
+  const { data, error } = await supabase.from("rebalance_plans").select("*").order("created_at", { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as PlanRow[];
+}
+
+export async function savePlan(plan: Plan, status: "queued" | "rejected"): Promise<void> {
+  const { error } = await supabase
+    .from("rebalance_plans")
+    .insert({ signature: plan.signature, steps: plan.steps, bytes: plan.bytes, status });
+  if (error) throw new Error(error.message);
+}
+
+export interface RebalanceProgress {
+  plans: { plan_id: string; total: number; done: number; failed: number; status: string }[];
+  more: boolean;
+}
+
+/** Führt offene Pläne aus und ruft so lange erneut auf, bis alles erledigt ist. */
+export async function runRebalance(onProgress?: (p: RebalanceProgress) => void, signal?: { stop: boolean }): Promise<RebalanceProgress> {
+  for (;;) {
+    const r = await callFunction<RebalanceProgress>("rebalance");
+    onProgress?.(r);
+    if (!r.more || signal?.stop) return r;
+  }
 }
