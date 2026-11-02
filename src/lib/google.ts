@@ -162,34 +162,11 @@ export function moveItem(accountId: string, id: string, newParent: string, oldPa
   });
 }
 
-/** Vorschau-Links aller Fotos in einem physischen Ordner. */
-export async function listThumbnails(accountId: string, folderId: string): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
-  let pageToken: string | undefined;
-  do {
-    const p = new URLSearchParams({
-      q: `'${folderId.replace(/'/g, "\\'")}' in parents and trashed = false`,
-      fields: "nextPageToken,files(id,thumbnailLink)",
-      pageSize: "1000",
-    });
-    if (pageToken) p.set("pageToken", pageToken);
-    const r = await driveJson<{ nextPageToken?: string; files: DriveFile[] }>(accountId, `${DRIVE}/files?${p}`);
-    for (const f of r.files) if (f.thumbnailLink) out.set(f.id, f.thumbnailLink);
-    pageToken = r.nextPageToken;
-  } while (pageToken);
-  return out;
-}
-
 /** Ganzes Foto als Blob (für die Grossansicht, falls die Vorschau fehlt). */
 export async function downloadBlob(accountId: string, id: string): Promise<Blob> {
   const res = await authedFetch(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?alt=media`);
   if (!res.ok) throw await googleError(res);
   return res.blob();
-}
-
-/** Vorschau-Link auf eine andere Grösse umstellen (=s220 → =s1600). */
-export function sizedThumb(link: string, size: number): string {
-  return /=s\d+(-[a-z0-9-]+)?$/.test(link) ? link.replace(/=s\d+(-[a-z0-9-]+)?$/, `=s${size}`) : `${link}=s${size}`;
 }
 
 /** Umbenennen (nur auf ausdrücklichen Wunsch, z. B. „Schule“ → „Archiv“). */

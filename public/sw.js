@@ -1,7 +1,7 @@
 // Service Worker: App startet aus dem Speicher.
 // - Dateien mit Hash im Namen (assets/) ändern sich nie → direkt aus dem Cache
 // - Startseite: kurz übers Netz versuchen, sonst die gespeicherte Version
-const CACHE = "drive-pool-v2";
+const CACHE = "drive-pool-v3";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {
@@ -18,7 +18,8 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // Nur alte App-Caches löschen – der Vorschaubilder-Cache (drivepool-thumbs-…) bleibt
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("drive-pool-") && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });

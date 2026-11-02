@@ -6,11 +6,12 @@ import Thumb from "../components/Thumb";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
 import { AREA_KEYS } from "../lib/areas";
-import { cachedFolder, invalidateAll, invalidateFolder, loadFolder, loadLinks, patchFolder, prefetchFolder } from "../lib/cache";
+import { cachedFolder, invalidateAll, invalidateFolder, loadFolder, patchFolder, prefetchFolder } from "../lib/cache";
 import { syncAccounts, writeLog } from "../lib/db";
 import { createLogicalFolder, trashFiles, trashLogicalFolder } from "../lib/folders";
 import { formatBytes } from "../lib/format";
 import { renameItem } from "../lib/google";
+import { warmThumbs } from "../lib/thumbs";
 import { childKey, childPath, validFolderName } from "../lib/naming";
 import { navigate } from "../lib/route";
 import { accountColor, folderHue } from "../lib/theme";
@@ -52,8 +53,6 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   const current = stack[stack.length - 1];
   const [direction, setDirection] = useState<Direction>("fade");
   const [content, setContent] = useState<FolderContent | null>(() => cachedFolder(current.key)?.content ?? null);
-  const [links, setLinks] = useState<Map<string, string>>(() => cachedFolder(current.key)?.links ?? new Map());
-  const [linksReady, setLinksReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -80,23 +79,16 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
     let cancelled = false;
     const cached = cachedFolder(current.key);
     setContent(cached?.content ?? null);
-    setLinks(cached?.links ?? new Map());
-    setLinksReady(false);
     setError(null);
     setSelected(new Set());
     setSelectMode(false);
 
     loadFolder(current.key)
-      .then(async (c) => {
+      .then((c) => {
         if (cancelled) return;
         setContent(c);
         // Unterordner im Hintergrund vorladen → Antippen öffnet sofort
-        setTimeout(() => c.folders.slice(0, 12).forEach((f) => prefetchFolder(f.key)), 400);
-        const l = await loadLinks(current.key, c);
-        if (!cancelled) {
-          setLinks(l);
-          setLinksReady(true);
-        }
+        setTimeout(() => c.folders.slice(0, 12).forEach((f) => void prefetchFolder(f.key)), 400);
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -382,7 +374,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
                           style={{ ["--i" as string]: i }}
                           onClick={() => (selectMode ? toggle(f) : setViewer(i))}
                         >
-                          <Thumb item={f} link={links.get(f.drive_id)} ready={linksReady} />
+                          <Thumb item={f} />
                           {selectMode && (
                             <span className={`check ${selected.has(itemKey(f)) ? "on" : ""}`}>
                               {selected.has(itemKey(f)) && <Icon name="check" size={15} />}
@@ -442,7 +434,6 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
           <Viewer
             items={files}
             index={viewer}
-            links={links}
             accounts={accounts}
             onIndex={setViewer}
             onClose={() => setViewer(null)}
@@ -508,7 +499,7 @@ function FolderGrid({ folders, onOpen }: { folders: LogicalFolder[]; onOpen: (f:
           key={f.key}
           className={`folder ${f.parts.length === 0 ? "pending" : ""}`}
           style={{ ["--i" as string]: i, ["--h" as string]: folderHue(f.name) }}
-          onPointerDown={() => prefetchFolder(f.key)}
+          onPointerDown={() => void prefetchFolder(f.key).then((c) => c && warmThumbs(c.files))}
           onClick={() => onOpen(f)}
         >
           <span className="folder-icon">

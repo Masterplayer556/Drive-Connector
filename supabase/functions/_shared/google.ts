@@ -65,11 +65,25 @@ export async function gfetch<T = Record<string, unknown>>(token: string, url: st
   return (await res.json()) as T;
 }
 
+const memTokens = new Map<string, { token: string; expiresAt: string }>();
+
 /**
  * Liefert ein gültiges Access-Token für ein Konto. Erneuert es bei Bedarf mit dem Refresh-Token
- * und speichert es verschlüsselt zwischen.
+ * und speichert es verschlüsselt zwischen (Datenbank + Speicher der warmen Instanz).
  */
 export async function getAccessToken(
+  admin: SupabaseClient,
+  accountId: string,
+): Promise<{ token: string; expiresAt: string }> {
+  // 1. Im Speicher der warmen Instanz
+  const mem = memTokens.get(accountId);
+  if (mem && Date.parse(mem.expiresAt) - Date.now() > 3 * 60 * 1000) return mem;
+  const fresh = await loadAccessToken(admin, accountId);
+  memTokens.set(accountId, fresh);
+  return fresh;
+}
+
+async function loadAccessToken(
   admin: SupabaseClient,
   accountId: string,
 ): Promise<{ token: string; expiresAt: string }> {
