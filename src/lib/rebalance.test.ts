@@ -136,4 +136,16 @@ describe("planRebalance", () => {
     });
     expect(p3.steps.every((s) => s.to === "p")).toBe(true);
   });
+
+  it("holt Ordner aus dem falschen Gebiet ins richtige (Privat-Ordner im Archiv-Konto)", () => {
+    const p = planRebalance({
+      accounts: [
+        { ...acc("a", 6), role: "schule" },
+        { ...acc("p", 3), role: "privat" },
+      ],
+      units: [unit("a", "Privat/Ferien", 2), unit("a", "Archiv/X", 4), unit("p", "Privat/Fotos", 3)],
+    });
+    expect(p.steps).toHaveLength(1);
+    expect(p.steps[0]).toMatchObject({ block: "privat/ferien", from: "a", to: "p", reason: "einordnen" });
+  });
 });

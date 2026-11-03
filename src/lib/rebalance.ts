@@ -44,7 +44,7 @@ export interface Step {
   to: string;
   bytes: number;
   files: number;
-  reason: "zusammenführen" | "entlasten";
+  reason: "zusammenführen" | "entlasten" | "einordnen";
   units: StepUnit[];
 }
 
@@ -93,6 +93,8 @@ interface Block {
   label: string;
   /** Gehört ins Gebiet Privat */
   privat: boolean;
+  /** Gebiet ergibt sich aus dem Pfad (Archiv/… oder Privat/…), nicht nur aus dem Konto */
+  zoneKnown: boolean;
   parts: Map<string, StepUnit[]>;
   total: number;
 }
@@ -123,7 +125,7 @@ export function planRebalance(input: {
     const { key, label } = blockOf(u, groupFolder);
     const area = areaOf(u.path);
     const privat = area ? area === "privat" : !!isPrivat.get(u.account_id);
-    const b = blocks.get(key) ?? { key, label, privat, parts: new Map(), total: 0 };
+    const b = blocks.get(key) ?? { key, label, privat, zoneKnown: !!area, parts: new Map(), total: 0 };
     const list = b.parts.get(u.account_id) ?? [];
     list.push({ account_id: u.account_id, parent_key: u.parent_key, folder_id: u.folder_id, path: u.path, files: u.files, bytes: u.bytes });
     b.parts.set(u.account_id, list);
@@ -141,6 +143,18 @@ export function planRebalance(input: {
     b.parts.delete(from);
     b.parts.set(to, [...(b.parts.get(to) ?? []), ...units.map((x) => ({ ...x, account_id: to }))]);
   };
+
+  // 0. Ordner im falschen Gebiet (z. B. Privat-Ordner in einem Archiv-Konto) ins richtige Gebiet holen
+  for (const b of [...blocks.values()].filter((x) => x.zoneKnown).sort((x, y) => y.total - x.total)) {
+    const wrong = [...b.parts.keys()].filter((id) => !allowed(b, id));
+    if (!wrong.length) continue;
+    const need = wrong.reduce((s, id) => s + sum(b.parts.get(id) ?? [], "bytes"), 0);
+    const dest = [...limit.keys()]
+      .filter((id) => allowed(b, id) && free(id) - need >= RESERVE)
+      .sort((x, y) => Number(b.parts.has(y)) - Number(b.parts.has(x)) || free(y) - free(x))[0];
+    if (!dest) continue;
+    for (const from of wrong) move(b, from, dest, "einordnen");
+  }
 
   // 1. Verteilte Blöcke zusammenführen („möglichst viele Einheiten ganz in einem Konto“)
   for (const b of [...blocks.values()].filter((x) => x.parts.size > 1).sort((x, y) => y.total - x.total)) {
@@ -191,7 +205,8 @@ export function planRebalance(input: {
     const moved = steps.filter((s) => s.block === b.key);
     if (!moved.length) continue;
     const origins = new Set([...b.parts.values()].flat().map((u) => origin.get(u.folder_id)));
-    const reason: Step["reason"] = origins.size > 1 ? "zusammenführen" : "entlasten";
+    const misplaced = [...origins].some((id) => id !== undefined && limit.has(id) && !allowed(b, id));
+    const reason: Step["reason"] = misplaced ? "einordnen" : origins.size > 1 ? "zusammenführen" : "entlasten";
     for (const [to, units] of b.parts) {
       for (const u of units) {
         const from = origin.get(u.folder_id)!;

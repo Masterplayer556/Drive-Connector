@@ -913,6 +913,11 @@ function RootContent({
   const privat = folders.find((f) => f.key === "privat");
   const others = folders.filter((f) => !AREA_KEYS.has(f.key));
   const roleCount = (r: string) => accounts.filter((a) => a.role === r).length;
+  // Privat ist abgeschottet → freier Platz pro Gebiet zählt mehr als der ganze Pool
+  const roleFree = (r: string) =>
+    active.filter((a) => a.role === r).reduce((s, a) => s + Math.max(0, (a.quota_limit ?? 0) - (a.quota_usage ?? 0)), 0);
+  const areaLine = (r: string) =>
+    `${roleCount(r)} ${roleCount(r) === 1 ? "Konto" : "Konten"} · ${formatBytes(roleFree(r))} frei`;
 
   if (accounts.length === 0) {
     return (
@@ -975,7 +980,7 @@ function RootContent({
               <span>
                 <strong>Archiv</strong>
                 <br />
-                <span>{roleCount("schule")} {roleCount("schule") === 1 ? "Konto" : "Konten"}</span>
+                <span>{areaLine("schule")}</span>
               </span>
             </button>
           )}
@@ -987,7 +992,7 @@ function RootContent({
               <span>
                 <strong>Privat</strong>
                 <br />
-                <span>{roleCount("privat")} {roleCount("privat") === 1 ? "Konto" : "Konten"}</span>
+                <span>{areaLine("privat")}</span>
               </span>
             </button>
           )}
