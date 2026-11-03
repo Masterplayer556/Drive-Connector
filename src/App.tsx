@@ -250,8 +250,18 @@ function Chrome({ activeIndex, active, children }: { activeIndex: number; active
       <main className="main">{children}</main>
       <nav className={`tabbar glass ${compact ? "compact" : ""}`}>
         <span
-          className={`tab-indicator ${stretch ? "stretch" : ""}`}
-          style={{ transform: `translateX(${activeIndex * 100}%)` }}
+          className={`tab-indicator ${stretch ? "stretch" : ""} ${
+            activeIndex === 0 ? "edge edge-left" : activeIndex === TABS.length - 1 ? "edge edge-right" : ""
+          }`}
+          style={{
+            // Bewegung über „translate“: so dehnt sich der Tropfen (scale) um seine aktuelle Position
+            // statt um den Startplatz – sonst schiesst das Glas bei weiten Sprüngen über die Leiste hinaus
+            translate: `${activeIndex * 100}% 0`,
+            transitionProperty: "translate",
+            transitionTimingFunction:
+              activeIndex === 0 || activeIndex === TABS.length - 1 ? "cubic-bezier(0.22, 1, 0.36, 1)" : undefined,
+            transformOrigin: activeIndex === 0 ? "left center" : activeIndex === TABS.length - 1 ? "right center" : undefined,
+          }}
         />
         {TABS.map((t) => (
           <button key={t.name} className={`tab ${active === t.name ? "active" : ""}`} onClick={() => navigate(t.name)}>

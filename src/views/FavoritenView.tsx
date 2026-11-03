@@ -47,6 +47,11 @@ export default function FavoritenView({ accounts }: { accounts: Account[] }) {
             <button key={`${f.account_id}|${f.drive_id}`} className="cell" style={{ ["--i" as string]: i }} onClick={() => setViewer(i)}>
               <Thumb item={f} />
               <span className="cell-name">{f.name}</span>
+                          {f.mime_type?.startsWith("video/") && (
+                            <span className="cell-play">
+                              <Icon name="play" size={14} />
+                            </span>
+                          )}
             </button>
           ))}
         </div>

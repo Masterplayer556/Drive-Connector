@@ -7,6 +7,8 @@ import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
 import { AREA_KEYS } from "../lib/areas";
 import { loadRebalance } from "../lib/rebalanceData";
+import { hueOf, useFolderColors } from "../lib/folderColors";
+import FolderActions from "../components/FolderActions";
 import { cachedFolder, invalidateAll, invalidateFolder, loadFolder, patchFolder, prefetchFolder } from "../lib/cache";
 import { countSubtreeFiles, fetchBigFolders, fetchStats, fetchSubtreeFiles, syncAccounts, writeLog } from "../lib/db";
 import { createLogicalFolder, trashFiles, trashLogicalFolder } from "../lib/folders";
@@ -15,7 +17,7 @@ import { renameItem } from "../lib/google";
 import { warmThumbs } from "../lib/thumbs";
 import { childKey, childPath, validFolderName } from "../lib/naming";
 import { navigate } from "../lib/route";
-import { accountColor, folderHue } from "../lib/theme";
+import { accountColor } from "../lib/theme";
 import type { Account, Crumb, FolderContent, Item, LogicalFolder } from "../lib/types";
 import { useCountUp } from "../lib/useCountUp";
 import { computeInsights, type BigFolder, type Insight, type PoolStats } from "../lib/insights";
@@ -243,6 +245,42 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
     }
   };
 
+  // Gedrückt halten auf einem Ordner → Menü (Farbe, umbenennen, verschieben, ZIP, löschen)
+  const [actionFolder, setActionFolder] = useState<LogicalFolder | null>(null);
+  const zipOf = async (f: LogicalFolder) => {
+    setActionFolder(null);
+    try {
+      const items = await fetchSubtreeFiles(f.path);
+      if (!items.length) return ui.toast("Keine Fotos in diesem Ordner", "info");
+      setDownload({ items, mode: "zip", title: f.name, basePath: f.path });
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
+  const deleteOf = async (f: LogicalFolder) => {
+    setActionFolder(null);
+    const n = await countSubtreeFiles(f.path);
+    const what = n === null ? "allen Fotos" : n === 0 ? "keinen Fotos" : `${n.toLocaleString("de-CH")} Foto${n === 1 ? "" : "s"}`;
+    const ok = await ui.confirm({
+      title: `„${f.name}“ löschen?`,
+      message: `Der Ordner wird mit ${what} und allen Unterordnern in allen Konten in den Papierkorb verschoben. Wiederherstellen geht unter Mehr → Papierkorb (Google leert ihn nach 30 Tagen).`,
+      confirmLabel: n && n >= 100 ? `${n.toLocaleString("de-CH")} Fotos löschen` : "Löschen",
+      danger: true,
+    });
+    if (!ok) return;
+    patchFolder(current.key, (c) => ({ ...c, folders: c.folders.filter((x) => x.key !== f.key) }));
+    setContent((c) => (c ? { ...c, folders: c.folders.filter((x) => x.key !== f.key) } : c));
+    try {
+      await trashLogicalFolder(f);
+      ui.toast(`„${f.name}“ gelöscht`, "ok");
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+    } finally {
+      invalidateAll();
+      reload();
+    }
+  };
+
   const deleteSelected = async () => {
     if (!selectedItems.length) return;
     const n = selectedItems.length;
@@ -419,6 +457,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
             onOpen={open}
             onOpenPath={openPath}
             onRenameLegacy={renameLegacyArea}
+            onLongPress={setActionFolder}
           />
         ) : (
           <>
@@ -429,7 +468,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
               </>
             ) : (
               <>
-                {content.folders.length > 0 && <FolderGrid folders={content.folders} onOpen={open} />}
+                {content.folders.length > 0 && <FolderGrid folders={content.folders} onOpen={open} onLongPress={setActionFolder} />}
                 {files.length > 0 && (
                   <>
                     {content.folders.length > 0 && (
@@ -453,6 +492,11 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
                             </span>
                           )}
                           <span className="cell-name">{f.name}</span>
+                          {f.mime_type?.startsWith("video/") && (
+                            <span className="cell-play">
+                              <Icon name="play" size={14} />
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -507,7 +551,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
             <Icon name="upload" size={20} /> Fotos sichern
             <input
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               multiple
               hidden
               onChange={(e) => {
@@ -524,7 +568,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
             <Icon name="upload" size={20} /> Hochladen
             <input
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               multiple
               hidden
               onChange={(e) => {
@@ -594,7 +638,26 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
           />
         )}
 
-        {moveOpen && (
+        {actionFolder && (
+        <FolderActions
+          folder={actionFolder}
+          accounts={accounts}
+          protectedFolder={isRoot && AREA_KEYS.has(actionFolder.key)}
+          onOpen={() => {
+            const f = actionFolder;
+            setActionFolder(null);
+            open(f);
+          }}
+          onZip={() => zipOf(actionFolder)}
+          onDelete={() => deleteOf(actionFolder)}
+          onChanged={() => {
+            invalidateAll();
+            reload();
+          }}
+          onClose={() => setActionFolder(null)}
+        />
+      )}
+      {moveOpen && (
           <MoveSheet
             items={selectedItems}
             accounts={accounts}
@@ -664,16 +727,66 @@ function Menu({
   );
 }
 
-function FolderGrid({ folders, onOpen }: { folders: LogicalFolder[]; onOpen: (f: LogicalFolder) => void }) {
+function FolderGrid({
+  folders,
+  onOpen,
+  onLongPress,
+}: {
+  folders: LogicalFolder[];
+  onOpen: (f: LogicalFolder) => void;
+  onLongPress?: (f: LogicalFolder) => void;
+}) {
+  useFolderColors();
+  const timer = useRef<number | null>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const fired = useRef(false);
+  const cancel = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
   return (
     <div className="folders stagger">
       {folders.map((f, i) => (
         <button
           key={f.key}
           className={`folder ${f.parts.length === 0 ? "pending" : ""}`}
-          style={{ ["--i" as string]: i, ["--h" as string]: folderHue(f.name) }}
-          onPointerDown={() => void prefetchFolder(f.key).then((c) => c && warmThumbs(c.files))}
-          onClick={() => onOpen(f)}
+          style={{ ["--i" as string]: i, ["--h" as string]: hueOf(f.key, f.name) }}
+          onPointerDown={(e) => {
+            void prefetchFolder(f.key).then((c) => c && warmThumbs(c.files));
+            if (!onLongPress || f.parts.length === 0) return;
+            fired.current = false;
+            start.current = { x: e.clientX, y: e.clientY };
+            const el = e.currentTarget;
+            cancel();
+            timer.current = window.setTimeout(() => {
+              fired.current = true;
+              el.classList.add("pressed");
+              setTimeout(() => el.classList.remove("pressed"), 250);
+              onLongPress(f);
+            }, 480);
+          }}
+          onPointerMove={(e) => {
+            if (start.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 10) cancel();
+          }}
+          onPointerUp={cancel}
+          onTouchEnd={(e) => {
+            // Nach dem Gedrückthalten keinen „Klick“ auslösen (der würde im geöffneten Menü landen)
+            if (fired.current) e.preventDefault();
+          }}
+          onPointerCancel={cancel}
+          onPointerLeave={cancel}
+          onContextMenu={(e) => {
+            // Rechtsklick (Desktop) bzw. iOS-Kontextmenü → eigenes Menü
+            e.preventDefault();
+            if (onLongPress && !fired.current && f.parts.length) onLongPress(f);
+          }}
+          onClick={() => {
+            if (fired.current) {
+              fired.current = false;
+              return;
+            }
+            onOpen(f);
+          }}
         >
           <span className="folder-icon">
             <Icon name="folder" size={20} />
@@ -772,12 +885,14 @@ function RootContent({
   onOpen,
   onOpenPath,
   onRenameLegacy,
+  onLongPress,
 }: {
   accounts: Account[];
   content: FolderContent | null;
   onOpen: (f: LogicalFolder) => void;
   onOpenPath: (path: string) => void;
   onRenameLegacy: (f: LogicalFolder) => void;
+  onLongPress: (f: LogicalFolder) => void;
 }) {
   const insights = useInsights(accounts);
   const active = accounts.filter((a) => a.status === "active");
@@ -883,7 +998,7 @@ function RootContent({
               Einordnen
             </button>
           </div>
-          <FolderGrid folders={others} onOpen={onOpen} />
+          <FolderGrid folders={others} onOpen={onOpen} onLongPress={onLongPress} />
         </>
       )}
 

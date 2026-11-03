@@ -1,5 +1,6 @@
 // Ordner anlegen (Pfade in einem Konto sicherstellen), Ordner und Fotos löschen.
-import { createFolder, trashItem } from "./google";
+import { createFolder, moveWithin, trashItem, updateItem } from "./google";
+import { moveFolderHues } from "./folderColors";
 import { fetchFolderParts, findFolderInAccount, syncAccounts, writeLog, writeLogs } from "./db";
 import { childPath } from "./naming";
 import { accountStates, areaOf, chooseAccount } from "./placement";
@@ -91,4 +92,34 @@ export async function trashFiles(items: Item[]): Promise<{ ok: number; failed: s
   ]);
   await syncAccounts([...new Set(items.map((i) => i.account_id))]);
   return { ok, failed };
+}
+
+/** Logischen Ordner in allen Konten umbenennen (Regel 2: nur auf ausdrücklichen Wunsch). */
+export async function renameLogicalFolder(folder: LogicalFolder, name: string): Promise<void> {
+  const parts = await fetchFolderParts(folder.path);
+  for (const p of parts) await updateItem(p.account_id, p.drive_id, { name });
+  const parentPath = folder.path.split("/").slice(0, -1).join("/");
+  const newPath = childPath(parentPath, name);
+  await moveFolderHues(folder.key, newPath.toLowerCase()).catch(() => undefined);
+  await writeLog("rename", `Ordner „${folder.path}“ → „${name}“`, { konten: parts.length });
+  await syncAccounts([...new Set(parts.map((p) => p.account_id))]);
+}
+
+/**
+ * Logischen Ordner verschieben: jeder Teil bleibt in seinem Konto und wandert dort unter den Zielpfad
+ * (fehlende Zielordner werden im selben Konto angelegt). Es wird nichts kopiert.
+ */
+export async function moveLogicalFolder(folder: LogicalFolder, target: Crumb, accounts: Account[]): Promise<void> {
+  const tk = target.key;
+  if (tk === folder.key || tk.startsWith(folder.key + "/")) throw new Error("Ein Ordner kann nicht in sich selbst verschoben werden");
+  const parts = await fetchFolderParts(folder.path);
+  const resolver = new PathResolver(accounts);
+  for (const p of parts) {
+    if (!p.parent_drive_id) throw new Error("Ursprungsordner unbekannt");
+    const parent = await resolver.ensure(p.account_id, pathSegments(target.path));
+    if (parent !== p.parent_drive_id) await moveWithin(p.account_id, p.drive_id, parent, p.parent_drive_id);
+  }
+  await moveFolderHues(folder.key, childPath(target.path, folder.name).toLowerCase()).catch(() => undefined);
+  await writeLog("move", `Ordner „${folder.path}“ nach „${target.path || "Drive"}“ verschoben`, { konten: parts.length, created: resolver.created });
+  await syncAccounts([...new Set(parts.map((p) => p.account_id))]);
 }

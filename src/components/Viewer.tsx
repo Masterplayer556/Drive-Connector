@@ -65,6 +65,8 @@ export default function Viewer({
   const [full, setFull] = useState<string | null>(null);
   const [fullState, setFullState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  const isVideo = !!item.mime_type?.startsWith("video/");
+  const [video, setVideo] = useState<{ state: "idle" | "loading" | "ready" | "error"; url?: string; pct?: number }>({ state: "idle" });
   const stageRef = useRef<HTMLDivElement>(null);
   const g = useRef<Gesture | null>(null);
   const lastTap = useRef<{ t: number; x: number; y: number } | null>(null);
@@ -96,6 +98,7 @@ export default function Viewer({
     setFull(null);
     setFullState("idle");
     setDims(null);
+    setVideo({ state: "idle" });
     setLow(peekThumb(item));
     setHigh(peekThumb(item, VIEW_SIZE));
     if (!peekThumb(item)) void getThumb(item).then((u) => alive && setLow(u)).catch(() => undefined);
@@ -103,8 +106,8 @@ export default function Viewer({
       getThumb(item, VIEW_SIZE)
         .then((u) => alive && setHigh(u))
         .catch(() =>
-          // Keine Google-Vorschau → Original laden
-          downloadBlob(item.account_id, item.drive_id)
+          // Keine Google-Vorschau → Original laden (bei Videos nicht: das lädt erst „Abspielen“)
+          (item.mime_type?.startsWith("video/") ? Promise.reject(new Error("video")) : downloadBlob(item.account_id, item.drive_id))
             .then((b) => {
               revoke = URL.createObjectURL(b);
               if (alive) setHigh(revoke);
@@ -181,7 +184,7 @@ export default function Viewer({
   const onTouchStart = (e: React.TouchEvent) => {
     lastTouch.current = Date.now();
     const t = e.touches;
-    if (t.length === 2) {
+    if (t.length === 2 && !isVideo) {
       const a = rel(t[0].clientX, t[0].clientY);
       const b = rel(t[1].clientX, t[1].clientY);
       g.current = { mode: "pinch", d0: Math.hypot(a.x - b.x, a.y - b.y), m0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, z0: zRef.current, sx: 0, sy: 0, moved: true };
@@ -253,6 +256,7 @@ export default function Viewer({
     }
   };
   const toggleZoom = (p: { x: number; y: number }) => {
+    if (isVideo) return;
     if (zRef.current.s > 1.01) setZ(NO_ZOOM);
     else {
       loadFull();
@@ -262,6 +266,24 @@ export default function Viewer({
   };
   const geo = dims ? geometry() : null;
   const atMax = !!geo && z.s >= geo.max - 0.01 && z.s > 1;
+
+  // Videos: Original laden (Google verlangt den Zugang im Header, daher als Blob) und abspielen
+  const playVideo = () => {
+    if (video.state !== "idle" && video.state !== "error") return;
+    setVideo({ state: "loading" });
+    const key = itemKey;
+    downloadBlob(item.account_id, item.drive_id)
+      .then((b) => {
+        if (key !== itemKeyRef.current) return;
+        const type = item.mime_type && b.type !== item.mime_type ? item.mime_type : b.type;
+        const url = URL.createObjectURL(type === b.type ? b : new Blob([b], { type }));
+        fullUrls.current.push(url);
+        setVideo({ state: "ready", url });
+      })
+      .catch(() => key === itemKeyRef.current && setVideo({ state: "error" }));
+  };
+  const itemKeyRef = useRef(itemKey);
+  itemKeyRef.current = itemKey;
 
   const close = () => {
     setClosing(true);
@@ -306,9 +328,9 @@ export default function Viewer({
           setZ(zoomAt(zRef.current, zRef.current.s * Math.exp(-e.deltaY / 300), rel(e.clientX, e.clientY)));
         }}
       >
-        {error && !low ? (
+        {error && !low && !isVideo ? (
           <p className="muted">Bild konnte nicht geladen werden.</p>
-        ) : high || low ? (
+        ) : high || low || isVideo ? (
           <div key={item.drive_id} className={`viewer-frame ${dragging ? "dragging" : ""}`} style={style}>
             <div
               className={`viewer-zoom ${zooming ? "live" : ""}`}
@@ -332,6 +354,15 @@ export default function Viewer({
                 />
               )}
             </div>
+            {isVideo && video.state === "ready" && (
+              <video className="viewer-video" src={video.url} controls autoPlay playsInline onTouchStart={(e) => e.stopPropagation()} />
+            )}
+            {isVideo && video.state !== "ready" && (
+              <button className="video-play glass" onClick={playVideo} aria-label="Video abspielen">
+                {video.state === "loading" ? <span className="spinner" /> : <Icon name="play" size={30} />}
+              </button>
+            )}
+            {isVideo && video.state === "error" && <p className="video-error small">Video konnte nicht geladen werden – nochmals tippen.</p>}
           </div>
         ) : (
           <div className="spinner" />

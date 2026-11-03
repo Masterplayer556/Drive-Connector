@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { searchItems } from "../lib/db";
-import { folderHue } from "../lib/theme";
+import { hueOf } from "../lib/folderColors";
 import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
 import Thumb from "./Thumb";
@@ -97,7 +97,7 @@ export default function SearchSheet({
                       <button
                         key={f.path}
                         className="folder"
-                        style={{ ["--h" as string]: folderHue(f.name) }}
+                        style={{ ["--h" as string]: hueOf((f.path ?? "").toLowerCase(), f.name) }}
                         onClick={() => {
                           onOpenPath(f.path!);
                           onClose();
@@ -126,6 +126,11 @@ export default function SearchSheet({
                       <button key={`${f.account_id}|${f.drive_id}`} className="cell" style={{ ["--i" as string]: i }} onClick={() => setViewer(i)}>
                         <Thumb item={f} />
                         <span className="cell-name">{f.name}</span>
+                          {f.mime_type?.startsWith("video/") && (
+                            <span className="cell-play">
+                              <Icon name="play" size={14} />
+                            </span>
+                          )}
                       </button>
                     ))}
                   </div>

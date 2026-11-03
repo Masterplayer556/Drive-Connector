@@ -182,6 +182,7 @@ const P: Record<string, ReactNode> = {
       <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
     </>
   ),
+  play: <path d="M8 5.5v13l11-6.5z" fill="currentColor" />,
   info: (
     <>
       <circle cx="12" cy="12" r="10" />
