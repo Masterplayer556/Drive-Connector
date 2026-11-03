@@ -1062,8 +1062,6 @@ function RootContent({
         </div>
       </section>
 
-      <Insights items={insights} onOpenPath={onOpenPath} />
-
       {legacy && !archiv && (
         <button className="banner pressable" onClick={() => onRenameLegacy(legacy)}>
           <Icon name="sparkles" size={18} />
@@ -1113,6 +1111,9 @@ function RootContent({
           <FolderGrid folders={others} onOpen={onOpen} onLongPress={onLongPress} />
         </>
       )}
+
+      {/* Hinweise unter den Ordnern */}
+      <Insights items={insights} onOpenPath={onOpenPath} />
 
       {content && !archiv && !legacy && !privat && others.length === 0 && (
         <div className="empty">

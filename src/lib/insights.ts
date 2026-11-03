@@ -47,22 +47,6 @@ export function computeInsights(accounts: Account[], stats: PoolStats | null, bi
     out.push({ id: "fill", level: "info", title: `Pool zu ${Math.round(pct)} % voll`, text: `Noch ${formatBytes(free)} frei.` });
   }
 
-  // Prognose aus dem Upload-Tempo der letzten 30 (sonst 90) Tage
-  if (stats && total > 0) {
-    const perDay = stats.added_30d > 0 ? stats.added_30d / 30 : stats.added_90d / 90;
-    if (perDay > 0) {
-      const days = free / perDay;
-      const perMonth = formatBytes(perDay * 30);
-      const when =
-        days < 14 ? `in ca. ${Math.max(1, Math.round(days))} Tagen` : days < 70 ? `in ca. ${Math.round(days / 7)} Wochen` : `in ca. ${Math.round(days / 30)} Monaten`;
-      out.push({
-        id: "forecast",
-        level: days < 30 ? "warn" : "info",
-        title: `Voll ${when}`,
-        text: `Bei deinem Tempo von ${perMonth} pro Monat.`,
-      });
-    }
-  }
 
   // Privat ist abgeschottet: ausgewichen wird nur auf Konten desselben Gebiets
   const isFull = (a: (typeof active)[number]) => !!a.quota_limit && (a.quota_usage ?? 0) / a.quota_limit >= 0.98;
