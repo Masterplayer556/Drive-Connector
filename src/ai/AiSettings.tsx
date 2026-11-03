@@ -65,7 +65,7 @@ export default function AiSettings() {
     const ok = await ui.confirm({
       title: "KI-Suche testen?",
       message:
-        "Die App lädt einmalig ein KI-Modell (ca. 250–350 MB – am besten im WLAN) und lernt danach nebenbei deine Fotos kennen, " +
+        "Die App lädt einmalig ein KI-Modell (ca. 160 MB – am besten im WLAN) und lernt danach nebenbei deine Fotos kennen, " +
         "solange die App offen ist. Alles läuft auf diesem iPhone, keine Fotos oder Suchen gehen an einen KI-Dienst. " +
         "Ausschalten löscht Modell und Index wieder vollständig.",
       confirmLabel: "Einschalten",
@@ -169,7 +169,7 @@ export default function AiSettings() {
               </button>
               <p className="faint small" style={{ margin: 0 }}>
                 {s.turbo
-                  ? "Nutzt alles, was das iPhone hergibt, ohne Pausen – der Bildschirm bleibt an. App offen lassen, am besten am Ladekabel (das iPhone wird warm). Endet von selbst, wenn alles fertig ist."
+                  ? "Ohne Pausen – der Bildschirm bleibt an. App offen lassen, am besten am Ladekabel. Endet von selbst, wenn alles fertig ist."
                   : "Lernt nur, solange die App offen ist (iOS erlaubt Web-Apps nichts im Hintergrund), sparsam und mit Pausen, während du sie bedienst."}
               </p>
             </>

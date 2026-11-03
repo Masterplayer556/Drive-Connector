@@ -6,10 +6,9 @@ import {
   CLIPTextModelWithProjection,
   CLIPVisionModelWithProjection,
   env,
-  pipeline,
   RawImage,
 } from "@huggingface/transformers";
-import { CLIP_MODEL, MT_MODEL, type FromWorker, type ToWorker, type VisionDevice } from "./protocol";
+import { CLIP_MODEL, type FromWorker, type ToWorker, type VisionDevice } from "./protocol";
 
 env.allowLocalModels = false;
 const onnx = env.backends.onnx as { wasm?: { numThreads?: number; wasmPaths?: unknown } };
@@ -27,7 +26,6 @@ const ctx = self as unknown as {
 };
 
 type Fn = (...args: unknown[]) => Promise<Record<string, { data: Float32Array; dims: number[] }>>;
-type Translator = (text: string) => Promise<{ translation_text: string }[]>;
 
 const progress = (part: "bild" | "text") => (p: { status: string; file?: string; loaded?: number; total?: number }) => {
   if (p.status === "progress" && p.file) {
@@ -41,7 +39,6 @@ const LEAN = { enableCpuMemArena: false, enableMemPattern: false };
 
 let vision: Promise<{ processor: Fn; model: Fn }> | null = null;
 let text: Promise<{ tokenizer: (t: string[], o: object) => unknown; model: Fn }> | null = null;
-let translator: Promise<Translator | null> | null = null;
 
 function normalized(v: Float32Array): Float32Array {
   let s = 0;
@@ -105,12 +102,6 @@ function loadText() {
   return text;
 }
 
-/** Übersetzer Deutsch → Englisch (CLIP versteht nur Englisch gut). Fehlt er, wird direkt gesucht. */
-function loadTranslator() {
-  translator ??= (pipeline("translation", MT_MODEL, textOpts()) as unknown as Promise<Translator>).catch(() => null);
-  return translator;
-}
-
 /** Mehrere Bilder in einem Durchgang (auf dem Grafikchip viel schneller als einzeln). */
 async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[]> {
   if (!vision) throw new Error("Bildmodell nicht geladen");
@@ -124,16 +115,9 @@ async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[]> {
   return out;
 }
 
-async function embedText(query: string, withTranslator: boolean): Promise<{ vec: Float32Array; english: string }> {
-  const [{ tokenizer, model }, translate] = await Promise.all([loadText(), withTranslator ? loadTranslator() : null]);
-  let english = query;
-  if (translate) {
-    try {
-      english = (await translate(query))[0]?.translation_text?.trim() || query;
-    } catch {
-      english = query;
-    }
-  }
+/** Suchtext (schon auf Englisch, siehe dict.ts) → Vektor. */
+async function embedText(english: string): Promise<{ vec: Float32Array; english: string }> {
+  const { tokenizer, model } = await loadText();
   const inputs = tokenizer([`a photo of ${english}`], { padding: true, truncation: true });
   const { text_embeds } = await model(inputs);
   return { vec: normalized(text_embeds.data), english };
@@ -148,7 +132,7 @@ ctx.onmessage = async (e) => {
     } else if (m.type === "images") {
       ctx.postMessage({ type: "vecs", id: m.id, vecs: await embedImages(m.blobs) });
     } else if (m.type === "text") {
-      const { vec, english } = await embedText(m.text, m.translate);
+      const { vec, english } = await embedText(m.text);
       ctx.postMessage({ type: "vec", id: m.id, vec, english });
     }
   } catch (err) {
