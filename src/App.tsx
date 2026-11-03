@@ -3,7 +3,10 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Icon, { type IconName } from "./components/Icon";
 import { LineSkeleton } from "./components/Skeleton";
 import Splash from "./components/Splash";
-import { UIProvider } from "./components/ui";
+import { UIProvider, useUI } from "./components/ui";
+import { autoPurgeIfDue } from "./lib/trash";
+import LockScreen from "./components/LockScreen";
+import { lockEnabled, watchRelock } from "./lib/lock";
 import { clearLocalCaches, readCachedAccounts, writeCachedAccounts } from "./lib/cache";
 import { fetchAccounts } from "./lib/db";
 import { clearTokens, loadTokens } from "./lib/google";
@@ -18,6 +21,12 @@ const KontenView = lazy(() => import("./views/KontenView"));
 const ProtokollView = lazy(() => import("./views/ProtokollView"));
 const MehrView = lazy(() => import("./views/MehrView"));
 const EinrichtungView = lazy(() => import("./views/EinrichtungView"));
+const DuplikateView = lazy(() => import("./views/DuplikateView"));
+const PapierkorbView = lazy(() => import("./views/PapierkorbView"));
+const FavoritenView = lazy(() => import("./views/FavoritenView"));
+const StatistikView = lazy(() => import("./views/StatistikView"));
+const RegalView = lazy(() => import("./views/RegalView"));
+const LinksView = lazy(() => import("./views/LinksView"));
 
 type Phase = "loading" | "login" | "mfa" | "ready" | "error";
 
@@ -48,12 +57,16 @@ export default function App() {
 }
 
 function Shell() {
+  const { toast } = useUI();
   const [session, setSession] = useState<Session | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string | null>(null);
   const [accounts, setAccountsState] = useState<Account[]>(() => readCachedAccounts() ?? []);
   const [tokenErrors, setTokenErrors] = useState<{ email: string; error: string }[]>([]);
   const route = useRoute();
+  const [locked, setLocked] = useState(lockEnabled);
+
+  useEffect(() => watchRelock(() => setLocked(true)), []);
 
   const setAccounts = useCallback((list: Account[]) => {
     setAccountsState(list);
@@ -78,7 +91,9 @@ function Shell() {
   }, []);
 
   const reloadAccounts = useCallback(async () => {
-    setAccounts(await fetchAccounts());
+    const list = await fetchAccounts();
+    setAccounts(list);
+    return list;
   }, [setAccounts]);
 
   const refreshTokens = useCallback(async () => {
@@ -98,7 +113,10 @@ function Shell() {
       if (cached && cached.length) {
         // Sofort anzeigen, im Hintergrund aktualisieren
         setPhase("ready");
-        void Promise.all([refreshTokens(), reloadAccounts()]).catch(() => undefined);
+        void Promise.all([refreshTokens(), reloadAccounts()])
+          .then(([, list]) => autoPurgeIfDue(list))
+          .then((r) => r?.count && toast(`Papierkorb: ${r.count} alte Einträge gelöscht`, "info"))
+          .catch(() => undefined);
       } else {
         // Erster Start: Besitzer-Prüfung abwarten
         setPhase("loading");
@@ -117,6 +135,7 @@ function Shell() {
     if (userId) void start();
   }, [userId, start]);
 
+  if (locked && session && phase !== "login") return <LockScreen onUnlock={() => setLocked(false)} />;
   if (phase === "loading") return <Splash />;
   if (phase === "login" || !session) return <LoginView />;
   if (phase === "mfa") return <MfaView onDone={start} />;
@@ -137,7 +156,9 @@ function Shell() {
     );
   }
 
-  const active = route.name === "einrichtung" ? "mehr" : route.name;
+  const active = ["einrichtung", "duplikate", "papierkorb", "favoriten", "statistik", "links", "regal"].includes(route.name)
+    ? "mehr"
+    : route.name;
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.name === active));
 
   const current = session;
@@ -169,7 +190,20 @@ function Shell() {
           )}
           {route.name === "protokoll" && <ProtokollView />}
           {route.name === "mehr" && <MehrView session={current} accounts={accounts} />}
-          {route.name === "einrichtung" && <EinrichtungView accounts={accounts} reload={reloadAccounts} />}
+          {route.name === "einrichtung" && (
+            <EinrichtungView
+              accounts={accounts}
+              reload={async () => {
+                await reloadAccounts();
+              }}
+            />
+          )}
+          {route.name === "duplikate" && <DuplikateView accounts={accounts} />}
+          {route.name === "papierkorb" && <PapierkorbView accounts={accounts} />}
+          {route.name === "favoriten" && <FavoritenView accounts={accounts} />}
+          {route.name === "statistik" && <StatistikView accounts={accounts} />}
+          {route.name === "regal" && <RegalView accounts={accounts} />}
+          {route.name === "links" && <LinksView accounts={accounts} />}
         </Suspense>
       </>
     );
@@ -216,8 +250,18 @@ function Chrome({ activeIndex, active, children }: { activeIndex: number; active
       <main className="main">{children}</main>
       <nav className={`tabbar glass ${compact ? "compact" : ""}`}>
         <span
-          className={`tab-indicator ${stretch ? "stretch" : ""}`}
-          style={{ transform: `translateX(${activeIndex * 100}%)` }}
+          className={`tab-indicator ${stretch ? "stretch" : ""} ${
+            activeIndex === 0 ? "edge edge-left" : activeIndex === TABS.length - 1 ? "edge edge-right" : ""
+          }`}
+          style={{
+            // Bewegung über „translate“: so dehnt sich der Tropfen (scale) um seine aktuelle Position
+            // statt um den Startplatz – sonst schiesst das Glas bei weiten Sprüngen über die Leiste hinaus
+            translate: `${activeIndex * 100}% 0`,
+            transitionProperty: "translate",
+            transitionTimingFunction:
+              activeIndex === 0 || activeIndex === TABS.length - 1 ? "cubic-bezier(0.22, 1, 0.36, 1)" : undefined,
+            transformOrigin: activeIndex === 0 ? "left center" : activeIndex === TABS.length - 1 ? "right center" : undefined,
+          }}
         />
         {TABS.map((t) => (
           <button key={t.name} className={`tab ${active === t.name ? "active" : ""}`} onClick={() => navigate(t.name)}>

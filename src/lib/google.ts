@@ -163,6 +163,11 @@ export function moveItem(accountId: string, id: string, newParent: string, oldPa
 }
 
 /** Ganzes Foto als Blob (für die Grossansicht, falls die Vorschau fehlt). */
+/** Kurzlebiges Zugangs-Token (für das Video-Streaming über den Service Worker). */
+export function accessToken(accountId: string): Promise<string> {
+  return tokenFor(accountId);
+}
+
 export async function downloadBlob(accountId: string, id: string): Promise<Blob> {
   const res = await authedFetch(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?alt=media`);
   if (!res.ok) throw await googleError(res);
@@ -175,5 +180,119 @@ export function renameItem(accountId: string, id: string, name: string): Promise
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Etappe 1: Papierkorb, Speicher, Umbenennen mit Beschreibung
+// ---------------------------------------------------------------------------
+export interface TrashFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: string;
+  trashedTime?: string;
+  parents?: string[];
+  explicitlyTrashed?: boolean;
+}
+
+/** Vom Nutzer selbst gelöschte Einträge (nicht die Inhalte gelöschter Ordner). */
+export async function listTrash(accountId: string): Promise<TrashFile[]> {
+  const out: TrashFile[] = [];
+  let pageToken: string | undefined;
+  do {
+    const p = new URLSearchParams({
+      q: "trashed = true and 'me' in owners",
+      fields: "nextPageToken,files(id,name,mimeType,size,trashedTime,parents,explicitlyTrashed)",
+      pageSize: "1000",
+    });
+    if (pageToken) p.set("pageToken", pageToken);
+    const r = await driveJson<{ nextPageToken?: string; files: TrashFile[] }>(accountId, `${DRIVE}/files?${p}`);
+    out.push(...r.files.filter((f) => f.explicitlyTrashed !== false));
+    pageToken = r.nextPageToken;
+  } while (pageToken);
+  return out;
+}
+
+export function restoreItem(accountId: string, id: string): Promise<DriveFile> {
+  return driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?fields=id`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ trashed: false }),
+  });
+}
+
+export function deleteForever(accountId: string, id: string): Promise<void> {
+  return driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function emptyTrash(accountId: string): Promise<void> {
+  return driveJson(accountId, `${DRIVE}/files/trash`, { method: "DELETE" });
+}
+
+export interface Quota {
+  limit: number | null;
+  usage: number;
+  trash: number;
+}
+
+export async function getQuota(accountId: string): Promise<Quota> {
+  const r = await driveJson<{ storageQuota: { limit?: string; usage?: string; usageInDriveTrash?: string } }>(
+    accountId,
+    `${DRIVE}/about?fields=storageQuota`,
+  );
+  return {
+    limit: r.storageQuota.limit ? Number(r.storageQuota.limit) : null,
+    usage: Number(r.storageQuota.usage ?? 0),
+    trash: Number(r.storageQuota.usageInDriveTrash ?? 0),
+  };
+}
+
+/** Name und/oder Beschreibung ändern (Sortieren-Knopf, Regel 12). */
+export function updateItem(accountId: string, id: string, body: { name?: string; description?: string }): Promise<DriveFile> {
+  return driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?fields=id,name`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Etappe 2: Teilen-Links (#15)
+// ---------------------------------------------------------------------------
+/** Link für „jeder mit dem Link kann ansehen“. */
+export async function createAnyoneLink(accountId: string, id: string): Promise<{ permissionId: string; url: string }> {
+  const p = await driveJson<{ id: string }>(accountId, `${DRIVE}/files/${encodeURIComponent(id)}/permissions?fields=id`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "anyone", role: "reader", allowFileDiscovery: false }),
+  });
+  return { permissionId: p.id, url: `https://drive.google.com/file/d/${id}/view?usp=sharing` };
+}
+
+export async function deletePermission(accountId: string, id: string, permissionId: string): Promise<void> {
+  try {
+    await driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}/permissions/${encodeURIComponent(permissionId)}`, {
+      method: "DELETE",
+    });
+  } catch (e) {
+    // Schon entfernt (z. B. in Google Drive) → ok
+    if (!String(e).includes("404")) throw e;
+  }
+}
+
+/** Verschieben innerhalb eines Kontos, optional mit neuem Namen (#10). */
+export function moveWithin(
+  accountId: string,
+  id: string,
+  newParent: string,
+  oldParent: string,
+  body: { name?: string; description?: string } = {},
+): Promise<DriveFile> {
+  const p = new URLSearchParams({ addParents: newParent, removeParents: oldParent, fields: "id,parents" });
+  return driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?${p}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
 }

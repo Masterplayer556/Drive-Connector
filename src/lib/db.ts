@@ -1,5 +1,8 @@
 // Lesen aus dem Index (Postgres) und Schreiben ins Protokoll.
+import type { Plan, Step, Unit } from "./rebalance";
+import type { BigFolder, PoolStats } from "./insights";
 import { childKey, naturalCompare } from "./naming";
+import { deleteForever } from "./google";
 import { callFunction, supabase } from "./supabase";
 import type { Account, FolderContent, Item, LogEntry, LogicalFolder, LogKind, Role } from "./types";
 
@@ -158,10 +161,312 @@ export interface SyncResult {
   email: string;
   mode?: "full" | "changes";
   changed?: number;
+  /** Es warten noch weitere Änderungen – der Server liest sie im nächsten Aufruf ein. */
+  more?: boolean;
   error?: string;
 }
 
 export async function syncAccounts(accountIds?: string[], full = false): Promise<SyncResult[]> {
-  const r = await callFunction<{ results: SyncResult[] }>("sync", { account_ids: accountIds, full });
-  return r.results;
+  let r = await callFunction<{ results: SyncResult[] }>("sync", { account_ids: accountIds, full });
+  const results = new Map(r.results.map((x) => [x.account_id, x]));
+  // Viele angesammelte Änderungen: weiterlesen, bis alles da ist (höchstens 10 Runden)
+  for (let round = 0; round < 10; round++) {
+    const open = [...results.values()].filter((x) => x.more && !x.error).map((x) => x.account_id);
+    if (!open.length) break;
+    r = await callFunction<{ results: SyncResult[] }>("sync", { account_ids: open });
+    for (const x of r.results) {
+      const prev = results.get(x.account_id);
+      results.set(x.account_id, { ...x, changed: (prev?.changed ?? 0) + (x.changed ?? 0) });
+    }
+  }
+  return [...results.values()];
+}
+
+// ---------------------------------------------------------------------------
+// Etappe 1: Kennzahlen, grosse Ordner, Duplikate, Einstellungen, Unterbaum
+// ---------------------------------------------------------------------------
+
+export async function fetchStats(): Promise<PoolStats> {
+  const { data, error } = await supabase.rpc("pool_stats");
+  if (error) throw new Error(error.message);
+  return data as PoolStats;
+}
+
+export async function fetchBigFolders(minBytes: number): Promise<BigFolder[]> {
+  const { data, error } = await supabase.rpc("big_folders", { p_min: minBytes });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as BigFolder[];
+}
+
+export interface DuplicateGroup {
+  md5: string;
+  total: number;
+  items: Item[];
+}
+
+export async function fetchDuplicates(): Promise<DuplicateGroup[]> {
+  const { data, error } = await supabase.rpc("find_duplicates");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as DuplicateGroup[];
+}
+
+export interface Settings {
+  trash_auto_days: number | null;
+}
+
+export async function fetchSettings(): Promise<Settings> {
+  const { data, error } = await supabase.from("settings").select("trash_auto_days").maybeSingle();
+  if (error) throw new Error(error.message);
+  return { trash_auto_days: data?.trash_auto_days ?? null };
+}
+
+export async function saveSettings(patch: Partial<Settings>): Promise<void> {
+  const { data: s } = await supabase.auth.getSession();
+  const owner_id = s.session?.user.id;
+  if (!owner_id) throw new Error("Nicht angemeldet");
+  const { error } = await supabase
+    .from("settings")
+    .upsert({ owner_id, ...patch, updated_at: new Date().toISOString() }, { onConflict: "owner_id" });
+  if (error) throw new Error(error.message);
+}
+
+/** Alle Fotos in einem Ordner und seinen Unterordnern (für ZIP-Download). */
+export async function fetchSubtreeFiles(path: string): Promise<Item[]> {
+  const rows = await fetchAll<Item>((from, to) =>
+    supabase
+      .from("items")
+      .select(ITEM_COLS)
+      .eq("is_folder", false)
+      .ilike("path", `${escapeLike(path)}/%`)
+      .order("path")
+      .range(from, to),
+  );
+  return rows;
+}
+
+/** Wie viele Fotos stecken in einem Ordner (inkl. Unterordner)? Für die Lösch-Rückfrage. */
+export async function countSubtreeFiles(path: string): Promise<number | null> {
+  const { count, error } = await supabase
+    .from("items")
+    .select("drive_id", { count: "exact", head: true })
+    .eq("is_folder", false)
+    .ilike("path", `${escapeLike(path)}/%`);
+  return error ? null : count;
+}
+
+// ---------------------------------------------------------------------------
+// Etappe 2: Suche, Favoriten, Teilen-Links, Statistik
+// ---------------------------------------------------------------------------
+export async function searchItems(query: string, limit = 200): Promise<Item[]> {
+  const { data, error } = await supabase.rpc("search_items", { p_query: query, p_limit: limit });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Item[];
+}
+
+export async function fetchFavoriteKeys(): Promise<Set<string>> {
+  const { data, error } = await supabase.from("favorites").select("account_id,drive_id");
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((f) => `${f.account_id}|${f.drive_id}`));
+}
+
+export async function fetchFavoriteItems(): Promise<Item[]> {
+  const { data, error } = await supabase.rpc("favorite_items");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Item[];
+}
+
+export async function setFavorite(item: Item, on: boolean): Promise<void> {
+  if (on) {
+    const { error } = await supabase
+      .from("favorites")
+      .upsert({ account_id: item.account_id, drive_id: item.drive_id }, { onConflict: "owner_id,account_id,drive_id" });
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase.from("favorites").delete().eq("account_id", item.account_id).eq("drive_id", item.drive_id);
+    if (error) throw new Error(error.message);
+  }
+}
+
+export interface Share {
+  id: string;
+  account_id: string;
+  drive_id: string;
+  name: string;
+  permission_id: string;
+  url: string;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export async function fetchShares(): Promise<Share[]> {
+  const { data, error } = await supabase.from("shares").select("*").order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Share[];
+}
+
+export async function insertShare(s: Omit<Share, "id" | "created_at">): Promise<void> {
+  const { error } = await supabase.from("shares").insert(s);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteShareRow(id: string): Promise<void> {
+  const { error } = await supabase.from("shares").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export interface MonthStat {
+  month: string;
+  files: number;
+  bytes: number;
+}
+export interface AreaStat {
+  area: string;
+  files: number;
+  bytes: number;
+}
+export interface FolderStat {
+  parent_key: string;
+  path: string;
+  files: number;
+  bytes: number;
+}
+export interface Snapshot {
+  day: string;
+  usage: number;
+  quota: number;
+  files: number;
+}
+
+export async function fetchStatistics(): Promise<{ months: MonthStat[]; areas: AreaStat[]; folders: FolderStat[]; snapshots: Snapshot[] }> {
+  const [m, a, f, s] = await Promise.all([
+    supabase.rpc("upload_months", { p_months: 12 }),
+    supabase.rpc("area_usage"),
+    supabase.rpc("top_folders", { p_limit: 8 }),
+    supabase.from("usage_snapshots").select("day,usage,quota,files").order("day").limit(400),
+  ]);
+  for (const r of [m, a, f, s]) if (r.error) throw new Error(r.error.message);
+  const num = <T extends object>(rows: T[]) =>
+    rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === "string" && /^\d+$/.test(v) ? Number(v) : v])) as T);
+  return {
+    months: num((m.data ?? []) as MonthStat[]),
+    areas: num((a.data ?? []) as AreaStat[]),
+    folders: num((f.data ?? []) as FolderStat[]),
+    snapshots: num((s.data ?? []) as Snapshot[]),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Etappe 3: Rebalancing (Regal-Ansicht, Sperren, Gruppenregel, Pläne)
+// ---------------------------------------------------------------------------
+export async function fetchUnits(): Promise<Unit[]> {
+  const { data, error } = await supabase.rpc("rebalance_units");
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Unit[]).map((u) => ({ ...u, files: Number(u.files), bytes: Number(u.bytes) }));
+}
+
+export async function fetchLocks(): Promise<Set<string>> {
+  const { data, error } = await supabase.from("folder_locks").select("path_key");
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((l) => l.path_key as string));
+}
+
+export async function setLock(pathKey: string, on: boolean): Promise<void> {
+  const { error } = on
+    ? await supabase.from("folder_locks").upsert({ path_key: pathKey }, { onConflict: "owner_id,path_key" })
+    : await supabase.from("folder_locks").delete().eq("path_key", pathKey);
+  if (error) throw new Error(error.message);
+}
+
+export async function fetchGroupFolder(): Promise<string | null> {
+  const { data, error } = await supabase.from("settings").select("group_folder").maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data?.group_folder as string | null) ?? null;
+}
+
+export async function saveGroupFolder(key: string | null): Promise<void> {
+  const { data: s } = await supabase.auth.getSession();
+  const owner_id = s.session?.user.id;
+  if (!owner_id) throw new Error("Nicht angemeldet");
+  const { error } = await supabase
+    .from("settings")
+    .upsert({ owner_id, group_folder: key, updated_at: new Date().toISOString() }, { onConflict: "owner_id" });
+  if (error) throw new Error(error.message);
+}
+
+export interface PlanRow {
+  id: string;
+  signature: string;
+  steps: Step[];
+  bytes: number;
+  status: "queued" | "running" | "done" | "rejected" | "failed";
+  total: number;
+  done: number;
+  failed: number;
+  message: string | null;
+  created_at: string;
+  finished_at: string | null;
+  purged_at: string | null;
+}
+
+/**
+ * Nach einem Rebalancing die Originale (liegen im Papierkorb der Quellkonten) sofort endgültig löschen,
+ * damit der Platz gleich frei wird. Nur Dateien, deren Kopie geprüft wurde (Status „done“).
+ */
+export async function purgePlanOriginals(planId: string, onProgress?: (done: number, total: number) => void): Promise<{ ok: number; failed: number }> {
+  const rows: { src_account: string; drive_id: string }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("rebalance_tasks")
+      .select("src_account, drive_id")
+      .eq("plan_id", planId)
+      .eq("status", "done")
+      .order("id")
+      .range(from, from + 999);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as typeof rows));
+    if (!data || data.length < 1000) break;
+  }
+  let ok = 0;
+  let failed = 0;
+  for (let i = 0; i < rows.length; i += 6) {
+    await Promise.all(
+      rows.slice(i, i + 6).map((r) =>
+        deleteForever(r.src_account, r.drive_id).then(
+          () => ok++,
+          (e) => (String(e).includes("404") ? ok++ : failed++), // schon weg → zählt als erledigt
+        ),
+      ),
+    );
+    onProgress?.(Math.min(i + 6, rows.length), rows.length);
+  }
+  if (!failed) await supabase.rpc("mark_plan_purged", { p_plan: planId });
+  await writeLog(failed ? "error" : "delete", `Rebalancing: ${ok} Originale endgültig gelöscht${failed ? `, ${failed} fehlgeschlagen` : ""}`, { plan: planId });
+  return { ok, failed };
+}
+
+export async function fetchPlans(limit = 20): Promise<PlanRow[]> {
+  const { data, error } = await supabase.from("rebalance_plans").select("*").order("created_at", { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as PlanRow[];
+}
+
+export async function savePlan(plan: Plan, status: "queued" | "rejected"): Promise<void> {
+  const { error } = await supabase
+    .from("rebalance_plans")
+    .insert({ signature: plan.signature, steps: plan.steps, bytes: plan.bytes, status });
+  if (error) throw new Error(error.message);
+}
+
+export interface RebalanceProgress {
+  plans: { plan_id: string; total: number; done: number; failed: number; status: string }[];
+  more: boolean;
+}
+
+/** Führt offene Pläne aus und ruft so lange erneut auf, bis alles erledigt ist. */
+export async function runRebalance(onProgress?: (p: RebalanceProgress) => void, signal?: { stop: boolean }): Promise<RebalanceProgress> {
+  for (;;) {
+    const r = await callFunction<RebalanceProgress>("rebalance");
+    onProgress?.(r);
+    if (!r.more || signal?.stop) return r;
+  }
 }

@@ -2,6 +2,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import Icon, { type IconName } from "../components/Icon";
 import ThemePicker from "../components/ThemePicker";
+import { disableLock, enableLock, lockEnabled, lockSupported } from "../lib/lock";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
 import { invalidateAll } from "../lib/cache";
@@ -44,6 +45,50 @@ function Item({
       </span>
       {right ?? (onClick && <Icon name="chevronRight" size={18} className="faint" />)}
     </button>
+  );
+}
+
+/** Face-ID-Sperre (#12) ein/aus. */
+function FaceIdItem({ email }: { email: string }) {
+  const ui = useUI();
+  const [on, setOn] = useState(lockEnabled);
+  const [supported, setSupported] = useState<boolean | null>(null);
+  useEffect(() => {
+    void lockSupported().then(setSupported);
+  }, []);
+
+  const toggle = async () => {
+    if (on) {
+      disableLock();
+      setOn(false);
+      ui.toast("Face-ID-Sperre aus", "info");
+      return;
+    }
+    try {
+      await enableLock(email);
+      setOn(true);
+      ui.toast("Face-ID-Sperre aktiv – beim Öffnen genügt ein Blick", "ok");
+    } catch (e) {
+      ui.toast((e as Error).name === "NotAllowedError" ? "Abgebrochen" : (e as Error).message, "error");
+    }
+  };
+
+  return (
+    <div className="list-item">
+      <span className="li-icon" style={{ background: "linear-gradient(135deg,#60a5fa,#8b5cf6)" }}>
+        <Icon name="faceId" size={18} />
+      </span>
+      <span className="li-text">
+        Face-ID-Sperre
+        <small>
+          {supported === false ? "Auf diesem Gerät nicht verfügbar" : on ? "Aktiv – nach 1 Minute im Hintergrund wieder gesperrt" : "Statt Passwort beim Öffnen"}
+        </small>
+      </span>
+      <span className="switch">
+        <input type="checkbox" checked={on} disabled={supported === false} onChange={toggle} />
+        <span />
+      </span>
+    </div>
   );
 }
 
@@ -142,6 +187,47 @@ export default function MehrView({ session, accounts }: { session: Session; acco
           onClick={() => navigate("einrichtung")}
         />
         <Item
+          icon="chart"
+          bg="linear-gradient(135deg,#8b5cf6,#3b82f6)"
+          title="Statistik"
+          sub="Uploads, Speicherverlauf, grösste Ordner"
+          onClick={() => navigate("statistik")}
+        />
+        <Item
+          icon="archive"
+          bg="linear-gradient(135deg,#f59e0b,#ec4899)"
+          title="Regal & Rebalancing"
+          sub="Konten als Regal, Vorschläge, Ordner sperren"
+          onClick={() => navigate("regal")}
+        />
+        <Item
+          icon="copy"
+          bg="linear-gradient(135deg,#22d3ee,#3b82f6)"
+          title="Duplikate"
+          sub="Doppelte Fotos finden und aufräumen"
+          onClick={() => navigate("duplikate")}
+        />
+        <Item
+          icon="trash"
+          bg="linear-gradient(135deg,#fb7185,#f97316)"
+          title="Papierkorb"
+          sub="Wiederherstellen, endgültig löschen, automatisch leeren"
+          onClick={() => navigate("papierkorb")}
+        />
+        <Item
+          icon="heart"
+          bg="linear-gradient(135deg,#fb7185,#ec4899)"
+          title="Favoriten"
+          onClick={() => navigate("favoriten")}
+        />
+        <Item
+          icon="link"
+          bg="linear-gradient(135deg,#34d399,#0d9488)"
+          title="Geteilte Links"
+          sub="Anzeigen, kopieren, entfernen"
+          onClick={() => navigate("links")}
+        />
+        <Item
           icon="refresh"
           bg="linear-gradient(135deg,#60a5fa,#6366f1)"
           title="Komplett neu einlesen"
@@ -160,6 +246,7 @@ export default function MehrView({ session, accounts }: { session: Session; acco
         <span>Sicherheit</span>
       </div>
       <div className="list glass enter" style={{ animationDelay: "60ms" }}>
+        <FaceIdItem email={session.user.email ?? "Drive Pool"} />
         {hasMfa === null ? (
           <Item icon="shield" bg="linear-gradient(135deg,#4ade80,#16a34a)" title="Zwei-Faktor-Schutz" sub="Lädt …" />
         ) : hasMfa ? (

@@ -15,3 +15,10 @@ verify_jwt = true
 
 [functions.thumb]
 verify_jwt = true
+
+# Wird von pg_cron mit einem Geheimnis aus der Datenbank aufgerufen (kein Supabase-Login)
+[functions.nightly]
+verify_jwt = false
+
+[functions.rebalance]
+verify_jwt = true

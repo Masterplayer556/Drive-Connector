@@ -128,7 +128,7 @@ export function initTheme() {
 }
 
 /** Feste, kräftige Farben pro Konto (Reihenfolge der Verbindung). */
-export const ACCOUNT_COLORS = ["#a78bfa", "#22d3ee", "#fbbf24", "#f472b6", "#4ade80", "#60a5fa", "#fb7185", "#2dd4bf"];
+export const ACCOUNT_COLORS = ["#8b5cf6", "#0891b2", "#d97706", "#ec4899", "#16a34a", "#3b82f6", "#e11d48", "#0d9488"];
 
 export function accountColor(index: number): string {
   return ACCOUNT_COLORS[index % ACCOUNT_COLORS.length];

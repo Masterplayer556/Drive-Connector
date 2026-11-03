@@ -1,10 +1,35 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { formatBytes, formatDateTime } from "../lib/format";
-import { downloadBlob } from "../lib/google";
+import { accessToken, downloadBlob } from "../lib/google";
 import { accountColor } from "../lib/theme";
 import { getThumb, peekThumb, VIEW_SIZE } from "../lib/thumbs";
 import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
+import { isFavorite, loadFavorites, onFavoritesChange, toggleFavorite } from "../lib/favorites";
+import { useUI } from "./ui";
+
+const ShareSheet = lazy(() => import("./ShareSheet"));
+
+interface Zoom {
+  s: number;
+  x: number;
+  y: number;
+}
+interface Gesture {
+  mode: "swipe" | "pan" | "pinch";
+  d0: number;
+  m0: { x: number; y: number };
+  z0: Zoom;
+  sx: number;
+  sy: number;
+  moved: boolean;
+}
+const NO_ZOOM: Zoom = { s: 1, x: 0, y: 0 };
+/** Obergrenze, egal wie gross das Original ist */
+const MAX_ZOOM = 24;
+/** Mindestens so weit darf man immer zoomen (auch bei kleinen Bildern) */
+const MIN_MAX_ZOOM = 2;
+const DOUBLE_TAP_ZOOM = 2.5;
 
 export default function Viewer({
   items,
@@ -20,6 +45,8 @@ export default function Viewer({
   onClose: () => void;
 }) {
   const item = items[index];
+  // Nur ein anderes Foto (nicht ein neu geladenes Objekt desselben Fotos) setzt Zoom & Bilder zurück
+  const itemKey = `${item.account_id}|${item.drive_id}`;
   // Sofort: kleine Vorschau aus dem Speicher, dann die scharfe Version
   const [low, setLow] = useState<string | null>(() => peekThumb(item));
   const [high, setHigh] = useState<string | null>(() => peekThumb(item, VIEW_SIZE));
@@ -28,12 +55,50 @@ export default function Viewer({
   const [dragging, setDragging] = useState(false);
   const [closing, setClosing] = useState(false);
   const startX = useRef<number | null>(null);
+  const ui = useUI();
+  const [fav, setFav] = useState(() => isFavorite(item));
+  // Zoomen: Skalierung + Verschiebung; Original wird beim ersten Zoomen nachgeladen
+  const [z, setZ] = useState<Zoom>(NO_ZOOM);
+  const zRef = useRef(z);
+  zRef.current = z;
+  const [zooming, setZooming] = useState(false);
+  const [full, setFull] = useState<string | null>(null);
+  const [fullState, setFullState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  const isVideo = !!item.mime_type?.startsWith("video/");
+  const [video, setVideo] = useState<{ state: "idle" | "loading" | "ready" | "error"; url?: string; stream?: boolean }>({ state: "idle" });
+  const stageRef = useRef<HTMLDivElement>(null);
+  const g = useRef<Gesture | null>(null);
+  const lastTap = useRef<{ t: number; x: number; y: number } | null>(null);
+  // Fingertipps erzeugen zusätzlich Maus-Ereignisse (dblclick) – die dürfen den Zoom nicht nochmals umschalten
+  const lastTouch = useRef(0);
+  const [sharing, setSharing] = useState(false);
+
+  useEffect(() => {
+    void loadFavorites().then(() => setFav(isFavorite(item)));
+    return onFavoritesChange(() => setFav(isFavorite(item)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemKey]);
+
+  const heart = async () => {
+    try {
+      const on = await toggleFavorite(item);
+      ui.toast(on ? "Zu Favoriten hinzugefügt" : "Aus Favoriten entfernt", "ok");
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
 
   useEffect(() => {
     let alive = true;
     let revoke: string | null = null;
     setError(false);
     setDx(0);
+    setZ(NO_ZOOM);
+    setFull(null);
+    setFullState("idle");
+    setDims(null);
+    setVideo({ state: "idle" });
     setLow(peekThumb(item));
     setHigh(peekThumb(item, VIEW_SIZE));
     if (!peekThumb(item)) void getThumb(item).then((u) => alive && setLow(u)).catch(() => undefined);
@@ -41,8 +106,8 @@ export default function Viewer({
       getThumb(item, VIEW_SIZE)
         .then((u) => alive && setHigh(u))
         .catch(() =>
-          // Keine Google-Vorschau → Original laden
-          downloadBlob(item.account_id, item.drive_id)
+          // Keine Google-Vorschau → Original laden (bei Videos nicht: das lädt erst „Abspielen“)
+          (item.mime_type?.startsWith("video/") ? Promise.reject(new Error("video")) : downloadBlob(item.account_id, item.drive_id))
             .then((b) => {
               revoke = URL.createObjectURL(b);
               if (alive) setHigh(revoke);
@@ -54,7 +119,8 @@ export default function Viewer({
       alive = false;
       if (revoke) URL.revokeObjectURL(revoke);
     };
-  }, [item]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemKey]);
 
   // Nachbarbilder vorladen → Wischen fühlt sich sofort an
   useEffect(() => {
@@ -62,6 +128,181 @@ export default function Viewer({
       if (items[j]) void getThumb(items[j], VIEW_SIZE).catch(() => undefined);
     }
   }, [index, items]);
+
+  // Grösse des Bildes bei 100 % (eingepasst) und maximale Zoomstufe:
+  // so weit, bis ein Bildpunkt einen Bildschirmpunkt füllt – darüber wird es nur noch pixelig.
+  const geometry = () => {
+    const st = stageRef.current?.getBoundingClientRect();
+    if (!st || !dims) return null;
+    const fit = Math.min(st.width / dims.w, st.height / dims.h, 1);
+    const W = dims.w * fit;
+    const H = dims.h * fit;
+    const max = Math.min(MAX_ZOOM, Math.max(MIN_MAX_ZOOM, dims.w / W));
+    return { st, W, H, max };
+  };
+  const clampZ = (n: Zoom): Zoom => {
+    const geo = geometry();
+    if (!geo) return n;
+    const s = Math.min(Math.max(n.s, 1), geo.max);
+    const bx = Math.max(0, (geo.W * s - geo.st.width) / 2);
+    const by = Math.max(0, (geo.H * s - geo.st.height) / 2);
+    return { s, x: Math.min(bx, Math.max(-bx, n.x)), y: Math.min(by, Math.max(-by, n.y)) };
+  };
+  /** Punkt relativ zur Bühnenmitte */
+  const rel = (x: number, y: number) => {
+    const st = stageRef.current!.getBoundingClientRect();
+    return { x: x - st.left - st.width / 2, y: y - st.top - st.height / 2 };
+  };
+  /** Zoom auf Stufe s, wobei der Bildpunkt unter p an seinem Platz bleibt */
+  const zoomAt = (from: Zoom, s: number, p0: { x: number; y: number }, p1 = p0): Zoom => {
+    const cx = (p0.x - from.x) / from.s;
+    const cy = (p0.y - from.y) / from.s;
+    return clampZ({ s, x: p1.x - s * cx, y: p1.y - s * cy });
+  };
+  const loadFull = () => {
+    if (fullState !== "idle") return;
+    setFullState("loading");
+    downloadBlob(item.account_id, item.drive_id)
+      .then((b) => {
+        const url = URL.createObjectURL(b);
+        fullUrls.current.push(url);
+        setFull(url);
+        setFullState("done");
+      })
+      .catch(() => setFullState("error"));
+  };
+  // Original nur für das aktuelle Foto im Speicher halten – beim nächsten Foto wieder freigeben
+  const fullUrls = useRef<string[]>([]);
+  useEffect(
+    () => () => {
+      fullUrls.current.forEach((u) => URL.revokeObjectURL(u));
+      fullUrls.current = [];
+    },
+    [itemKey],
+  );
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    lastTouch.current = Date.now();
+    const t = e.touches;
+    if (t.length === 2 && !isVideo) {
+      const a = rel(t[0].clientX, t[0].clientY);
+      const b = rel(t[1].clientX, t[1].clientY);
+      g.current = { mode: "pinch", d0: Math.hypot(a.x - b.x, a.y - b.y), m0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, z0: zRef.current, sx: 0, sy: 0, moved: true };
+      setZooming(true);
+      setDragging(false);
+      setDx(0);
+      loadFull();
+      return;
+    }
+    if (t.length !== 1) return;
+    const z0 = zRef.current;
+    g.current = { mode: z0.s > 1.01 ? "pan" : "swipe", d0: 0, m0: { x: 0, y: 0 }, z0, sx: t[0].clientX, sy: t[0].clientY, moved: false };
+    if (z0.s > 1.01) setZooming(true);
+    else {
+      startX.current = t[0].clientX;
+      setDragging(true);
+    }
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    const gs = g.current;
+    if (!gs) return;
+    const t = e.touches;
+    if (gs.mode === "pinch" && t.length >= 2) {
+      const a = rel(t[0].clientX, t[0].clientY);
+      const b = rel(t[1].clientX, t[1].clientY);
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const m1 = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      setZ(zoomAt(gs.z0, gs.z0.s * (d / gs.d0), gs.m0, m1));
+      return;
+    }
+    const mx = t[0].clientX - gs.sx;
+    const my = t[0].clientY - gs.sy;
+    if (Math.abs(mx) + Math.abs(my) > 8) gs.moved = true;
+    if (gs.mode === "pan") setZ(clampZ({ ...gs.z0, x: gs.z0.x + mx, y: gs.z0.y + my }));
+    else if (gs.mode === "swipe" && startX.current !== null) setDx(t[0].clientX - startX.current);
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const gs = g.current;
+    if (!gs) return;
+    if (gs.mode === "pinch") {
+      // Ein Finger bleibt liegen → weiter verschieben
+      if (e.touches.length === 1) {
+        g.current = { mode: "pan", d0: 0, m0: { x: 0, y: 0 }, z0: zRef.current, sx: e.touches[0].clientX, sy: e.touches[0].clientY, moved: true };
+        return;
+      }
+      if (zRef.current.s < 1.05) setZ(NO_ZOOM);
+      g.current = null;
+      setZooming(false);
+      return;
+    }
+    if (gs.mode === "swipe") {
+      setDragging(false);
+      if (dx > 70 && index > 0) onIndex(index - 1);
+      else if (dx < -70 && index < items.length - 1) onIndex(index + 1);
+      else setDx(0);
+      startX.current = null;
+    }
+    setZooming(false);
+    g.current = null;
+    // Doppeltippen: hineinzoomen an dieser Stelle bzw. zurück auf 100 %
+    if (!gs.moved) {
+      const now = Date.now();
+      const p = rel(gs.sx, gs.sy);
+      const prev = lastTap.current;
+      if (prev && now - prev.t < 300 && Math.hypot(prev.x - p.x, prev.y - p.y) < 40) {
+        lastTap.current = null;
+        toggleZoom(p);
+      } else lastTap.current = { t: now, x: p.x, y: p.y };
+    }
+  };
+  const toggleZoom = (p: { x: number; y: number }) => {
+    if (isVideo) return;
+    if (zRef.current.s > 1.01) setZ(NO_ZOOM);
+    else {
+      loadFull();
+      const geo = geometry();
+      setZ(zoomAt(NO_ZOOM, Math.min(DOUBLE_TAP_ZOOM, geo?.max ?? DOUBLE_TAP_ZOOM), p));
+    }
+  };
+  const geo = dims ? geometry() : null;
+  const atMax = !!geo && z.s >= geo.max - 0.01 && z.s > 1;
+
+  // Videos: Original laden (Google verlangt den Zugang im Header, daher als Blob) und abspielen
+  const playVideo = () => {
+    if (video.state !== "idle" && video.state !== "error") return;
+    setVideo({ state: "loading" });
+    const key = itemKey;
+    const sw = navigator.serviceWorker?.controller;
+    // 1. Stückweise über den Service Worker (startet sofort, Spulen möglich)
+    if (sw && video.state !== "error" && !streamFailed.current.has(key)) {
+      accessToken(item.account_id)
+        .then((token) => {
+          if (key !== itemKeyRef.current) return;
+          sw.postMessage({ type: "video-token", accountId: item.account_id, token });
+          const q = new URLSearchParams({ size: String(item.size ?? 0), type: item.mime_type ?? "video/mp4" });
+          setVideo({ state: "ready", url: `./__video/${encodeURIComponent(item.account_id)}/${encodeURIComponent(item.drive_id)}?${q}`, stream: true });
+        })
+        .catch(() => downloadVideo(key));
+      return;
+    }
+    downloadVideo(key);
+  };
+  // 2. Rückfall: ganzes Video laden (z. B. ohne Service Worker oder wenn Streaming scheitert)
+  const streamFailed = useRef(new Set<string>());
+  const downloadVideo = (key: string) => {
+    setVideo({ state: "loading" });
+    downloadBlob(item.account_id, item.drive_id)
+      .then((b) => {
+        if (key !== itemKeyRef.current) return;
+        const type = item.mime_type && b.type !== item.mime_type ? item.mime_type : b.type;
+        const url = URL.createObjectURL(type === b.type ? b : new Blob([b], { type }));
+        fullUrls.current.push(url);
+        setVideo({ state: "ready", url });
+      })
+      .catch(() => key === itemKeyRef.current && setVideo({ state: "error" }));
+  };
+  const itemKeyRef = useRef(itemKey);
+  itemKeyRef.current = itemKey;
 
   const close = () => {
     setClosing(true);
@@ -83,37 +324,86 @@ export default function Viewer({
         </button>
         <span className="viewer-title">{item.name}</span>
         <span className="muted small">
-          {index + 1} / {items.length}
+          {index + 1}/{items.length}
         </span>
+        <button className={`icon-btn glass fav-btn ${fav ? "on" : ""}`} onClick={heart} aria-label="Favorit">
+          <Icon name="heart" size={20} />
+        </button>
+        <button className="icon-btn glass" onClick={() => setSharing(true)} aria-label="Link teilen">
+          <Icon name="link" size={19} />
+        </button>
       </div>
       <div
+        ref={stageRef}
         className="viewer-stage"
-        onTouchStart={(e) => {
-          startX.current = e.touches[0].clientX;
-          setDragging(true);
-        }}
-        onTouchMove={(e) => {
-          if (startX.current !== null) setDx(e.touches[0].clientX - startX.current);
-        }}
-        onTouchEnd={() => {
-          setDragging(false);
-          if (dx > 70 && index > 0) onIndex(index - 1);
-          else if (dx < -70 && index < items.length - 1) onIndex(index + 1);
-          else setDx(0);
-          startX.current = null;
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
+        onDoubleClick={(e) => Date.now() - lastTouch.current > 800 && toggleZoom(rel(e.clientX, e.clientY))}
+        onWheel={(e) => {
+          if (!e.ctrlKey && Math.abs(e.deltaY) < 1) return;
+          loadFull();
+          setZ(zoomAt(zRef.current, zRef.current.s * Math.exp(-e.deltaY / 300), rel(e.clientX, e.clientY)));
         }}
       >
-        {error && !low ? (
+        {error && !low && !isVideo ? (
           <p className="muted">Bild konnte nicht geladen werden.</p>
-        ) : high || low ? (
+        ) : high || low || isVideo ? (
           <div key={item.drive_id} className={`viewer-frame ${dragging ? "dragging" : ""}`} style={style}>
-            {low && <img className={`viewer-low ${high ? "hide" : ""}`} src={low} alt="" />}
-            {high && <img className="viewer-high" src={high} alt={item.name} />}
+            <div
+              className={`viewer-zoom ${zooming ? "live" : ""}`}
+              style={{ transform: z.s > 1 || z.x || z.y ? `translate3d(${z.x}px, ${z.y}px, 0) scale(${z.s})` : undefined }}
+            >
+              {low && <img className={`viewer-low ${high || full ? "hide" : ""}`} src={low} alt="" />}
+              {high && (
+                <img
+                  className="viewer-high"
+                  src={high}
+                  alt={item.name}
+                  onLoad={(e) => !full && setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+                />
+              )}
+              {full && (
+                <img
+                  className="viewer-full"
+                  src={full}
+                  alt=""
+                  onLoad={(e) => setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+                />
+              )}
+            </div>
+            {isVideo && video.state === "ready" && (
+              <video
+                className="viewer-video"
+                src={video.url}
+                controls
+                autoPlay
+                playsInline
+                onTouchStart={(e) => e.stopPropagation()}
+                onError={() => {
+                  if (!video.stream) return setVideo({ state: "error" });
+                  streamFailed.current.add(itemKey);
+                  downloadVideo(itemKey);
+                }}
+              />
+            )}
+            {isVideo && video.state !== "ready" && (
+              <button className="video-play glass" onClick={playVideo} aria-label="Video abspielen">
+                {video.state === "loading" ? <span className="spinner" /> : <Icon name="play" size={30} />}
+              </button>
+            )}
+            {isVideo && video.state === "error" && <p className="video-error small">Video konnte nicht geladen werden – nochmals tippen.</p>}
           </div>
         ) : (
           <div className="spinner" />
         )}
       </div>
+      {z.s > 1.01 && (
+        <div className="zoom-chip glass">
+          {z.s.toFixed(1)}×{fullState === "loading" ? " · lädt Original…" : atMax ? " · volle Auflösung" : ""}
+        </div>
+      )}
       <div className="viewer-info glass">
         <span className="chip-lite">
           <Icon name="image" size={15} /> {formatBytes(item.size)}
@@ -127,6 +417,11 @@ export default function Viewer({
         )}
         {item.description && <span className="chip-lite">{item.description}</span>}
       </div>
+      {sharing && (
+        <Suspense fallback={null}>
+          <ShareSheet item={item} onClose={() => setSharing(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
