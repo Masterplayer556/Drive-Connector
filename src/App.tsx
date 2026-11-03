@@ -16,6 +16,7 @@ import type { Account } from "./lib/types";
 import DriveView from "./views/DriveView";
 import LoginView from "./views/LoginView";
 import MfaView from "./views/MfaView";
+import { useAiEnabled } from "./ai/flag"; // KI-SUCHE
 
 const KontenView = lazy(() => import("./views/KontenView"));
 const ProtokollView = lazy(() => import("./views/ProtokollView"));
@@ -27,6 +28,7 @@ const FavoritenView = lazy(() => import("./views/FavoritenView"));
 const StatistikView = lazy(() => import("./views/StatistikView"));
 const RegalView = lazy(() => import("./views/RegalView"));
 const LinksView = lazy(() => import("./views/LinksView"));
+const AiIndexer = lazy(() => import("./ai/AiIndexer")); // KI-SUCHE
 
 type Phase = "loading" | "login" | "mfa" | "ready" | "error";
 
@@ -65,6 +67,7 @@ function Shell() {
   const [tokenErrors, setTokenErrors] = useState<{ email: string; error: string }[]>([]);
   const route = useRoute();
   const [locked, setLocked] = useState(lockEnabled);
+  const ai = useAiEnabled(); // KI-SUCHE
 
   useEffect(() => watchRelock(() => setLocked(true)), []);
 
@@ -175,6 +178,12 @@ function Shell() {
               antippen
             </span>
           </button>
+        )}
+        {/* KI-SUCHE: Hintergrund-Index, nur wenn eingeschaltet und entsperrt */}
+        {ai && (
+          <Suspense fallback={null}>
+            <AiIndexer />
+          </Suspense>
         )}
         <Suspense fallback={<LineSkeleton />}>
           {route.name === "drive" && <DriveView accounts={accounts} />}
