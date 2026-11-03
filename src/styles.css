@@ -3503,3 +3503,24 @@ p {
 .target-btn:active {
   transform: scale(0.96);
 }
+
+/* Auswahlmodus: Ordner anwählen */
+.folder .check {
+  top: calc(50% - 13px);
+  right: 10px;
+  border-color: rgba(var(--tint-rgb), 0.35);
+  background: rgba(var(--tint-rgb), 0.06);
+}
+
+.folder .check.on {
+  border-color: transparent;
+  background: var(--grad);
+}
+
+.folder.selected {
+  box-shadow: 0 0 0 2px rgb(var(--accent-rgb)) inset;
+}
+
+.folder:has(.check) .folder-name {
+  padding-right: 30px;
+}

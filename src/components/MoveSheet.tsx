@@ -1,25 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
-import { invalidateFolder, loadFolder } from "../lib/cache";
+import { invalidateAll, invalidateFolder, loadFolder } from "../lib/cache";
 import { fetchFolderParts, syncAccounts, writeLogs, type LogInput } from "../lib/db";
-import { PathResolver, pathSegments, PRIVAT_SEALED } from "../lib/folders";
+import { moveLogicalFolder, PathResolver, pathSegments, PRIVAT_SEALED } from "../lib/folders";
 import { crossesPrivat } from "../lib/placement";
 import { moveWithin } from "../lib/google";
 import { planMove } from "../lib/move";
 import { childKey, childPath } from "../lib/naming";
 import { folderHue } from "../lib/theme";
-import type { Account, Crumb, FolderContent, Item } from "../lib/types";
+import type { Account, Crumb, FolderContent, Item, LogicalFolder } from "../lib/types";
 import Icon from "./Icon";
 import Ring from "./Ring";
 
 const ROOT: Crumb = { name: "Drive", path: "", key: "" };
 
-/** Fotos verschieben (#10): Zielordner wählen, Konflikte klären, verschieben. */
+/** Fotos und Ordner verschieben (#10): Zielordner wählen, Konflikte klären, verschieben. */
 export default function MoveSheet({
   items,
+  folders = [],
   accounts,
   onClose,
 }: {
   items: Item[];
+  /** Ausgewählte Ordner – wandern samt Inhalt, jeder Teil bleibt in seinem Konto */
+  folders?: LogicalFolder[];
   accounts: Account[];
   onClose: (changed: boolean) => void;
 }) {
@@ -54,8 +57,22 @@ export default function MoveSheet({
     [content, current.key, items, conflictMode],
   );
   const count = (s: string) => plan.filter((e) => e.status === s).length;
-  // Privat ist abgeschottet: keine Fotos hinein oder heraus
-  const sealed = !!current.key && items.some((i) => crossesPrivat(i.path ?? "", current.path));
+  // Ordner: nicht in sich selbst, und wenn sie schon hier liegen, bleiben sie
+  const parentOf = (k: string) => k.split("/").slice(0, -1).join("/");
+  const folderTodo = folders.filter((f) => parentOf(f.key) !== current.key);
+  const merging = folderTodo.filter((f) => content?.folders.some((x) => x.key === childKey(current.key, f.name)));
+  // Privat ist abgeschottet: keine Fotos oder Ordner hinein oder heraus
+  const sealed =
+    !!current.key &&
+    (items.some((i) => crossesPrivat(i.path ?? "", current.path)) ||
+      folders.some((f) => crossesPrivat(f.path, childPath(current.path, f.name))));
+  const total = count("move") + folderTodo.length;
+  const what = [
+    items.length ? `${items.length} Foto${items.length === 1 ? "" : "s"}` : "",
+    folders.length ? `${folders.length} Ordner` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const conflictsIfSkip = useMemo(
     () =>
       content && current.key
@@ -76,6 +93,22 @@ export default function MoveSheet({
     const todo = plan.filter((e) => e.status === "move");
     setPhase("run");
     const errors: string[] = [];
+    // 1. Ordner (samt Inhalt) – jeder Teil bleibt in seinem Konto
+    for (const f of folderTodo) {
+      try {
+        await moveLogicalFolder(f, current, accounts);
+      } catch (err) {
+        errors.push(`${f.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      setDone((d) => d + 1);
+    }
+    if (folderTodo.length) invalidateAll();
+    if (!todo.length) {
+      invalidateFolder(current.key);
+      setFailed(errors);
+      setPhase("done");
+      return;
+    }
     const logs: LogInput[] = [];
     const parts = await fetchFolderParts(current.path);
     const parentBy = new Map(parts.map((p) => [p.account_id, p.drive_id]));
@@ -125,7 +158,7 @@ export default function MoveSheet({
         <div className="sheet-head">
           <div style={{ minWidth: 0 }}>
             <div className="muted small ellipsis">
-              {items.length} Foto{items.length === 1 ? "" : "s"} verschieben nach …
+              {what} verschieben nach …
             </div>
             <h2 className="ellipsis">{phase === "done" ? "Verschoben" : current.key ? current.name : "Ziel wählen"}</h2>
           </div>
@@ -152,11 +185,11 @@ export default function MoveSheet({
               </div>
               {!content ? (
                 <div className="spinner" style={{ alignSelf: "center" }} />
-              ) : content.folders.length === 0 ? (
+              ) : content.folders.filter((f) => !folders.some((x) => x.key === f.key)).length === 0 ? (
                 <p className="muted small">Keine Unterordner.</p>
               ) : (
                 <div className="folders stagger" style={{ padding: 0 }}>
-                  {content.folders.map((f, i) => (
+                  {content.folders.filter((f) => !folders.some((x) => x.key === f.key)).map((f, i) => (
                     <button
                       key={f.key}
                       className="folder"
@@ -203,15 +236,22 @@ export default function MoveSheet({
                       <span>{PRIVAT_SEALED}.</span>
                     </div>
                   )}
-                  <button className="btn primary block" disabled={sealed || count("move") === 0} onClick={run}>
-                    <Icon name="move" size={18} /> {count("move")} hierher verschieben
+                  {merging.length > 0 && !sealed && (
+                    <p className="faint small" style={{ margin: 0 }}>
+                      {merging.map((f) => `„${f.name}“`).join(", ")} gibt es hier schon – die Inhalte werden zusammengeführt.
+                    </p>
+                  )}
+                  <button className="btn primary block" disabled={sealed || total === 0} onClick={run}>
+                    <Icon name="move" size={18} /> {total} hierher verschieben
                   </button>
-                  {count("same") > 0 && <p className="faint small">{count("same")} liegen schon hier.</p>}
+                  {count("same") + folders.length - folderTodo.length > 0 && (
+                    <p className="faint small">{count("same") + folders.length - folderTodo.length} liegen schon hier.</p>
+                  )}
                 </>
               )}
             </>
           )}
-          {phase === "run" && <Ring value={done} total={plan.filter((e) => e.status === "move").length} label="verschoben" />}
+          {phase === "run" && <Ring value={done} total={total} label="verschoben" />}
           {phase === "done" && (
             <>
               <div className="done-check">
