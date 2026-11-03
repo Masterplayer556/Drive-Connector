@@ -1,6 +1,6 @@
 // KI-SUCHE (Test): Verbindung zu den Workern.
-// Bildmodell: zuerst Grafikchip (WebGPU) versuchen, sonst Prozessor – bei „Schnell lernen“ bis zu zwei
-// Worker parallel. Die Suche hat einen eigenen Worker; während gesucht wird, gibt das Lernen seinen
+// Bildmodell auf dem Prozessor – bei „Schnell lernen“ bis zu zwei Worker parallel. Grafikchip (WebGPU)
+// nur, wenn eingeschaltet: Er braucht beim Laden kurz sehr viel Speicher, was auf iPhones abstürzen kann. Die Suche hat einen eigenen Worker; während gesucht wird, gibt das Lernen seinen
 // Speicher frei. Auf dem iPhone teilen sich App und alle Worker denselben Arbeitsspeicher.
 import { setRisk, takeCrash, type Risk } from "./guard";
 import { MODEL_CACHE } from "./store";
@@ -10,7 +10,7 @@ type Part = "bild" | "text";
 type WithoutId<T> = T extends unknown ? Omit<T, "id"> : never;
 type Pending = { resolve: (m: FromWorker) => void; reject: (e: Error) => void; slot: number };
 
-const GPU_KEY = "drivepool.ai.gpu"; // "no" = Grafikchip hat hier nicht geklappt
+const GPU_KEY = "drivepool.ai.gpu"; // "yes" = Grafikchip eingeschaltet · "no" = hat hier nicht geklappt
 const CAP_KEY = "drivepool.ai.maxw"; // Obergrenze Prozessor-Worker nach einem Absturz
 const NOTR_KEY = "drivepool.ai.notr"; // "1" = ohne Übersetzer suchen (nach Absturz bei der Suche)
 
@@ -33,12 +33,14 @@ function lsSet(k: string, v: string | null) {
 // ---- Nach einem Absturz beim letzten Mal: eine Stufe sparsamer ----
 const crashed: Risk | null = takeCrash();
 if (crashed === "gpu") lsSet(GPU_KEY, "no");
+// Grafikchip nicht in Gebrauch → seine Modelldatei (~175 MB) nicht unnötig auf dem Gerät behalten
+if (lsGet(GPU_KEY) !== "yes") void dropModelFiles("vision_model_fp16");
 else if (crashed?.startsWith("workers:")) lsSet(CAP_KEY, String(Math.max(1, Number(crashed.split(":")[1]) - 1)));
 else if (crashed === "search") lsSet(NOTR_KEY, "1");
 
 /** Was nach dem letzten Absturz geändert wurde (für die Anzeige), sonst null. */
 export function crashNote(): string | null {
-  if (crashed === "gpu") return "Letztes Mal ist die App auf dem Grafikchip abgestürzt – ab jetzt rechnet der Prozessor.";
+  if (crashed === "gpu") return "Letztes Mal ist die App auf dem Grafikchip abgestürzt – er ist jetzt aus, es rechnet der Prozessor.";
   if (crashed?.startsWith("workers:")) return "Letztes Mal ist die App beim schnellen Lernen abgestürzt – ab jetzt mit weniger Kernen.";
   if (crashed === "search") return "Letztes Mal ist die App bei der Suche abgestürzt – ab jetzt ohne Übersetzer (spart Speicher, Suche am besten auf Englisch).";
   return null;
@@ -135,6 +137,23 @@ function send(msg: WithoutId<ToWorker>, slot: number): Promise<FromWorker> {
   });
 }
 
+export type GpuChoice = "off" | "on" | "failed" | "unsupported";
+
+/** Grafikchip: aus, an, hat nicht geklappt, oder gibt es hier nicht. */
+export function gpuChoice(): GpuChoice {
+  if (!("gpu" in navigator)) return "unsupported";
+  const v = lsGet(GPU_KEY);
+  return v === "yes" ? "on" : v === "no" ? "failed" : "off";
+}
+
+/** Grafikchip ein/aus. Die Bild-Worker starten neu, damit die Wahl sofort gilt. */
+export function setGpuChoice(on: boolean) {
+  lsSet(GPU_KEY, on ? "yes" : null);
+  for (let slot = 0; slot < MAX_WORKERS; slot++) kill(slot);
+  visionDevice = null;
+  if (!on) void dropModelFiles("vision_model_fp16");
+}
+
 /** Beim Ausschalten der KI-Suche: alle Merker zurücksetzen. */
 export function forgetGpu() {
   for (const k of [GPU_KEY, CAP_KEY, NOTR_KEY]) lsSet(k, null);
@@ -157,7 +176,7 @@ async function dropModelFiles(part: string) {
 export function prepareVision(wanted: number): Promise<void> {
   preparing ??= (async () => {
     if (!visionDevice) {
-      if ("gpu" in navigator && lsGet(GPU_KEY) !== "no") {
+      if ("gpu" in navigator && lsGet(GPU_KEY) === "yes") {
         setRisk("gpu"); // falls das Laden auf dem Grafikchip die App abschiesst
         try {
           await send({ type: "warm", part: "bild", device: "webgpu" }, 0);
