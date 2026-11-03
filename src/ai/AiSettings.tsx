@@ -3,7 +3,7 @@ import "./ai.css";
 import { useEffect, useState } from "react";
 import Icon from "../components/Icon";
 import { useUI } from "../components/ui";
-import { crashNote, forgetGpu, modelProgress, onModelProgress } from "./engine";
+import { crashNote, forgetGpu, gpuChoice, modelProgress, onModelProgress, setGpuChoice } from "./engine";
 import { setAiEnabled, useAiEnabled } from "./flag";
 import { indexState, onIndexState, setTurbo, stopIndexer, type IndexState } from "./indexer";
 import { usedBytes, wipeEverything } from "./store";
@@ -51,6 +51,7 @@ export default function AiSettings() {
   const [s, setS] = useState(indexState);
   const [bytes, setBytes] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [gpu, setGpu] = useState(gpuChoice);
   const [, tick] = useState(0);
 
   useEffect(() => onIndexState(() => setS(indexState())), []);
@@ -137,6 +138,29 @@ export default function AiSettings() {
               </span>
               <span>{eta(left, s.rate)}</span>
             </div>
+          )}
+          {gpu !== "unsupported" && (
+            <label className="ai-gpu small">
+              <span>
+                <strong>Grafikchip</strong> <span className="ai-pill">experimentell</span>
+                <span className="faint">
+                  {gpu === "failed"
+                    ? " Hat auf diesem iPhone nicht geklappt (zu wenig Speicher) – nochmals versuchen?"
+                    : " Viel schneller, braucht beim Start aber sehr viel Speicher und kann auf iPhones abstürzen. Nach einem Absturz schaltet er sich selbst aus."}
+                </span>
+              </span>
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={gpu === "on"}
+                  onChange={() => {
+                    setGpuChoice(gpu !== "on");
+                    setGpu(gpuChoice());
+                  }}
+                />
+                <span />
+              </span>
+            </label>
           )}
           {learning && (
             <>
