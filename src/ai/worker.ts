@@ -35,8 +35,13 @@ const progress = (part: "bild" | "text") => (p: { status: string; file?: string;
   }
 };
 
+// Weniger Arbeitsspeicher auf dem Prozessor: kein vorab reservierter Speicherblock, keine Vorausplanung
+// (etwas langsamer, aber auf dem iPhone teilen sich App und alle Worker denselben Speicher)
+const LEAN = { enableCpuMemArena: false, enableMemPattern: false };
+
 let vision: Promise<{ processor: Fn; model: Fn }> | null = null;
-let text: Promise<{ tokenizer: (t: string[], o: object) => unknown; model: Fn; translate: Translator | null }> | null = null;
+let text: Promise<{ tokenizer: (t: string[], o: object) => unknown; model: Fn }> | null = null;
+let translator: Promise<Translator | null> | null = null;
 
 function normalized(v: Float32Array): Float32Array {
   let s = 0;
@@ -64,6 +69,7 @@ function loadVision(device: VisionDevice) {
         device,
         dtype: device === "webgpu" ? "fp16" : "q8",
         progress_callback: progress("bild"),
+        ...(device === "wasm" ? { session_options: LEAN } : {}),
       }),
     ]);
     const v = { processor: processor as unknown as Fn, model: model as unknown as Fn };
@@ -83,21 +89,26 @@ function loadVision(device: VisionDevice) {
   return vision;
 }
 
+const textOpts = () => ({ device: "wasm" as const, dtype: "q8" as const, progress_callback: progress("text"), session_options: LEAN });
+
 function loadText() {
   text ??= (async () => {
-    const opts = { device: "wasm" as const, dtype: "q8" as const, progress_callback: progress("text") };
-    const [tokenizer, model, translate] = await Promise.all([
+    const [tokenizer, model] = await Promise.all([
       AutoTokenizer.from_pretrained(CLIP_MODEL, { progress_callback: progress("text") }),
-      CLIPTextModelWithProjection.from_pretrained(CLIP_MODEL, opts),
-      // Übersetzer Deutsch → Englisch (CLIP versteht nur Englisch gut). Fehlt er, wird direkt gesucht.
-      (pipeline("translation", MT_MODEL, opts) as unknown as Promise<Translator>).catch(() => null),
+      CLIPTextModelWithProjection.from_pretrained(CLIP_MODEL, textOpts()),
     ]);
-    return { tokenizer: tokenizer as unknown as (t: string[], o: object) => unknown, model: model as unknown as Fn, translate };
+    return { tokenizer: tokenizer as unknown as (t: string[], o: object) => unknown, model: model as unknown as Fn };
   })().catch((e) => {
     text = null;
     throw e;
   });
   return text;
+}
+
+/** Übersetzer Deutsch → Englisch (CLIP versteht nur Englisch gut). Fehlt er, wird direkt gesucht. */
+function loadTranslator() {
+  translator ??= (pipeline("translation", MT_MODEL, textOpts()) as unknown as Promise<Translator>).catch(() => null);
+  return translator;
 }
 
 /** Mehrere Bilder in einem Durchgang (auf dem Grafikchip viel schneller als einzeln). */
@@ -113,8 +124,8 @@ async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[]> {
   return out;
 }
 
-async function embedText(query: string): Promise<{ vec: Float32Array; english: string }> {
-  const { tokenizer, model, translate } = await loadText();
+async function embedText(query: string, withTranslator: boolean): Promise<{ vec: Float32Array; english: string }> {
+  const [{ tokenizer, model }, translate] = await Promise.all([loadText(), withTranslator ? loadTranslator() : null]);
   let english = query;
   if (translate) {
     try {
@@ -137,7 +148,7 @@ ctx.onmessage = async (e) => {
     } else if (m.type === "images") {
       ctx.postMessage({ type: "vecs", id: m.id, vecs: await embedImages(m.blobs) });
     } else if (m.type === "text") {
-      const { vec, english } = await embedText(m.text);
+      const { vec, english } = await embedText(m.text, m.translate);
       ctx.postMessage({ type: "vec", id: m.id, vec, english });
     }
   } catch (err) {

@@ -5,7 +5,7 @@ import Icon from "../components/Icon";
 import Thumb from "../components/Thumb";
 import type { Account, Item } from "../lib/types";
 import { modelProgress, onModelProgress } from "./engine";
-import { indexState } from "./indexer";
+import { indexState, searchClosed, searchOpened } from "./indexer";
 import { aiSearch, type AiResult } from "./search";
 
 const Viewer = lazy(() => import("../components/Viewer"));
@@ -19,6 +19,11 @@ export default function AiSearchResults({ query, accounts }: { query: string; ac
   const seq = useRef(0);
 
   useEffect(() => onModelProgress(() => tick((n) => n + 1)), []);
+  // Während das Suchfenster offen ist, pausiert das Lernen (Arbeitsspeicher für die Suche)
+  useEffect(() => {
+    searchOpened();
+    return searchClosed;
+  }, []);
 
   useEffect(() => {
     const term = query.trim();
