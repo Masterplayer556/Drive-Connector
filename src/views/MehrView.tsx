@@ -91,7 +91,7 @@ function FaceIdItem({ email }: { email: string }) {
       <span className="li-text">
         Face-ID-Sperre
         <small>
-          {supported === false ? "Auf diesem Gerät nicht verfügbar" : on ? "Aktiv – nach 1 Minute im Hintergrund wieder gesperrt" : "Statt Passwort beim Öffnen"}
+          {supported === false ? "Auf diesem Gerät nicht verfügbar" : on ? "Aktiv – nach 5 Minuten im Hintergrund wieder gesperrt" : "Statt Passwort beim Öffnen"}
         </small>
       </span>
       {busy ? (

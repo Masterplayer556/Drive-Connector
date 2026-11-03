@@ -35,8 +35,8 @@ interface Gesture {
 const NO_ZOOM: Zoom = { s: 1, x: 0, y: 0 };
 /** Obergrenze, egal wie gross das Original ist */
 const MAX_ZOOM = 24;
-/** Mindestens so weit darf man immer zoomen (auch bei kleinen Bildern) */
-const MIN_MAX_ZOOM = 2;
+/** Mindestens so weit darf man immer zoomen (auch bei kleinen Bildern, dann wird es pixelig) */
+const MIN_MAX_ZOOM = 15;
 const DOUBLE_TAP_ZOOM = 2.5;
 /** Gummiband: so stark gibt das Bild über den Rand hinaus nach */
 const RUBBER = 0.35;
@@ -178,8 +178,10 @@ export default function Viewer({
     const fit = Math.min(st.width / dims.w, st.height / dims.h, 1);
     const W = dims.w * fit;
     const H = dims.h * fit;
-    const max = Math.min(MAX_ZOOM, Math.max(MIN_MAX_ZOOM, dims.w / W));
-    return { st, W, H, max };
+    /** Ab hier zeigt ein Bildschirmpunkt einen Bildpunkt (volle Auflösung) */
+    const native = dims.w / W;
+    const max = Math.min(MAX_ZOOM, Math.max(MIN_MAX_ZOOM, native));
+    return { st, W, H, max, native };
   };
   const clampZ = (n: Zoom): Zoom => {
     const geo = geometry();
@@ -345,7 +347,7 @@ export default function Viewer({
     }
   };
   const geo = dims ? geometry() : null;
-  const atMax = !!geo && z.s >= geo.max - 0.01 && z.s > 1;
+  const atMax = !!geo && z.s >= geo.native - 0.01 && z.s > 1;
 
   // Videos: Original laden (Google verlangt den Zugang im Header, daher als Blob) und abspielen
   const playVideo = () => {
