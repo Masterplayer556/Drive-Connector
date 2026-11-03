@@ -35,3 +35,10 @@
   color: #fff;
   background: linear-gradient(135deg, #f472b6, #8b5cf6);
 }
+.ai-note {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--text, inherit);
+}

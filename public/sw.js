@@ -1,8 +1,10 @@
 // Service Worker: App startet aus dem Speicher.
 // - Dateien mit Hash im Namen (assets/) ändern sich nie → direkt aus dem Cache
-// - Startseite: kurz übers Netz versuchen, sonst die gespeicherte Version
-const CACHE = "drive-pool-v4";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png"];
+// - Startseite: kurz übers Netz versuchen, sonst die zuletzt geladene Version
+//   (immer unter "./" gespeichert – früher konnte eine uralte Kopie von der Installation erscheinen)
+const CACHE = "drive-pool-v5";
+const SHELL = ["./", "./manifest.webmanifest", "./icons/icon-192.png"];
+const SHELL_KEY = new URL("./", self.location).toString();
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -42,7 +44,7 @@ function networkFirst(req, timeoutMs) {
   return new Promise((resolve) => {
     let settled = false;
     const fallback = () =>
-      caches.match(req).then((hit) => hit || caches.match("./")).then((hit) => {
+      caches.match(SHELL_KEY).then((hit) => {
         if (!settled && hit) {
           settled = true;
           resolve(hit);
@@ -53,9 +55,10 @@ function networkFirst(req, timeoutMs) {
     fetch(req)
       .then((res) => {
         clearTimeout(timer);
-        if (res.ok) {
+        if (res.ok && !res.redirected) {
+          // Jede Seite der App ist dieselbe Startseite → immer unter einem Schlüssel, die neueste gewinnt
           const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
+          caches.open(CACHE).then((c) => c.put(SHELL_KEY, copy));
         }
         if (!settled) {
           settled = true;

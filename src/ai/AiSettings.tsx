@@ -3,7 +3,7 @@ import "./ai.css";
 import { useEffect, useState } from "react";
 import Icon from "../components/Icon";
 import { useUI } from "../components/ui";
-import { forgetGpu, modelProgress, onModelProgress } from "./engine";
+import { crashNote, forgetGpu, modelProgress, onModelProgress } from "./engine";
 import { setAiEnabled, useAiEnabled } from "./flag";
 import { indexState, onIndexState, setTurbo, stopIndexer, type IndexState } from "./indexer";
 import { usedBytes, wipeEverything } from "./store";
@@ -32,6 +32,8 @@ function statusText(s: IndexState): string {
     }
     case "indexing":
       return `Lernt deine Fotos kennen … noch ${left.toLocaleString("de-CH")}`;
+    case "searching":
+      return `Pausiert, solange die Suche offen ist · noch ${left.toLocaleString("de-CH")}`;
     case "paused":
       return `Pausiert, solange die App im Hintergrund ist · noch ${left.toLocaleString("de-CH")}`;
     case "done":
@@ -94,7 +96,7 @@ export default function AiSettings() {
 
   const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
   const left = Math.max(0, s.total - s.done);
-  const learning = left > 0 && ["start", "model", "indexing", "paused"].includes(s.phase);
+  const learning = left > 0 && ["start", "model", "indexing", "paused", "searching"].includes(s.phase);
 
   return (
     <div className="list glass enter">
@@ -117,6 +119,7 @@ export default function AiSettings() {
       </label>
       {on && (
         <div className="ai-settings-body">
+          {crashNote() && <p className="small ai-note">{crashNote()}</p>}
           <div className="bar">
             <div className={`bar-fill ${s.phase === "indexing" || s.phase === "model" ? "live" : ""}`} style={{ width: `${pct}%` }} />
           </div>

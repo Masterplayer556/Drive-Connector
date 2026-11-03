@@ -3,11 +3,11 @@
 // Bildschirm bleibt an. Im Hintergrund friert iOS Web-Apps ein – dann geht es beim nächsten Öffnen weiter.
 import type { Item } from "../lib/types";
 import { catalog, thumbsFor } from "./catalog";
-import { embedImages, MAX_WORKERS, prepareVision, shutdown, visionInfo } from "./engine";
+import { embedImages, MAX_WORKERS, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, visionInfo } from "./engine";
 import type { VisionDevice } from "./protocol";
 import { itemKey, markSkip, putVector, removeKeys, skipped, vectorKeys } from "./store";
 
-export type Phase = "start" | "model" | "indexing" | "done" | "paused" | "error" | "off";
+export type Phase = "start" | "model" | "indexing" | "done" | "paused" | "searching" | "error" | "off";
 
 export interface IndexState {
   phase: Phase;
@@ -36,6 +36,7 @@ let active = 0;
 const wakers = new Set<() => void>();
 let lastInput = 0;
 let wakeLock: WakeLockSentinel | null = null;
+let searchOpen = 0;
 
 export const indexState = () => state;
 export function onIndexState(cb: () => void): () => void {
@@ -87,10 +88,29 @@ export function setTurbo(on: boolean) {
   wakeAll();
 }
 
-/** Warten, bis die App sichtbar ist und (ausser bei „Schnell lernen“) gerade nicht bedient wird. */
+/** Suchfenster offen/zu: solange gesucht wird, pausiert das Lernen und gibt seinen Speicher frei. */
+export function searchOpened() {
+  searchOpen++;
+  setSearching(true);
+}
+export function searchClosed() {
+  searchOpen = Math.max(0, searchOpen - 1);
+  if (searchOpen) return;
+  setSearching(false);
+  releaseTextLater();
+  wakeAll();
+}
+
+/** Warten, bis die App sichtbar ist, nicht gesucht und (ausser bei „Schnell lernen“) gerade nicht bedient wird. */
 async function waitForQuiet(stopped: () => boolean) {
   for (;;) {
     if (stopped()) return;
+    if (searchOpen) {
+      set({ phase: "searching" });
+      releaseIdleVision();
+      await sleep(400);
+      continue;
+    }
     if (document.visibilityState !== "visible") {
       set({ phase: "paused" });
       await sleep(60_000);

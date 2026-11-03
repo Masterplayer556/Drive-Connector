@@ -17,7 +17,7 @@ export type ToWorker =
   | { type: "warm"; id: number; part: "bild"; device: VisionDevice }
   | { type: "warm"; id: number; part: "text" }
   | { type: "images"; id: number; blobs: Blob[] }
-  | { type: "text"; id: number; text: string };
+  | { type: "text"; id: number; text: string; translate: boolean };
 
 export type FromWorker =
   | { type: "progress"; part: "bild" | "text"; file: string; loaded: number; total: number }
