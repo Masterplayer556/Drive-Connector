@@ -3524,3 +3524,15 @@ p {
 .folder:has(.check) .folder-name {
   padding-right: 30px;
 }
+
+/* iOS zeichnet den Verlauf im Häkchen sonst als Quadrat (Ebene mit Unschärfe dahinter) → hart rund zuschneiden */
+.check {
+  clip-path: circle(50%);
+  -webkit-clip-path: circle(50%);
+  background-clip: padding-box;
+  isolation: isolate;
+}
+
+.check.on {
+  transform: none;
+}
