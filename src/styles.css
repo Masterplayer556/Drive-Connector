@@ -3564,3 +3564,25 @@ p {
     animation: none;
   }
 }
+
+/* Füllstand in der Prozentzahl: ab 80 % gelb, ab 90 % rot, ab 95 % dunkelrot */
+.donut-center strong {
+  transition: color 0.4s ease;
+}
+.donut-center strong.lvl-warn {
+  color: #facc15;
+}
+.donut-center strong.lvl-red {
+  color: #ef4444;
+}
+.donut-center strong.lvl-crit {
+  color: #b91c1c;
+}
+:root[data-theme="polar"] .donut-center strong.lvl-warn {
+  color: #ca8a04;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .donut-center strong.lvl-warn {
+    color: #ca8a04;
+  }
+}
