@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
+import PathPicker, { crumbsOf } from "../components/PathPicker";
 import Ring from "../components/Ring";
 import { knownMd5, releaseNumbers, reserveNumbers, syncAccounts, writeLogs, type LogInput } from "../lib/db";
+import { invalidateFolder, loadFolder } from "../lib/cache";
 import { formatBytes } from "../lib/format";
 import { md5OfFile } from "../lib/md5";
 import { maxNumber } from "../lib/naming";
@@ -19,8 +21,8 @@ const REASON: Record<string, string> = {
 
 export default function UploadSheet({
   files,
-  target,
-  content,
+  target: initialTarget,
+  content: initialContent,
   accounts,
   onClose,
 }: {
@@ -43,6 +45,21 @@ export default function UploadSheet({
   const [showNames, setShowNames] = useState(false);
   const [closing, setClosing] = useState(false);
   const background = useRef<Promise<unknown> | null>(null);
+  // Ziel: standardmässig der Ordner, in dem „Hochladen“ gedrückt wurde – kann geändert werden
+  const [target, setTarget] = useState<Crumb>(initialTarget);
+  const [content, setContent] = useState<FolderContent | null>(initialContent);
+  const [picking, setPicking] = useState(false);
+
+  const changeTarget = (c: Crumb) => {
+    setPicking(false);
+    if (c.key === target.key) return;
+    setTarget(c);
+    setOrder([]);
+    setContent(null);
+    loadFolder(c.key)
+      .then((x) => setContent(x))
+      .catch(() => setContent({ folders: [], files: [] }));
+  };
 
   const byId = useMemo(() => new Map(files.map((f, i) => [`f${i}`, f])), [files]);
   const previews = useMemo(() => new Map([...byId].map(([id, f]) => [id, URL.createObjectURL(f)])), [byId]);
@@ -79,11 +96,11 @@ export default function UploadSheet({
       files: planFiles,
       orderMode,
       order,
-      startNumber: maxNumber(content.files.map((f) => f.name)) + 1,
-      existingNames: content.files.map((f) => f.name),
+      startNumber: maxNumber((content?.files ?? []).map((f) => f.name)) + 1,
+      existingNames: (content?.files ?? []).map((f) => f.name),
       knownMd5: known,
-      folderBytes: content.files.reduce((s, f) => s + (f.size ?? 0), 0),
-      folderHasSubfolders: content.folders.length > 0,
+      folderBytes: (content?.files ?? []).reduce((s, f) => s + (f.size ?? 0), 0),
+      folderHasSubfolders: (content?.folders.length ?? 0) > 0,
       conflictMode,
       now: new Date(),
     }),
@@ -176,8 +193,27 @@ export default function UploadSheet({
   const close = async () => {
     setClosing(true);
     if (background.current) await background.current;
+    if (phase === "done") {
+      // Zielordner und seine Eltern (evtl. neu angelegt) neu laden
+      const segs = target.key.split("/");
+      for (let i = 0; i <= segs.length; i++) invalidateFolder(segs.slice(0, i).join("/"));
+    }
     onClose(phase === "done");
   };
+
+  if (picking) {
+    return (
+      <PathPicker
+        subtitle="Hochladen nach …"
+        start={crumbsOf(target.path)}
+        allowNew
+        check={(c) => (c.key ? null : "Wähle einen Ordner")}
+        confirmLabel={(c) => (c.key ? `Nach „${c.name}“ hochladen` : "Ordner wählen")}
+        onPick={changeTarget}
+        onCancel={() => setPicking(false)}
+      />
+    );
+  }
 
   const totalBytes = plan.filter((e) => e.status === "upload").reduce((s, e) => s + e.size, 0);
   const done = result ? summarize(result.plan) : null;
@@ -190,7 +226,15 @@ export default function UploadSheet({
         <div className="sheet-grip" />
         <div className="sheet-head">
           <div style={{ minWidth: 0 }}>
-            <div className="muted small ellipsis">nach „{target.path}“</div>
+            {phase === "analyse" || phase === "review" ? (
+              <button className="target-btn" onClick={() => setPicking(true)} aria-label="Zielordner ändern">
+                <Icon name="folder" size={14} />
+                <span className="ellipsis">nach „{target.path}“</span>
+                <Icon name="chevronRight" size={14} />
+              </button>
+            ) : (
+              <div className="muted small ellipsis">nach „{target.path}“</div>
+            )}
             <h2>
               {phase === "analyse" && "Fotos prüfen"}
               {phase === "review" && `${files.length} Foto${files.length === 1 ? "" : "s"}`}
@@ -346,7 +390,7 @@ export default function UploadSheet({
                 </ul>
               )}
 
-              <button className="btn primary block" disabled={sum.upload === 0} onClick={start}>
+              <button className="btn primary block" disabled={sum.upload === 0 || !content} onClick={start}>
                 <Icon name="upload" size={19} /> {sum.upload} Foto{sum.upload === 1 ? "" : "s"} hochladen
               </button>
             </>

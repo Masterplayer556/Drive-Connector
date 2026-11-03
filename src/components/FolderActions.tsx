@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
-import { loadFolder } from "../lib/cache";
 import { customHue, FOLDER_HUES, hueOf, setFolderHue, useFolderColors } from "../lib/folderColors";
-import { moveLogicalFolder, renameLogicalFolder } from "../lib/folders";
-import { validFolderName } from "../lib/naming";
-import type { Account, Crumb, FolderContent, LogicalFolder } from "../lib/types";
+import { moveLogicalFolder, PRIVAT_SEALED, renameLogicalFolder } from "../lib/folders";
+import { childPath, validFolderName } from "../lib/naming";
+import { crossesPrivat } from "../lib/placement";
+import type { Account, LogicalFolder } from "../lib/types";
 import Icon from "./Icon";
+import PathPicker from "./PathPicker";
 import { useUI } from "./ui";
-
-const ROOT: Crumb = { name: "Drive", path: "", key: "" };
 
 /** Menü beim Gedrückthalten eines Ordners: öffnen, Farbe, umbenennen, verschieben, ZIP, löschen. */
 export default function FolderActions({
@@ -41,6 +40,7 @@ export default function FolderActions({
   }, []);
   const [busy, setBusy] = useState(false);
   const current = customHue(folder.key);
+  const parentKey = folder.key.split("/").slice(0, -1).join("/");
 
   const rename = async () => {
     const name = await ui.prompt({
@@ -74,8 +74,13 @@ export default function FolderActions({
 
   if (picking) {
     return (
-      <FolderPicker
-        folder={folder}
+      <PathPicker
+        subtitle={`„${folder.name}“ verschieben nach …`}
+        exclude={folder.key}
+        check={(c) =>
+          c.key === parentKey ? "Liegt schon hier" : crossesPrivat(folder.path, childPath(c.path, folder.name)) ? PRIVAT_SEALED : null
+        }
+        confirmLabel={(c) => `Nach „${c.key ? c.name : "Drive"}“ verschieben`}
         onCancel={() => setPicking(false)}
         onPick={async (target) => {
           setBusy(true);
@@ -155,82 +160,6 @@ export default function FolderActions({
             )}
           </div>
           {busy && <div className="spinner" style={{ alignSelf: "center" }} />}
-        </div>
-      </div>
-    </>
-  );
-}
-
-/** Zielordner wählen (der Ordner selbst und seine Unterordner sind ausgeschlossen). */
-function FolderPicker({
-  folder,
-  busy,
-  onPick,
-  onCancel,
-}: {
-  folder: LogicalFolder;
-  busy: boolean;
-  onPick: (target: Crumb) => void;
-  onCancel: () => void;
-}) {
-  const [stack, setStack] = useState<Crumb[]>([ROOT]);
-  const current = stack[stack.length - 1];
-  const [content, setContent] = useState<FolderContent | null>(null);
-  useEffect(() => {
-    setContent(null);
-    loadFolder(current.key)
-      .then(setContent)
-      .catch(() => setContent({ folders: [], files: [] }));
-  }, [current.key]);
-  const parentKey = folder.key.split("/").slice(0, -1).join("/");
-  const sub = (content?.folders ?? []).filter((f) => f.key !== folder.key);
-
-  return (
-    <>
-      <div className="sheet-backdrop" onClick={onCancel} />
-      <div className="sheet">
-        <div className="sheet-grip" />
-        <div className="sheet-head">
-          <div style={{ minWidth: 0 }}>
-            <div className="muted small ellipsis">„{folder.name}“ verschieben nach …</div>
-            <h2 className="ellipsis">{current.key ? current.name : "Drive"}</h2>
-          </div>
-          <button className="icon-btn" onClick={onCancel} aria-label="Schliessen">
-            <Icon name="x" />
-          </button>
-        </div>
-        <div className="sheet-body stack">
-          <div className="crumbs" style={{ paddingTop: 0 }}>
-            {stack.map((c, i) => (
-              <button key={c.key || "root"} className={`crumb ${i === stack.length - 1 ? "current" : ""}`} onClick={() => setStack(stack.slice(0, i + 1))}>
-                {i === 0 ? "Drive" : c.name}
-              </button>
-            ))}
-          </div>
-          {!content ? (
-            <div className="spinner" style={{ alignSelf: "center" }} />
-          ) : (
-            <div className="folders" style={{ padding: 0 }}>
-              {sub.map((f) => (
-                <button
-                  key={f.key}
-                  className="folder"
-                  style={{ ["--h" as string]: hueOf(f.key, f.name) }}
-                  onClick={() => setStack([...stack, { name: f.name, path: f.path, key: f.key }])}
-                >
-                  <span className="folder-icon">
-                    <Icon name="folder" size={18} />
-                  </span>
-                  <span className="folder-name">{f.name}</span>
-                </button>
-              ))}
-              {!sub.length && <p className="muted small">Keine Unterordner.</p>}
-            </div>
-          )}
-          <button className="btn primary block" disabled={busy || current.key === parentKey} onClick={() => onPick(current)}>
-            {busy ? <span className="spinner" /> : <Icon name="move" size={18} />}
-            {current.key === parentKey ? "Liegt schon hier" : `Nach „${current.key ? current.name : "Drive"}“ verschieben`}
-          </button>
         </div>
       </div>
     </>

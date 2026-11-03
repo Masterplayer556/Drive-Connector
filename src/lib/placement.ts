@@ -30,22 +30,31 @@ function mostFree(list: AccountState[]): string | null {
   return best?.id ?? null;
 }
 
+/** Privat ist abgeschottet: verlässt ein Verschieben von `from` nach `to` den Bereich Privat (oder kommt hinein)? */
+export function crossesPrivat(from: string, to: string): boolean {
+  return (areaOf(from) === "privat") !== (areaOf(to) === "privat");
+}
+
 /**
- * Reihenfolge:
+ * Privat ist ein eigenes Gebiet: Privat-Ordner liegen nur in Privat-Konten, alles andere nur in
+ * Archiv-Konten. Ohne erkennbaren Bereich (z. B. Ordner ganz oben) ist jedes Konto erlaubt.
+ * Reihenfolge innerhalb des Gebiets:
  * 1. Konto, in dem der Ordner schon liegt (bei mehreren: das mit dem meisten Platz)
- * 2. Konto mit passender Rolle (Schule/Privat)
- * 3. irgendein Konto mit Platz
+ * 2. Konto mit dem meisten Platz
  */
 export function chooseAccount(
   accounts: AccountState[],
   opts: { folderAccounts: string[]; area: Role | null; size: number },
 ): string | null {
-  const ok = accounts.filter((a) => a.active && a.free >= opts.size);
+  const ok = accounts.filter((a) => a.active && a.free >= opts.size && (!opts.area || a.role === opts.area));
   const inFolder = ok.filter((a) => opts.folderAccounts.includes(a.id));
   if (inFolder.length) return mostFree(inFolder);
-  if (opts.area) {
-    const sameArea = ok.filter((a) => a.role === opts.area);
-    if (sameArea.length) return mostFree(sameArea);
-  }
   return mostFree(ok);
+}
+
+/** Fehlermeldung, wenn chooseAccount kein Konto findet. */
+export function noAccountMessage(area: Role | null): string {
+  if (area === "privat") return "Kein Privat-Konto mit genug freiem Speicher";
+  if (area === "schule") return "Kein Archiv-Konto mit genug freiem Speicher";
+  return "Kein Konto mit genug freiem Speicher";
 }

@@ -2,7 +2,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import Icon, { type IconName } from "../components/Icon";
 import ThemePicker from "../components/ThemePicker";
-import { disableLock, enableLock, lockEnabled, lockSupported } from "../lib/lock";
+import { disableLock, enableLock, lockEnabled, lockError, lockSupported } from "../lib/lock";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
 import { invalidateAll } from "../lib/cache";
@@ -57,24 +57,34 @@ function FaceIdItem({ email }: { email: string }) {
     void lockSupported().then(setSupported);
   }, []);
 
+  const [busy, setBusy] = useState(false);
+
   const toggle = async () => {
+    if (busy) return;
     if (on) {
       disableLock();
       setOn(false);
       ui.toast("Face-ID-Sperre aus", "info");
       return;
     }
+    if (supported === false) {
+      ui.toast("Face ID ist hier nicht verfügbar – App über den Home-Bildschirm öffnen und Face ID für Safari erlauben", "error");
+      return;
+    }
+    setBusy(true);
     try {
       await enableLock(email);
       setOn(true);
       ui.toast("Face-ID-Sperre aktiv – beim Öffnen genügt ein Blick", "ok");
     } catch (e) {
-      ui.toast((e as Error).name === "NotAllowedError" ? "Abgebrochen" : (e as Error).message, "error");
+      ui.toast(lockError(e), "error");
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <div className="list-item">
+    <label className="list-item" style={{ cursor: "pointer" }}>
       <span className="li-icon" style={{ background: "linear-gradient(135deg,#60a5fa,#8b5cf6)" }}>
         <Icon name="faceId" size={18} />
       </span>
@@ -84,11 +94,15 @@ function FaceIdItem({ email }: { email: string }) {
           {supported === false ? "Auf diesem Gerät nicht verfügbar" : on ? "Aktiv – nach 1 Minute im Hintergrund wieder gesperrt" : "Statt Passwort beim Öffnen"}
         </small>
       </span>
-      <span className="switch">
-        <input type="checkbox" checked={on} disabled={supported === false} onChange={toggle} />
-        <span />
-      </span>
-    </div>
+      {busy ? (
+        <span className="spinner" />
+      ) : (
+        <span className="switch">
+          <input type="checkbox" checked={on} onChange={toggle} />
+          <span />
+        </span>
+      )}
+    </label>
   );
 }
 

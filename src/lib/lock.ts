@@ -32,8 +32,19 @@ export async function lockSupported(): Promise<boolean> {
   }
 }
 
+/** Verständliche Meldung für WebAuthn-Fehler. */
+export function lockError(e: unknown): string {
+  const name = (e as Error)?.name;
+  if (name === "NotAllowedError") return "Abgebrochen – nochmals versuchen";
+  if (name === "InvalidStateError") return "Für diese App gibt es schon einen Passkey – nochmals versuchen";
+  if (name === "SecurityError") return "Face ID geht nur über die sichere Web-Adresse der App";
+  if (name === "NotSupportedError") return "Face ID wird hier nicht unterstützt";
+  return (e as Error)?.message || "Face ID hat nicht geklappt";
+}
+
 /** Face ID einrichten: legt einen Passkey nur für diese App auf dem iPhone an. */
 export async function enableLock(email: string): Promise<void> {
+  if (!window.PublicKeyCredential || !navigator.credentials) throw new Error("Face ID wird in diesem Browser nicht unterstützt");
   const cred = (await navigator.credentials.create({
     publicKey: {
       challenge: challenge(),

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { unlock } from "../lib/lock";
+import { lockError, unlock } from "../lib/lock";
 import { supabase } from "../lib/supabase";
 import Icon from "./Icon";
 
@@ -12,8 +12,9 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
     setError(null);
     try {
       if (await unlock()) onUnlock();
+      else setError("Face ID hat nicht geklappt – nochmals versuchen");
     } catch (e) {
-      setError((e as Error).name === "NotAllowedError" ? "Abgebrochen – nochmals versuchen" : (e as Error).message);
+      setError(lockError(e));
     } finally {
       setBusy(false);
     }
