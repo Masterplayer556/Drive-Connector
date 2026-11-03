@@ -70,6 +70,12 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   const [error, setError] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Ausgewählte Ordner (Schlüssel) – zusammen mit Fotos verschieben, sichern, löschen
+  const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
+  const clearSelection = () => {
+    setSelected(new Set());
+    setSelectedFolders(new Set());
+  };
   const [viewer, setViewer] = useState<number | null>(null);
   const [uploadFiles, setUploadFiles] = useState<File[] | null>(null);
   const [autoFiles, setAutoFiles] = useState<File[] | null>(null);
@@ -99,7 +105,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
     const cached = cachedFolder(current.key);
     setContent(cached?.content ?? null);
     setError(null);
-    setSelected(new Set());
+    clearSelection();
     setSelectMode(false);
 
     loadFolder(current.key)
@@ -232,9 +238,39 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
 
   const files = useMemo(() => content?.files ?? [], [content]);
   const selectedItems = files.filter((f) => selected.has(itemKey(f)));
+  const selectableFolders = useMemo(() => (content?.folders ?? []).filter((f) => f.parts.length > 0), [content]);
+  const selectedFolderList = selectableFolders.filter((f) => selectedFolders.has(f.key));
+  const selCount = selectedItems.length + selectedFolderList.length;
+  const allSelected = selCount > 0 && selCount === files.length + selectableFolders.length;
 
-  const selectAll = () =>
-    setSelected((s) => (s.size === files.length ? new Set() : new Set(files.map(itemKey))));
+  const selectAll = () => {
+    if (allSelected) return clearSelection();
+    setSelected(new Set(files.map(itemKey)));
+    setSelectedFolders(new Set(selectableFolders.map((f) => f.key)));
+  };
+  const toggleFolder = (f: LogicalFolder) =>
+    setSelectedFolders((s) => {
+      const n = new Set(s);
+      if (n.has(f.key)) n.delete(f.key);
+      else n.add(f.key);
+      return n;
+    });
+
+  /** Auswahl sichern: nur Fotos → einzeln, mit Ordnern → ZIP mit Ordnerstruktur */
+  const downloadSelected = async () => {
+    if (!selectedFolderList.length) {
+      setDownload({ items: selectedItems, mode: "photos", title: current.name, basePath: current.path });
+      return;
+    }
+    try {
+      const sub = (await Promise.all(selectedFolderList.map((f) => fetchSubtreeFiles(f.path)))).flat();
+      const items = [...selectedItems, ...sub];
+      if (!items.length) return ui.toast("Keine Fotos in der Auswahl", "info");
+      setDownload({ items, mode: "zip", title: current.name, basePath: current.path });
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
 
   const zipFolder = async () => {
     setMenuOpen(false);
@@ -284,8 +320,53 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   };
 
   const deleteSelected = async () => {
-    if (!selectedItems.length) return;
+    if (!selCount) return;
     const n = selectedItems.length;
+    const folderList = selectedFolderList;
+    if (folderList.length) {
+      const inside = (await Promise.all(folderList.map((f) => countSubtreeFiles(f.path)))).reduce<number | null>(
+        (s, x) => (s === null || x === null ? null : s + x),
+        0,
+      );
+      const parts = [
+        n ? `${n} Foto${n === 1 ? "" : "s"}` : "",
+        `${folderList.length} Ordner${inside ? ` (mit ${inside.toLocaleString("de-CH")} Fotos)` : ""}`,
+      ].filter(Boolean);
+      const ok = await ui.confirm({
+        title: `${parts.join(" und ")} löschen?`,
+        message:
+          "Alles landet im Papierkorb des jeweiligen Google-Kontos, Ordner samt Unterordnern. Wiederherstellen geht unter Mehr → Papierkorb (Google leert ihn nach 30 Tagen).",
+        confirmLabel: "Löschen",
+        danger: true,
+      });
+      if (!ok) return;
+      const goneKeys = new Set(folderList.map((f) => f.key));
+      const goneFiles = new Set(selectedItems.map(itemKey));
+      const patch = (c: FolderContent) => ({
+        ...c,
+        folders: c.folders.filter((f) => !goneKeys.has(f.key)),
+        files: c.files.filter((f) => !goneFiles.has(itemKey(f))),
+      });
+      setContent((c) => (c ? patch(c) : c));
+      patchFolder(current.key, patch);
+      const photos = selectedItems;
+      setSelectMode(false);
+      clearSelection();
+      try {
+        for (const f of folderList) await trashLogicalFolder(f);
+        if (photos.length) {
+          const r = await trashFiles(photos);
+          if (r.failed.length) ui.toast(`Nicht gelöscht: ${r.failed.length}`, "error");
+        }
+        ui.toast(`${parts.join(" und ")} gelöscht`, "ok");
+      } catch (e) {
+        ui.toast(e instanceof Error ? e.message : String(e), "error");
+      } finally {
+        invalidateAll();
+        reload();
+      }
+      return;
+    }
     const ok = await ui.confirm({
       title: `${n} Foto${n === 1 ? "" : "s"} löschen?`,
       message: "Sie landen im Papierkorb des jeweiligen Google-Kontos.",
@@ -298,7 +379,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
     setContent((c) => (c ? patch(c) : c));
     patchFolder(current.key, patch);
     setSelectMode(false);
-    setSelected(new Set());
+    clearSelection();
     ui.toast(`${n} Foto${n === 1 ? "" : "s"} gelöscht`, "ok");
     trashFiles(selectedItems)
       .then((r) => {
@@ -404,12 +485,12 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
           }
           right={
             <>
-              {files.length > 0 && (
+              {(files.length > 0 || selectableFolders.length > 0) && (
                 <button
                   className={`icon-btn ${selectMode ? "on" : ""}`}
                   onClick={() => {
                     setSelectMode((m) => !m);
-                    setSelected(new Set());
+                    clearSelection();
                   }}
                   aria-label="Auswählen"
                 >
@@ -471,7 +552,14 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
               </>
             ) : (
               <>
-                {content.folders.length > 0 && <FolderGrid folders={content.folders} onOpen={open} onLongPress={setActionFolder} />}
+                {content.folders.length > 0 && (
+                  <FolderGrid
+                    folders={content.folders}
+                    onOpen={open}
+                    onLongPress={setActionFolder}
+                    select={selectMode ? { keys: selectedFolders, toggle: toggleFolder } : undefined}
+                  />
+                )}
                 {files.length > 0 && (
                   <>
                     {content.folders.length > 0 && (
@@ -523,27 +611,27 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
       {selectMode ? (
         <div className="actionbar glass">
           <span>
-            <b>{selected.size}</b>
+            <b>{selCount}</b>
             <button className="link small" style={{ marginLeft: 8 }} onClick={selectAll}>
-              {selected.size === files.length ? "Keine" : "Alle"}
+              {allSelected ? "Keine" : "Alle"}
             </button>
           </span>
           <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
-            <button className="btn small" disabled={!selected.size} onClick={() => setMoveOpen(true)} aria-label="Verschieben">
+            <button className="btn small" disabled={!selCount} onClick={() => setMoveOpen(true)} aria-label="Verschieben">
               <Icon name="move" size={17} />
-            </button>
-            <button className="btn small" disabled={!selected.size} onClick={() => setSortOpen(true)} aria-label="Sortieren">
-              <Icon name="sortNum" size={17} />
             </button>
             <button
               className="btn small"
-              disabled={!selected.size}
-              onClick={() => setDownload({ items: selectedItems, mode: "photos", title: current.name, basePath: current.path })}
-              aria-label="Sichern"
+              disabled={!selectedItems.length || selectedFolderList.length > 0}
+              onClick={() => setSortOpen(true)}
+              aria-label="Sortieren"
             >
+              <Icon name="sortNum" size={17} />
+            </button>
+            <button className="btn small" disabled={!selCount} onClick={downloadSelected} aria-label="Sichern">
               <Icon name="download" size={17} />
             </button>
-            <button className="btn small danger-solid" disabled={!selected.size} onClick={deleteSelected} aria-label="Löschen">
+            <button className="btn small danger-solid" disabled={!selCount} onClick={deleteSelected} aria-label="Löschen">
               <Icon name="trash" size={17} />
             </button>
           </div>
@@ -633,7 +721,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
               setSortOpen(false);
               if (changed) {
                 setSelectMode(false);
-                setSelected(new Set());
+                clearSelection();
                 invalidateFolder(current.key);
                 reload();
               }
@@ -663,12 +751,14 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
       {moveOpen && (
           <MoveSheet
             items={selectedItems}
+            folders={selectedFolderList}
             accounts={accounts}
             onClose={(changed) => {
               setMoveOpen(false);
               if (changed) {
                 setSelectMode(false);
-                setSelected(new Set());
+                clearSelection();
+                if (selectedFolderList.length) invalidateAll();
                 invalidateFolder(current.key);
                 reload();
               }
@@ -733,12 +823,16 @@ function Menu({
 function FolderGrid({
   folders,
   onOpen,
-  onLongPress,
+  onLongPress: longPress,
+  select,
 }: {
   folders: LogicalFolder[];
   onOpen: (f: LogicalFolder) => void;
   onLongPress?: (f: LogicalFolder) => void;
+  /** Auswahlmodus: Tippen wählt den Ordner an statt ihn zu öffnen */
+  select?: { keys: Set<string>; toggle: (f: LogicalFolder) => void };
 }) {
+  const onLongPress = select ? undefined : longPress;
   useFolderColors();
   const timer = useRef<number | null>(null);
   const start = useRef<{ x: number; y: number } | null>(null);
@@ -752,7 +846,7 @@ function FolderGrid({
       {folders.map((f, i) => (
         <button
           key={f.key}
-          className={`folder ${f.parts.length === 0 ? "pending" : ""}`}
+          className={`folder ${f.parts.length === 0 ? "pending" : ""} ${select?.keys.has(f.key) ? "selected" : ""}`}
           style={{ ["--i" as string]: i, ["--h" as string]: hueOf(f.key, f.name) }}
           onPointerDown={(e) => {
             void prefetchFolder(f.key).then((c) => c && warmThumbs(c.files));
@@ -789,6 +883,10 @@ function FolderGrid({
               fired.current = false;
               return;
             }
+            if (select) {
+              if (f.parts.length) select.toggle(f);
+              return;
+            }
             onOpen(f);
           }}
         >
@@ -803,6 +901,11 @@ function FolderGrid({
               <div className="folder-meta">{f.parts.length} Konten</div>
             ) : null}
           </span>
+          {select && f.parts.length > 0 && (
+            <span className={`check ${select.keys.has(f.key) ? "on" : ""}`}>
+              {select.keys.has(f.key) && <Icon name="check" size={15} />}
+            </span>
+          )}
         </button>
       ))}
     </div>
