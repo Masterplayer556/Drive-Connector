@@ -178,7 +178,6 @@ export default function RegalView({ accounts }: { accounts: Account[] }) {
     void load();
   };
 
-  const freeDate = new Date(Date.now() + 30 * 864e5);
   const history = (state?.plans ?? []).filter((p) => p.status === "done" || p.status === "failed").slice(0, 5);
 
   return (
@@ -250,9 +249,6 @@ export default function RegalView({ accounts }: { accounts: Account[] }) {
                   </li>
                 ))}
               </ul>
-              <p className="faint small">
-                Der Platz im Quellkonto wird frei, sobald Google den Papierkorb leert – spätestens am {freeDate.toLocaleDateString("de-CH")}.
-              </p>
               <div className="row" style={{ gap: 10 }}>
                 <button className="btn ghost" style={{ flex: 1 }} onClick={reject}>
                   Ablehnen

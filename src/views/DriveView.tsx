@@ -9,7 +9,6 @@ import { AREA_KEYS } from "../lib/areas";
 import { loadRebalance } from "../lib/rebalanceData";
 import { hueOf, useFolderColors } from "../lib/folderColors";
 import FolderActions from "../components/FolderActions";
-import { haptic } from "../lib/haptic";
 import { movePathPrefs } from "../lib/folders";
 import { cachedFolder, invalidateAll, invalidateFolder, loadFolder, patchFolder, prefetchFolder } from "../lib/cache";
 import { countSubtreeFiles, fetchBigFolders, fetchStats, fetchSubtreeFiles, syncAccounts, writeLog } from "../lib/db";
@@ -763,7 +762,6 @@ function FolderGrid({
             cancel();
             timer.current = window.setTimeout(() => {
               fired.current = true;
-              haptic();
               el.classList.add("pressed");
               setTimeout(() => el.classList.remove("pressed"), 250);
               onLongPress(f);
