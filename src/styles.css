@@ -1453,7 +1453,8 @@ p {
   align-items: center;
   justify-content: center;
   transform-origin: 50% 50%;
-  transition: transform 0.3s var(--ease);
+  /* Weich abbremsen (Doppeltippen, Zurückfedern, Nachgleiten) */
+  transition: transform 0.42s cubic-bezier(0.2, 0.85, 0.25, 1);
   will-change: transform;
 }
 .viewer-zoom.live {
@@ -2199,15 +2200,12 @@ p {
 }
 
 /* Getöntes Glas für Haupt-Aktionen */
+/* Deckend und ohne Glas-Unschärfe: iOS verschmiert sonst die obere Kante bzw. zeigt eckige Ränder */
 .btn.primary,
 .fab {
-  background:
-    radial-gradient(120% 80% at 30% -20%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%),
-    linear-gradient(135deg, rgba(var(--accent-rgb), 0.85), rgba(var(--accent3-rgb), 0.8) 50%, rgba(var(--accent2-rgb), 0.8));
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: linear-gradient(135deg, rgb(var(--accent-rgb)), rgb(var(--accent3-rgb)) 50%, rgb(var(--accent2-rgb)));
   box-shadow:
-    inset 0 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
     inset 0 -2px 6px rgba(var(--shadow-rgb), calc(0.15 * var(--shadow-k))),
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.35),
     0 10px 28px rgba(var(--glow-rgb), 0.45);
@@ -2215,9 +2213,7 @@ p {
 }
 
 .fab {
-  animation:
-    popIn 0.5s var(--spring) both,
-    pulseGlow 3.2s ease-in-out infinite;
+  animation: popIn 0.5s var(--spring) both;
 }
 
 .btn:not(.primary):not(.danger-solid):not(.ghost) {
@@ -2343,13 +2339,22 @@ p {
 
 .segmented .seg-thumb {
   border-radius: 999px;
-  background:
-    radial-gradient(120% 90% at 30% -10%, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 60%),
-    linear-gradient(135deg, rgba(var(--accent-rgb), 0.85), rgba(var(--accent2-rgb), 0.75));
+  background: linear-gradient(135deg, rgb(var(--accent-rgb)), rgb(var(--accent2-rgb)));
   box-shadow:
-    inset 0 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.85),
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.35),
-    0 4px 14px rgba(var(--glow-rgb), 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 3px 10px rgba(var(--glow-rgb), 0.35);
+}
+
+/* Beide Hälften gleich breit → Text mittig, Daumen deckt genau eine Hälfte */
+.segmented {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+
+.segmented button {
+  text-align: center;
+  padding: 7px 16px;
 }
 
 .switch span::after {
@@ -2381,10 +2386,19 @@ p {
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
 }
 
+/* iOS rundet Glas-Unschärfe in Scroll-Leisten nicht ab → zuschneiden (nur innere Schatten) */
+.chip:not(.on),
+.crumb,
+.stat-chip {
+  clip-path: inset(0 round 999px);
+}
+
 .chip.on {
-  background:
-    radial-gradient(120% 90% at 30% -10%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 60%),
-    var(--grad);
+  background: var(--grad);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  /* Kein äusserer Schatten: die Scroll-Leiste schneidet ihn sonst eckig ab */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .area-card {
@@ -2593,8 +2607,7 @@ p {
 :root[data-theme="polar"] .btn.primary,
 :root[data-theme="polar"] .fab {
   box-shadow:
-    inset 0 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.8),
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
     0 8px 22px rgba(99, 102, 241, 0.3);
   animation: popIn 0.5s var(--spring) both;
 }
@@ -2692,7 +2705,7 @@ p {
   background: linear-gradient(135deg, #a3e635, #22d3ee);
   box-shadow:
     0 0 24px rgba(163, 230, 53, 0.5),
-    inset 0 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.9);
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 :root[data-theme="neon"] .tab-indicator,
@@ -3469,4 +3482,24 @@ p {
   text-align: center;
   z-index: 2;
   color: #fca5a5;
+}
+
+/* Upload: Zielordner antippen zum Ändern */
+.target-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 9px 3px 7px;
+  margin-left: -7px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(var(--tint-rgb), 0.07);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.target-btn:active {
+  transform: scale(0.96);
 }

@@ -4,7 +4,7 @@ import { moveFolderHues } from "./folderColors";
 import { supabase } from "./supabase";
 import { fetchFolderParts, findFolderInAccount, syncAccounts, writeLog, writeLogs } from "./db";
 import { childPath } from "./naming";
-import { accountStates, areaOf, chooseAccount } from "./placement";
+import { accountStates, areaOf, chooseAccount, crossesPrivat, noAccountMessage } from "./placement";
 import type { Account, Crumb, Item, LogicalFolder } from "./types";
 
 export function pathSegments(path: string): string[] {
@@ -44,6 +44,8 @@ export class PathResolver {
   }
 }
 
+export const PRIVAT_SEALED = "Privat ist abgeschottet – nichts kann hinein- oder herausverschoben werden";
+
 /** Neuen Ordner im aktuellen Ordner anlegen – im passenden Konto (Regel 3). */
 export async function createLogicalFolder(parent: Crumb, name: string, accounts: Account[]): Promise<string> {
   const parts = await fetchFolderParts(parent.path);
@@ -53,7 +55,7 @@ export async function createLogicalFolder(parent: Crumb, name: string, accounts:
     area: areaOf(path),
     size: 0,
   });
-  if (!accountId) throw new Error("Kein verbundenes Konto verfügbar");
+  if (!accountId) throw new Error(noAccountMessage(areaOf(path)));
   const resolver = new PathResolver(accounts);
   await resolver.ensure(accountId, pathSegments(path));
   const email = accounts.find((a) => a.id === accountId)?.email;
@@ -113,6 +115,7 @@ export async function renameLogicalFolder(folder: LogicalFolder, name: string): 
 export async function moveLogicalFolder(folder: LogicalFolder, target: Crumb, accounts: Account[]): Promise<void> {
   const tk = target.key;
   if (tk === folder.key || tk.startsWith(folder.key + "/")) throw new Error("Ein Ordner kann nicht in sich selbst verschoben werden");
+  if (crossesPrivat(folder.path, childPath(target.path, folder.name))) throw new Error(PRIVAT_SEALED);
   const parts = await fetchFolderParts(folder.path);
   const resolver = new PathResolver(accounts);
   for (const p of parts) {

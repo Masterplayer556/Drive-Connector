@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { formatBytes, formatDateTime } from "../lib/format";
 import { accessToken, downloadBlob } from "../lib/google";
 import { accountColor } from "../lib/theme";
@@ -23,6 +23,14 @@ interface Gesture {
   sx: number;
   sy: number;
   moved: boolean;
+  /** Letzte Fingermitte beim Zoomen */
+  m1?: { x: number; y: number };
+  /** Geschwindigkeit beim Verschieben (px/ms) für den Schwung beim Loslassen */
+  vx?: number;
+  vy?: number;
+  lt?: number;
+  lx?: number;
+  ly?: number;
 }
 const NO_ZOOM: Zoom = { s: 1, x: 0, y: 0 };
 /** Obergrenze, egal wie gross das Original ist */
@@ -30,6 +38,13 @@ const MAX_ZOOM = 24;
 /** Mindestens so weit darf man immer zoomen (auch bei kleinen Bildern) */
 const MIN_MAX_ZOOM = 2;
 const DOUBLE_TAP_ZOOM = 2.5;
+/** Gummiband: so stark gibt das Bild über den Rand hinaus nach */
+const RUBBER = 0.35;
+/** So lange gleitet ein schnell losgelassenes Bild nach (ms) */
+const GLIDE_MS = 220;
+
+const tf = (n: Zoom) => (n.s !== 1 || n.x || n.y ? `translate3d(${n.x}px, ${n.y}px, 0) scale(${n.s})` : "");
+const rubber = (v: number, lo: number, hi: number) => (v > hi ? hi + (v - hi) * RUBBER : v < lo ? lo - (lo - v) * RUBBER : v);
 
 export default function Viewer({
   items,
@@ -59,8 +74,34 @@ export default function Viewer({
   const [fav, setFav] = useState(() => isFavorite(item));
   // Zoomen: Skalierung + Verschiebung; Original wird beim ersten Zoomen nachgeladen
   const [z, setZ] = useState<Zoom>(NO_ZOOM);
+  // Während einer Geste wird das Bild direkt bewegt (zRef + DOM) – React erfährt den Stand nur
+  // gelegentlich (für die Zoom-Anzeige). So ruckelt nichts, auch nicht bei grossen Bildern.
   const zRef = useRef(z);
-  zRef.current = z;
+  const zoomEl = useRef<HTMLDivElement>(null);
+  const raf = useRef(0);
+  const lastSync = useRef(0);
+  const paint = () => {
+    raf.current = 0;
+    if (zoomEl.current) zoomEl.current.style.transform = tf(zRef.current);
+  };
+  const liveZ = (n: Zoom) => {
+    zRef.current = n;
+    if (!raf.current) raf.current = requestAnimationFrame(paint);
+    const now = performance.now();
+    if (now - lastSync.current > 120) {
+      lastSync.current = now;
+      setZ({ ...n });
+    }
+  };
+  /** Endstand setzen – gleitet mit Animation dorthin */
+  const commitZ = (n: Zoom) => {
+    if (raf.current) cancelAnimationFrame(raf.current);
+    raf.current = 0;
+    zRef.current = n;
+    setZ({ ...n });
+  };
+  useLayoutEffect(paint, [z]);
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
   const [zooming, setZooming] = useState(false);
   const [full, setFull] = useState<string | null>(null);
   const [fullState, setFullState] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -94,7 +135,7 @@ export default function Viewer({
     let revoke: string | null = null;
     setError(false);
     setDx(0);
-    setZ(NO_ZOOM);
+    commitZ(NO_ZOOM);
     setFull(null);
     setFullState("idle");
     setDims(null);
@@ -154,10 +195,25 @@ export default function Viewer({
     return { x: x - st.left - st.width / 2, y: y - st.top - st.height / 2 };
   };
   /** Zoom auf Stufe s, wobei der Bildpunkt unter p an seinem Platz bleibt */
-  const zoomAt = (from: Zoom, s: number, p0: { x: number; y: number }, p1 = p0): Zoom => {
+  const zoomAt = (from: Zoom, s: number, p0: { x: number; y: number }, p1 = p0, clamp = clampZ): Zoom => {
     const cx = (p0.x - from.x) / from.s;
     const cy = (p0.y - from.y) / from.s;
-    return clampZ({ s, x: p1.x - s * cx, y: p1.y - s * cy });
+    return clamp({ s, x: p1.x - s * cx, y: p1.y - s * cy });
+  };
+  /** Wie clampZ, aber weich: über den Rand hinaus gibt das Bild gedämpft nach (Gummiband) */
+  const softZ = (n: Zoom): Zoom => {
+    const geo = geometry();
+    if (!geo) return n;
+    const bx = Math.max(0, (geo.W * n.s - geo.st.width) / 2);
+    const by = Math.max(0, (geo.H * n.s - geo.st.height) / 2);
+    return { s: n.s, x: rubber(n.x, -bx, bx), y: rubber(n.y, -by, by) };
+  };
+  /** Zoomstufe mit Gummiband unter 100 % und über dem Maximum */
+  const softScale = (s: number) => {
+    const max = geometry()?.max ?? MAX_ZOOM;
+    if (s > max) return max * Math.pow(s / max, RUBBER);
+    if (s < 1) return Math.pow(s, RUBBER);
+    return s;
   };
   const loadFull = () => {
     if (fullState !== "idle") return;
@@ -212,13 +268,26 @@ export default function Viewer({
       const b = rel(t[1].clientX, t[1].clientY);
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       const m1 = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      setZ(zoomAt(gs.z0, gs.z0.s * (d / gs.d0), gs.m0, m1));
+      gs.m1 = m1;
+      liveZ(zoomAt(gs.z0, softScale(gs.z0.s * (d / gs.d0)), gs.m0, m1, softZ));
       return;
     }
     const mx = t[0].clientX - gs.sx;
     const my = t[0].clientY - gs.sy;
     if (Math.abs(mx) + Math.abs(my) > 8) gs.moved = true;
-    if (gs.mode === "pan") setZ(clampZ({ ...gs.z0, x: gs.z0.x + mx, y: gs.z0.y + my }));
+    if (gs.mode === "pan") {
+      // Geschwindigkeit mitführen (geglättet) für den Schwung beim Loslassen
+      const now = performance.now();
+      if (gs.lt !== undefined) {
+        const dt = Math.max(1, now - gs.lt);
+        gs.vx = 0.7 * ((t[0].clientX - gs.lx!) / dt) + 0.3 * (gs.vx ?? 0);
+        gs.vy = 0.7 * ((t[0].clientY - gs.ly!) / dt) + 0.3 * (gs.vy ?? 0);
+      }
+      gs.lt = now;
+      gs.lx = t[0].clientX;
+      gs.ly = t[0].clientY;
+      liveZ(softZ({ ...gs.z0, x: gs.z0.x + mx, y: gs.z0.y + my }));
+    }
     else if (gs.mode === "swipe" && startX.current !== null) setDx(t[0].clientX - startX.current);
   };
   const onTouchEnd = (e: React.TouchEvent) => {
@@ -230,10 +299,21 @@ export default function Viewer({
         g.current = { mode: "pan", d0: 0, m0: { x: 0, y: 0 }, z0: zRef.current, sx: e.touches[0].clientX, sy: e.touches[0].clientY, moved: true };
         return;
       }
-      if (zRef.current.s < 1.05) setZ(NO_ZOOM);
+      const cur = zRef.current;
+      const max = geometry()?.max ?? MAX_ZOOM;
+      // Zurückfedern: unter 100 % → ganz raus, über dem Maximum → aufs Maximum (um die Fingermitte)
+      commitZ(cur.s < 1.05 ? NO_ZOOM : cur.s > max ? zoomAt(cur, max, gs.m1 ?? gs.m0) : clampZ(cur));
       g.current = null;
       setZooming(false);
       return;
+    }
+    if (gs.mode === "pan") {
+      const cur = zRef.current;
+      // Nach dem letzten Fingerzug kurz weitergleiten (nur wenn der Finger nicht schon stand)
+      const fresh = gs.lt !== undefined && performance.now() - gs.lt < 80;
+      const vx = fresh ? (gs.vx ?? 0) : 0;
+      const vy = fresh ? (gs.vy ?? 0) : 0;
+      commitZ(clampZ({ ...cur, x: cur.x + vx * GLIDE_MS, y: cur.y + vy * GLIDE_MS }));
     }
     if (gs.mode === "swipe") {
       setDragging(false);
@@ -257,11 +337,11 @@ export default function Viewer({
   };
   const toggleZoom = (p: { x: number; y: number }) => {
     if (isVideo) return;
-    if (zRef.current.s > 1.01) setZ(NO_ZOOM);
+    if (zRef.current.s > 1.01) commitZ(NO_ZOOM);
     else {
       loadFull();
       const geo = geometry();
-      setZ(zoomAt(NO_ZOOM, Math.min(DOUBLE_TAP_ZOOM, geo?.max ?? DOUBLE_TAP_ZOOM), p));
+      commitZ(zoomAt(NO_ZOOM, Math.min(DOUBLE_TAP_ZOOM, geo?.max ?? DOUBLE_TAP_ZOOM), p));
     }
   };
   const geo = dims ? geometry() : null;
@@ -344,17 +424,14 @@ export default function Viewer({
         onWheel={(e) => {
           if (!e.ctrlKey && Math.abs(e.deltaY) < 1) return;
           loadFull();
-          setZ(zoomAt(zRef.current, zRef.current.s * Math.exp(-e.deltaY / 300), rel(e.clientX, e.clientY)));
+          commitZ(zoomAt(zRef.current, zRef.current.s * Math.exp(-e.deltaY / 300), rel(e.clientX, e.clientY)));
         }}
       >
         {error && !low && !isVideo ? (
           <p className="muted">Bild konnte nicht geladen werden.</p>
         ) : high || low || isVideo ? (
           <div key={item.drive_id} className={`viewer-frame ${dragging ? "dragging" : ""}`} style={style}>
-            <div
-              className={`viewer-zoom ${zooming ? "live" : ""}`}
-              style={{ transform: z.s > 1 || z.x || z.y ? `translate3d(${z.x}px, ${z.y}px, 0) scale(${z.s})` : undefined }}
-            >
+            <div ref={zoomEl} className={`viewer-zoom ${zooming ? "live" : ""}`}>
               {low && <img className={`viewer-low ${high || full ? "hide" : ""}`} src={low} alt="" />}
               {high && (
                 <img

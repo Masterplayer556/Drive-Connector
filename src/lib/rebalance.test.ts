@@ -115,4 +115,25 @@ describe("planRebalance", () => {
     expect(planRebalance(input).signature).toBe(planRebalance(input).signature);
     expect(planRebalance(input).signature).not.toBe("");
   });
+
+  it("Privat ist abgeschottet: nichts zieht zwischen Privat- und Archiv-Konten um", () => {
+    const priv = (id: string, usedGb: number): AccountCap => ({ ...acc(id, usedGb), role: "privat" });
+    const arch = (id: string, usedGb: number): AccountCap => ({ ...acc(id, usedGb), role: "schule" });
+    // Volles Archiv-Konto, leeres Privat-Konto → kein Vorschlag
+    const p1 = planRebalance({ accounts: [arch("a", 14.6), priv("p", 0)], units: [unit("a", "Archiv/X", 4), unit("a", "Archiv/Y", 10.6)] });
+    expect(p1.steps).toEqual([]);
+    // Volles Privat-Konto: Privat-Ordner ziehen nur ins andere Privat-Konto
+    const p2 = planRebalance({
+      accounts: [priv("p1", 14.6), arch("a", 0), priv("p2", 2)],
+      units: [unit("p1", "Privat/Fotos", 4), unit("p1", "Privat/Ferien", 10.6), unit("p2", "Privat/Anderes", 2)],
+    });
+    expect(p2.steps.length).toBeGreaterThan(0);
+    for (const s of p2.steps) expect(s.to).toBe("p2");
+    // Verteilter Privat-Ordner wird nie in ein Archiv-Konto zusammengeführt
+    const p3 = planRebalance({
+      accounts: [arch("a", 3), priv("p", 13)],
+      units: [unit("a", "Privat/Fotos", 3), unit("p", "Privat/Fotos", 1), unit("p", "Privat/Rest", 12)],
+    });
+    expect(p3.steps.every((s) => s.to === "p")).toBe(true);
+  });
 });

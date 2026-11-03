@@ -3,6 +3,10 @@
 // Einheit = ein Ordner mit seinen direkten Fotos in einem Konto. Liegt derselbe Ordner in mehreren
 // Konten, sind das mehrere Teile eines „Blocks“. Für den Gruppenordner (Regel 5) bilden alle
 // Unterordner A–M bzw. N–Z je einen Block. Gesperrte Ordner (Regel 7) bewegen sich nie.
+// Privat ist abgeschottet: Privat-Ordner ziehen nur zwischen Privat-Konten um, alles andere nur
+// zwischen Archiv-Konten.
+import { areaOf } from "./placement";
+import type { Role } from "./types";
 
 export interface Unit {
   account_id: string;
@@ -19,6 +23,8 @@ export interface AccountCap {
   email: string;
   limit: number;
   usage: number;
+  /** Privat-Konten bilden ein abgeschottetes Gebiet (ohne Angabe: Archiv) */
+  role?: Role;
 }
 
 export interface StepUnit {
@@ -85,6 +91,8 @@ export function blockOf(unit: Pick<Unit, "parent_key" | "path">, groupFolder: st
 interface Block {
   key: string;
   label: string;
+  /** Gehört ins Gebiet Privat */
+  privat: boolean;
   parts: Map<string, StepUnit[]>;
   total: number;
 }
@@ -104,13 +112,18 @@ export function planRebalance(input: {
   const usage = new Map(accounts.map((a) => [a.id, a.usage]));
   const before = Object.fromEntries(usage);
   const free = (id: string) => (limit.get(id) ?? 0) - (usage.get(id) ?? 0);
+  const isPrivat = new Map(accounts.map((a) => [a.id, a.role === "privat"]));
+  /** Darf der Block in dieses Konto? (nie über die Grenze von Privat) */
+  const allowed = (b: Block, id: string) => isPrivat.get(id) === b.privat;
 
   // Blöcke bilden
   const blocks = new Map<string, Block>();
   for (const u of input.units) {
     if (!limit.has(u.account_id) || u.bytes <= 0 || isLocked(u.parent_key, locks)) continue;
     const { key, label } = blockOf(u, groupFolder);
-    const b = blocks.get(key) ?? { key, label, parts: new Map(), total: 0 };
+    const area = areaOf(u.path);
+    const privat = area ? area === "privat" : !!isPrivat.get(u.account_id);
+    const b = blocks.get(key) ?? { key, label, privat, parts: new Map(), total: 0 };
     const list = b.parts.get(u.account_id) ?? [];
     list.push({ account_id: u.account_id, parent_key: u.parent_key, folder_id: u.folder_id, path: u.path, files: u.files, bytes: u.bytes });
     b.parts.set(u.account_id, list);
@@ -134,7 +147,7 @@ export function planRebalance(input: {
     const partBytes = (id: string) => sum(b.parts.get(id) ?? [], "bytes");
     // Ziel: das Konto mit dem grössten Teil, in das alle übrigen Teile passen
     const homes = [...limit.keys()]
-      .filter((id) => free(id) - (b.total - partBytes(id)) >= RESERVE)
+      .filter((id) => allowed(b, id) && free(id) - (b.total - partBytes(id)) >= RESERVE)
       .sort((x, y) => partBytes(y) - partBytes(x) || free(y) - free(x));
     const home = homes[0];
     if (!home) continue;
@@ -149,17 +162,23 @@ export function planRebalance(input: {
     let guard = 0;
     while ((usage.get(a) ?? 0) > HIGH * limit.get(a)! && guard++ < 50) {
       const need = (usage.get(a) ?? 0) - TARGET * limit.get(a)!;
-      const fits = (bytes: number) =>
+      const fits = (b: Block) =>
         [...limit.keys()]
-          .filter((d) => d !== a && (usage.get(d) ?? 0) + bytes <= TARGET * limit.get(d)! && free(d) - bytes >= RESERVE)
+          .filter(
+            (d) =>
+              d !== a &&
+              allowed(b, d) &&
+              (usage.get(d) ?? 0) + b.total <= TARGET * limit.get(d)! &&
+              free(d) - b.total >= RESERVE,
+          )
           .sort((x, y) => free(y) - free(x))[0];
       const cands = whole()
-        .filter((b) => b.parts.has(a) && fits(b.total))
+        .filter((b) => b.parts.has(a) && fits(b))
         .sort((x, y) => x.total - y.total);
       if (!cands.length) break;
       // Kleinster Block, der allein reicht – sonst der grösste, der passt
       const pick = cands.find((b) => b.total >= need) ?? cands[cands.length - 1];
-      move(pick, a, fits(pick.total)!, "entlasten");
+      move(pick, a, fits(pick)!, "entlasten");
     }
   }
 

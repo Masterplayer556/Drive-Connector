@@ -3,7 +3,7 @@ import { fetchFolderParts } from "./db";
 import { PathResolver, pathSegments } from "./folders";
 import { uploadPhoto } from "./google";
 import type { PlanEntry } from "./plan";
-import { accountStates, areaOf, chooseAccount } from "./placement";
+import { accountStates, areaOf, chooseAccount, noAccountMessage } from "./placement";
 import type { Account, Crumb } from "./types";
 import { keepAwake } from "./wakelock";
 
@@ -43,7 +43,7 @@ export async function executeUpload(opts: {
     for (const e of todo) {
       const id = chooseAccount(states, { folderAccounts, area, size: e.size });
       if (!id) {
-        result.failed.push({ entry: e, error: "Kein Konto mit genug freiem Speicher" });
+        result.failed.push({ entry: e, error: noAccountMessage(area) });
         continue;
       }
       const s = states.find((a) => a.id === id)!;

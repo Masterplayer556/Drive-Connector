@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areaOf, chooseAccount, type AccountState } from "./placement";
+import { areaOf, chooseAccount, crossesPrivat, type AccountState } from "./placement";
 
 const accounts: AccountState[] = [
   { id: "s1", role: "schule", free: 100, active: true },
@@ -18,8 +18,12 @@ describe("chooseAccount", () => {
   it("nimmt bei neuen Ordnern ein Konto mit passender Rolle", () => {
     expect(chooseAccount(accounts, { folderAccounts: [], area: "privat", size: 10 })).toBe("p1");
   });
-  it("nimmt jedes Konto, wenn die Rolle voll ist", () => {
-    expect(chooseAccount(accounts, { folderAccounts: [], area: "privat", size: 400 })).toBe("s2");
+  it("Privat ist abgeschottet: nie in ein Archiv-Konto ausweichen", () => {
+    expect(chooseAccount(accounts, { folderAccounts: [], area: "privat", size: 400 })).toBeNull();
+  });
+  it("Archiv weicht nie in ein Privat-Konto aus – auch wenn der Ordner dort schon liegt", () => {
+    expect(chooseAccount(accounts, { folderAccounts: ["p1"], area: "schule", size: 50 })).toBe("s2");
+    expect(chooseAccount(accounts, { folderAccounts: [], area: "schule", size: 600 })).toBeNull();
   });
   it("ignoriert Konten mit Fehler und gibt null zurück, wenn nichts passt", () => {
     expect(chooseAccount(accounts, { folderAccounts: [], area: null, size: 1000 })).toBeNull();
@@ -33,5 +37,16 @@ describe("areaOf", () => {
     expect(areaOf("privat")).toBe("privat");
     expect(areaOf("Anderes")).toBeNull();
     expect(areaOf("")).toBeNull();
+  });
+});
+
+describe("crossesPrivat", () => {
+  it("erkennt Wechsel in oder aus Privat", () => {
+    expect(crossesPrivat("Privat/Fotos", "Privat/Ferien")).toBe(false);
+    expect(crossesPrivat("Archiv/A", "Archiv/B")).toBe(false);
+    expect(crossesPrivat("Archiv/A", "Anderes")).toBe(false);
+    expect(crossesPrivat("Privat/Fotos", "Archiv/B")).toBe(true);
+    expect(crossesPrivat("Archiv/A", "Privat")).toBe(true);
+    expect(crossesPrivat("Privat/Fotos", "")).toBe(true);
   });
 });

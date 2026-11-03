@@ -45,7 +45,7 @@ Konto B:  Archiv/Mathe/   41.png … 60.png   ┴─►  Frontend:  Archiv/Mathe
 | 4 | 6 Ordner ohne Unterordner | **Privat-Konto** (Fotos landen bevorzugt hier) |
 
 4 × 15 GB = **60 GB**. Google Fotos belegt überall 0 GB.
-Rebalancing darf Ordner zwischen allen Konten verschieben – auch zwischen Privat- und Archiv-Konten.
+**Privat ist ein abgeschottetes Gebiet:** Nichts kommt hinein oder heraus. Privat-Ordner liegen nur in Konten, die als Privat markiert sind, und ziehen nur zwischen diesen um. Archiv-Ordner bleiben ebenso in Archiv-Konten. Auch Verschieben (Fotos oder Ordner) zwischen `Privat/` und dem Rest ist gesperrt.
 
 **Einmalige Einrichtung:** Ein Assistent fragt für jeden bestehenden Ordner „Archiv oder Privat?“ und verschiebt ihn innerhalb seines Kontos unter `Archiv/` bzw. `Privat/` (kein Kopieren, kein Umbenennen).
 
@@ -65,7 +65,7 @@ Ordner verschiedener Konten werden über den Pfad zusammengeführt. Oberste Eben
 
 ### Regel 3 – Platzierung neuer Fotos
 - Ein neues Foto landet im Konto, in dem sein Ordner bereits liegt.
-- Ist das Konto voll, verteilt die App **automatisch** auf ein anderes Konto:
+- Ist das Konto voll, verteilt die App **automatisch** auf ein anderes Konto **desselben Gebiets** (Privat nur auf Privat-Konten, Archiv nur auf Archiv-Konten):
   - Ordner mit Unterordnern: Aufteilung entlang der Unterordner.
   - Ordner ohne Unterordner: zweite „Hälfte“ desselben Ordners in einem anderen Konto.
 - Neue Ordner werden dort angelegt, wo ihre Fotos landen werden.
@@ -81,6 +81,7 @@ Jede Gruppe ist eine Einheit und liegt möglichst komplett in einem Konto. Neue 
 ### Regel 6 – Rebalancing (nur Vorschläge)
 - Die App erstellt **Pläne**, z. B. „`Archiv/Reisen/` von Konto 2 nach Konto 3 → 4,2 GB frei“. Ich tippe auf **Ausführen** oder **Ablehnen**.
 - Einheit = ein Ordner mit seinen direkten Dateien (Unterordner sind eigene Einheiten).
+- Nie über die Grenze von Privat: Privat-Ordner nur zwischen Privat-Konten, alles andere nur zwischen Archiv-Konten (auch der Server prüft das beim Ausführen).
 - Ziel: möglichst viele Einheiten ganz in einem Konto, möglichst grosse freie Blöcke.
 - Ablauf beim Verschieben (ohne dass eine Datei geöffnet wird):
   1. Konto A gibt den Ordner intern für Konto B frei.
@@ -97,7 +98,8 @@ Ordner können gesperrt werden. Gesperrte Ordner werden **nie** verschoben oder 
 ### Regel 8 – Foto-Upload
 - Upload über die **PWA** (Foto-Auswahl von iOS), direkt vom Handy zu Google.
 - Automatische Ablage nach Aufnahmedatum in `Privat/Fotos/JJJJ/MM/`, bevorzugt ins Privat-Konto.
-  Ist das Privat-Konto voll, gehen neue Monatsordner in ein anderes Konto (im Frontend bleibt alles unter `Privat/Fotos/`).
+  Ist das Privat-Konto voll, gehen neue Monatsordner in ein anderes **Privat**-Konto (im Frontend bleibt alles unter `Privat/Fotos/`). Gibt es keines mit Platz, wird der Upload gestoppt.
+- Beim normalen Upload ist der aktuelle Ordner vorgewählt; das Ziel lässt sich antippen und frei wählen (auch ein neuer Ordner).
 - Fehlt das Aufnahmedatum, wird das Upload-Datum verwendet.
 - Safari darf HEIC in JPEG umwandeln; Live Photos sind nicht wichtig.
 - Upload nur im Vordergrund; die App hält den Bildschirm währenddessen wach.

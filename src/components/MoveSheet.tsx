@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { invalidateFolder, loadFolder } from "../lib/cache";
 import { fetchFolderParts, syncAccounts, writeLogs, type LogInput } from "../lib/db";
-import { PathResolver, pathSegments } from "../lib/folders";
+import { PathResolver, pathSegments, PRIVAT_SEALED } from "../lib/folders";
+import { crossesPrivat } from "../lib/placement";
 import { moveWithin } from "../lib/google";
 import { planMove } from "../lib/move";
 import { childKey, childPath } from "../lib/naming";
@@ -53,6 +54,8 @@ export default function MoveSheet({
     [content, current.key, items, conflictMode],
   );
   const count = (s: string) => plan.filter((e) => e.status === s).length;
+  // Privat ist abgeschottet: keine Fotos hinein oder heraus
+  const sealed = !!current.key && items.some((i) => crossesPrivat(i.path ?? "", current.path));
   const conflictsIfSkip = useMemo(
     () =>
       content && current.key
@@ -194,7 +197,13 @@ export default function MoveSheet({
                       <span>Ziel erreicht 15 GB – {count("limit")} Foto(s) passen nicht mehr hinein.</span>
                     </div>
                   )}
-                  <button className="btn primary block" disabled={count("move") === 0} onClick={run}>
+                  {sealed && (
+                    <div className="banner warn" style={{ margin: 0, width: "100%" }}>
+                      <Icon name="lock" size={18} />
+                      <span>{PRIVAT_SEALED}.</span>
+                    </div>
+                  )}
+                  <button className="btn primary block" disabled={sealed || count("move") === 0} onClick={run}>
                     <Icon name="move" size={18} /> {count("move")} hierher verschieben
                   </button>
                   {count("same") > 0 && <p className="faint small">{count("same")} liegen schon hier.</p>}

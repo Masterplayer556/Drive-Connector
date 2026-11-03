@@ -18,7 +18,7 @@ export interface RebalanceState {
 export const toCaps = (accounts: Account[]): AccountCap[] =>
   accounts
     .filter((a) => a.status === "active" && a.quota_limit)
-    .map((a) => ({ id: a.id, email: a.email, limit: Number(a.quota_limit), usage: Number(a.quota_usage ?? 0) }));
+    .map((a) => ({ id: a.id, email: a.email, limit: Number(a.quota_limit), usage: Number(a.quota_usage ?? 0), role: a.role }));
 
 export async function loadRebalance(accounts: Account[]): Promise<RebalanceState> {
   const [units, locks, groupFolder, plans] = await Promise.all([fetchUnits(), fetchLocks(), fetchGroupFolder(), fetchPlans()]);
