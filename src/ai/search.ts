@@ -18,7 +18,7 @@ export async function aiSearch(query: string): Promise<AiResult> {
   // Index höchstens alle 30 s neu lesen (er wächst nebenbei)
   if (!vectors || Date.now() - vectors.at > 30_000) vectors = { at: Date.now(), map: await allVectors() };
   const [{ vec, english }, items] = await Promise.all([embedText(query), catalog()]);
-  const hits = rank(vec, vectors.map);
+  const hits = rank(vec, vectors.map, { limit: 30 }); // wenige Vorschaubilder = wenig Speicher
   return {
     items: hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x),
     english,

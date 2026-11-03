@@ -7,9 +7,9 @@ Fotos per Beschreibung finden („Hund im Schnee“, „Arbeitsblatt mit Tabelle
 | Schritt | Wo |
 |---|---|
 | Einschalten: *Mehr → Suche → KI-Suche* | `AiSettings.tsx`, Schalter in `flag.ts` (localStorage) |
-| Modelle einmalig laden (~250–350 MB, danach im Gerätespeicher) | `worker.ts` – CLIP ViT-B/32 + Übersetzer DE→EN (`protocol.ts`) |
-| Bildmodell auf dem Grafikchip (WebGPU, fp16) – klappt das nicht, auf dem Prozessor (q8) | `engine.ts` (`prepareVision`, merkt sich einen Fehlschlag in `drivepool.ai.gpu`) |
-| Nebenbei jedes Foto in einen Vektor umrechnen, solange die App offen ist – normal sparsam mit Pausen, „Schnell lernen“ mit allem (Grafikchip in Stapeln oder bis zu 3 Prozessor-Worker, Bildschirm bleibt an) | `indexer.ts`, Vorschaubilder über `catalog.ts` |
+| Modell einmalig laden (~160 MB, danach im Gerätespeicher) | `worker.ts` – CLIP ViT-B/32 (`protocol.ts`); Suchbegriffe DE→EN per Wörterbuch (`dict.ts`) |
+| Bildmodell auf dem Prozessor (q8); Grafikchip (WebGPU, fp16) nur per Schalter, nach Absturz automatisch aus | `engine.ts`, Absturz-Merker `guard.ts` |
+| Nebenbei jedes Foto in einen Vektor umrechnen, solange die App offen ist – normal sparsam mit Pausen, „Schnell lernen“ ohne Pausen (Bildschirm bleibt an); immer nur ein Bild-Worker, während der Suche entladen – auf dem iPhone teilen sich App und Worker den Speicher | `indexer.ts`, Vorschaubilder über `catalog.ts` |
 | Index speichern – nur in IndexedDB auf dem Gerät | `store.ts` |
 | Suchtext → Vektor → ähnlichste Fotos | `search.ts`, `rank.ts`, Anzeige `AiSearchResults.tsx` |
 

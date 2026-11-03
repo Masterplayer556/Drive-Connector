@@ -3,7 +3,7 @@
 // Bildschirm bleibt an. Im Hintergrund friert iOS Web-Apps ein – dann geht es beim nächsten Öffnen weiter.
 import type { Item } from "../lib/types";
 import { catalog, thumbsFor } from "./catalog";
-import { embedImages, MAX_WORKERS, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, visionInfo } from "./engine";
+import { embedImages, MAX_WORKERS, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive, visionInfo } from "./engine";
 import type { VisionDevice } from "./protocol";
 import { itemKey, markSkip, putVector, removeKeys, skipped, vectorKeys } from "./store";
 
@@ -97,7 +97,7 @@ export function searchClosed() {
   searchOpen = Math.max(0, searchOpen - 1);
   if (searchOpen) return;
   setSearching(false);
-  releaseTextLater();
+  releaseTextLater(0); // Suchmodell sofort entladen, bevor das Bildmodell wieder lädt
   wakeAll();
 }
 
@@ -105,7 +105,7 @@ export function searchClosed() {
 async function waitForQuiet(stopped: () => boolean) {
   for (;;) {
     if (stopped()) return;
-    if (searchOpen) {
+    if (searchOpen || textAlive()) {
       set({ phase: "searching" });
       releaseIdleVision();
       await sleep(400);

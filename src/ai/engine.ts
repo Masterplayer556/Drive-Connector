@@ -1,7 +1,8 @@
 // KI-SUCHE (Test): Verbindung zu den Workern.
-// Bildmodell auf dem Prozessor – bei „Schnell lernen“ bis zu zwei Worker parallel. Grafikchip (WebGPU)
-// nur, wenn eingeschaltet: Er braucht beim Laden kurz sehr viel Speicher, was auf iPhones abstürzen kann. Die Suche hat einen eigenen Worker; während gesucht wird, gibt das Lernen seinen
-// Speicher frei. Auf dem iPhone teilen sich App und alle Worker denselben Arbeitsspeicher.
+// Auf dem iPhone teilen sich App und alle Worker denselben Arbeitsspeicher – darum sparsam:
+// ein Bild-Worker (Prozessor; Grafikchip nur, wenn eingeschaltet) und ein Such-Worker, nie beide gleichzeitig.
+// Suchbegriffe übersetzt ein kleines Wörterbuch statt eines Übersetzungsmodells.
+import { toEnglish } from "./dict";
 import { setRisk, takeCrash, type Risk } from "./guard";
 import { MODEL_CACHE } from "./store";
 import type { FromWorker, ToWorker, VisionDevice } from "./protocol";
@@ -11,8 +12,6 @@ type WithoutId<T> = T extends unknown ? Omit<T, "id"> : never;
 type Pending = { resolve: (m: FromWorker) => void; reject: (e: Error) => void; slot: number };
 
 const GPU_KEY = "drivepool.ai.gpu"; // "yes" = Grafikchip eingeschaltet · "no" = hat hier nicht geklappt
-const CAP_KEY = "drivepool.ai.maxw"; // Obergrenze Prozessor-Worker nach einem Absturz
-const NOTR_KEY = "drivepool.ai.notr"; // "1" = ohne Übersetzer suchen (nach Absturz bei der Suche)
 
 function lsGet(k: string): string | null {
   try {
@@ -30,25 +29,24 @@ function lsSet(k: string, v: string | null) {
   }
 }
 
-// ---- Nach einem Absturz beim letzten Mal: eine Stufe sparsamer ----
+// ---- Nach einem Absturz beim letzten Mal ----
 const crashed: Risk | null = takeCrash();
 if (crashed === "gpu") lsSet(GPU_KEY, "no");
-// Grafikchip nicht in Gebrauch → seine Modelldatei (~175 MB) nicht unnötig auf dem Gerät behalten
-if (lsGet(GPU_KEY) !== "yes") void dropModelFiles("vision_model_fp16");
-else if (crashed?.startsWith("workers:")) lsSet(CAP_KEY, String(Math.max(1, Number(crashed.split(":")[1]) - 1)));
-else if (crashed === "search") lsSet(NOTR_KEY, "1");
 
-/** Was nach dem letzten Absturz geändert wurde (für die Anzeige), sonst null. */
+// Aufräumen: Dateien, die nicht (mehr) gebraucht werden, nicht auf dem Gerät behalten
+if (lsGet(GPU_KEY) !== "yes") void dropModelFiles("vision_model_fp16"); // Grafikchip-Modell (~175 MB)
+void dropModelFiles("opus-mt"); // früheres Übersetzungsmodell
+for (const k of ["drivepool.ai.maxw", "drivepool.ai.notr"]) lsSet(k, null); // frühere Merker
+
+/** Hinweis, wenn die App letztes Mal bei der KI abgestürzt ist, sonst null. */
 export function crashNote(): string | null {
   if (crashed === "gpu") return "Letztes Mal ist die App auf dem Grafikchip abgestürzt – er ist jetzt aus, es rechnet der Prozessor.";
-  if (crashed?.startsWith("workers:")) return "Letztes Mal ist die App beim schnellen Lernen abgestürzt – ab jetzt mit weniger Kernen.";
-  if (crashed === "search") return "Letztes Mal ist die App bei der Suche abgestürzt – ab jetzt ohne Übersetzer (spart Speicher, Suche am besten auf Englisch).";
+  if (crashed) return "Letztes Mal ist die App bei der KI-Suche abgestürzt. Bitte melden, falls das wieder passiert.";
   return null;
 }
 
-const cap = Number(lsGet(CAP_KEY)) || 2;
-/** Höchstens so viele Prozessor-Worker fürs Lernen (je eine Kopie des Bildmodells im Speicher). */
-export const MAX_WORKERS = Math.max(1, Math.min(cap, (navigator.hardwareConcurrency || 2) - 1, 2));
+/** Ein Bild-Worker (mehrere parallel haben das iPhone abstürzen lassen). */
+export const MAX_WORKERS = 1;
 const TEXT = MAX_WORKERS; // eigener Platz für den Such-Worker
 const SLOTS = MAX_WORKERS + 1;
 
@@ -156,7 +154,7 @@ export function setGpuChoice(on: boolean) {
 
 /** Beim Ausschalten der KI-Suche: alle Merker zurücksetzen. */
 export function forgetGpu() {
-  for (const k of [GPU_KEY, CAP_KEY, NOTR_KEY]) lsSet(k, null);
+  lsSet(GPU_KEY, null);
 }
 
 /** Nicht mehr gebrauchte Bildmodell-Dateien aus dem Gerätespeicher entfernen. */
@@ -237,9 +235,12 @@ export function releaseTextLater(ms = 20_000) {
   if (textTimer) clearTimeout(textTimer);
   textTimer = setTimeout(() => {
     textTimer = null;
-    if (!searching && busy[TEXT] === 0) kill(TEXT);
+    if (!searching) kill(TEXT);
   }, ms);
 }
+
+/** Lebt der Such-Worker noch? (Das Bildmodell lädt erst, wenn er weg ist.) */
+export const textAlive = () => !!workers[TEXT];
 
 /** Womit gerade gerechnet wird. */
 export function visionInfo(): { device: VisionDevice | null; workers: number } {
@@ -259,9 +260,15 @@ export async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[
 /** Text der Suche → Vektor. Lädt das Textmodell beim ersten Mal (im eigenen Such-Worker). */
 export async function embedText(text: string): Promise<{ vec: Float32Array; english: string }> {
   if (textTimer) clearTimeout(textTimer);
-  const m = await send({ type: "text", text, translate: lsGet(NOTR_KEY) !== "1" }, TEXT);
+  // Erst wenn das Bildmodell entladen ist (Lernen pausiert, sobald die Suche offen ist), sonst wären beide im Speicher
+  for (let t = 0; t < 100 && workers.slice(0, MAX_WORKERS).some(Boolean); t++) {
+    releaseIdleVision();
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  const english = toEnglish(text) || text;
+  const m = await send({ type: "text", text: english }, TEXT);
   if (m.type !== "vec") throw new Error("Unerwartete Antwort");
-  return { vec: m.vec, english: m.english ?? text };
+  return { vec: m.vec, english };
 }
 
 /** Alle Worker beenden und Arbeitsspeicher freigeben. */
