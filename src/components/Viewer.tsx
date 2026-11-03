@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { formatBytes, formatDateTime } from "../lib/format";
-import { downloadBlob } from "../lib/google";
+import { accessToken, downloadBlob } from "../lib/google";
 import { accountColor } from "../lib/theme";
 import { getThumb, peekThumb, VIEW_SIZE } from "../lib/thumbs";
 import type { Account, Item } from "../lib/types";
@@ -66,7 +66,7 @@ export default function Viewer({
   const [fullState, setFullState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
   const isVideo = !!item.mime_type?.startsWith("video/");
-  const [video, setVideo] = useState<{ state: "idle" | "loading" | "ready" | "error"; url?: string; pct?: number }>({ state: "idle" });
+  const [video, setVideo] = useState<{ state: "idle" | "loading" | "ready" | "error"; url?: string; stream?: boolean }>({ state: "idle" });
   const stageRef = useRef<HTMLDivElement>(null);
   const g = useRef<Gesture | null>(null);
   const lastTap = useRef<{ t: number; x: number; y: number } | null>(null);
@@ -272,6 +272,25 @@ export default function Viewer({
     if (video.state !== "idle" && video.state !== "error") return;
     setVideo({ state: "loading" });
     const key = itemKey;
+    const sw = navigator.serviceWorker?.controller;
+    // 1. Stückweise über den Service Worker (startet sofort, Spulen möglich)
+    if (sw && video.state !== "error" && !streamFailed.current.has(key)) {
+      accessToken(item.account_id)
+        .then((token) => {
+          if (key !== itemKeyRef.current) return;
+          sw.postMessage({ type: "video-token", accountId: item.account_id, token });
+          const q = new URLSearchParams({ size: String(item.size ?? 0), type: item.mime_type ?? "video/mp4" });
+          setVideo({ state: "ready", url: `./__video/${encodeURIComponent(item.account_id)}/${encodeURIComponent(item.drive_id)}?${q}`, stream: true });
+        })
+        .catch(() => downloadVideo(key));
+      return;
+    }
+    downloadVideo(key);
+  };
+  // 2. Rückfall: ganzes Video laden (z. B. ohne Service Worker oder wenn Streaming scheitert)
+  const streamFailed = useRef(new Set<string>());
+  const downloadVideo = (key: string) => {
+    setVideo({ state: "loading" });
     downloadBlob(item.account_id, item.drive_id)
       .then((b) => {
         if (key !== itemKeyRef.current) return;
@@ -355,7 +374,19 @@ export default function Viewer({
               )}
             </div>
             {isVideo && video.state === "ready" && (
-              <video className="viewer-video" src={video.url} controls autoPlay playsInline onTouchStart={(e) => e.stopPropagation()} />
+              <video
+                className="viewer-video"
+                src={video.url}
+                controls
+                autoPlay
+                playsInline
+                onTouchStart={(e) => e.stopPropagation()}
+                onError={() => {
+                  if (!video.stream) return setVideo({ state: "error" });
+                  streamFailed.current.add(itemKey);
+                  downloadVideo(itemKey);
+                }}
+              />
             )}
             {isVideo && video.state !== "ready" && (
               <button className="video-play glass" onClick={playVideo} aria-label="Video abspielen">

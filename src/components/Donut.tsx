@@ -11,9 +11,15 @@ export interface Segment {
 /** Speicherring: ein farbiges Segment pro Konto; beim Laden füllt ein Bogen den Ring von 0° bis zum Verbrauch. */
 export default function Donut({ segments, total, size = 132 }: { segments: Segment[]; total: number; size?: number }) {
   const [shown, setShown] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setShown(true));
-    return () => cancelAnimationFrame(id);
+    // Nach dem Aufdecken ohne Maske zeichnen – sonst wird das Leuchten an den Rändern abgeschnitten
+    const t = setTimeout(() => setRevealed(true), 1450);
+    return () => {
+      cancelAnimationFrame(id);
+      clearTimeout(t);
+    };
   }, []);
 
   const used = segments.reduce((s, x) => s + x.value, 0);
@@ -33,7 +39,7 @@ export default function Donut({ segments, total, size = 132 }: { segments: Segme
     <div className="donut" style={{ width: size, height: size }}>
       <svg viewBox="-10 -10 140 140" width={size} height={size}>
         <defs>
-          <mask id={maskId} maskUnits="userSpaceOnUse" x="-10" y="-10" width="140" height="140">
+          <mask id={maskId} maskUnits="userSpaceOnUse" x="-40" y="-40" width="200" height="200">
             <circle
               className="donut-reveal"
               cx="60"
@@ -45,7 +51,7 @@ export default function Donut({ segments, total, size = 132 }: { segments: Segme
           </mask>
         </defs>
         <circle className="donut-track" cx="60" cy="60" r={r} />
-        <g mask={`url(#${maskId})`}>
+        <g mask={revealed ? undefined : `url(#${maskId})`}>
           {segments.map((s, i) => {
             const len = total > 0 ? Math.max(0, (s.value / total) * c - gap) : 0;
             const el = (

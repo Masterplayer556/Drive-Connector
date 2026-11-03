@@ -761,7 +761,7 @@ p {
 .donut-reveal {
   fill: none;
   stroke: #fff;
-  stroke-width: 34;
+  stroke-width: 60;
   transition: stroke-dasharray 1.3s cubic-bezier(0.65, 0, 0.35, 1);
 }
 

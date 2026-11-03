@@ -1,7 +1,7 @@
 // Service Worker: App startet aus dem Speicher.
 // - Dateien mit Hash im Namen (assets/) ändern sich nie → direkt aus dem Cache
 // - Startseite: kurz übers Netz versuchen, sonst die gespeicherte Version
-const CACHE = "drive-pool-v3";
+const CACHE = "drive-pool-v4";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {
@@ -74,11 +74,48 @@ function networkFirst(req, timeoutMs) {
   });
 }
 
+// Videos stückweise abspielen: der Player fragt Bereiche (Range) an, der Service Worker
+// holt genau diese Stücke mit dem Zugangs-Token direkt bei Google (kein Komplett-Download).
+const videoTokens = new Map();
+self.addEventListener("message", (event) => {
+  const d = event.data;
+  if (d && d.type === "video-token" && d.accountId && d.token) videoTokens.set(d.accountId, d.token);
+});
+
+async function streamVideo(req, url) {
+  const [accountId, id] = url.pathname.split("/__video/")[1].split("/").map(decodeURIComponent);
+  const size = Number(url.searchParams.get("size")) || 0;
+  const type = url.searchParams.get("type") || "video/mp4";
+  const token = videoTokens.get(accountId);
+  if (!token) return new Response("Kein Zugang", { status: 401 });
+  const range = req.headers.get("range");
+  const headers = { Authorization: `Bearer ${token}` };
+  if (range) headers.Range = range;
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers });
+  if (!res.ok && res.status !== 206) return new Response(null, { status: res.status });
+  const out = new Headers({ "Content-Type": type, "Accept-Ranges": "bytes" });
+  // Content-Range selbst berechnen (Google gibt den Header nicht an Web-Apps heraus)
+  const m = range && /bytes=(\d+)-(\d*)/.exec(range);
+  if (m && size) {
+    const start = Number(m[1]);
+    const end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
+    out.set("Content-Range", `bytes ${start}-${end}/${size}`);
+    out.set("Content-Length", String(end - start + 1));
+    return new Response(res.body, { status: 206, headers: out });
+  }
+  if (size) out.set("Content-Length", String(size));
+  return new Response(res.body, { status: 200, headers: out });
+}
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.includes("/__video/")) {
+    event.respondWith(streamVideo(req, url));
+    return;
+  }
 
   if (url.pathname.includes("/assets/") || url.pathname.includes("/icons/")) {
     event.respondWith(cacheFirst(req));

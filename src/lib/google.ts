@@ -163,6 +163,11 @@ export function moveItem(accountId: string, id: string, newParent: string, oldPa
 }
 
 /** Ganzes Foto als Blob (für die Grossansicht, falls die Vorschau fehlt). */
+/** Kurzlebiges Zugangs-Token (für das Video-Streaming über den Service Worker). */
+export function accessToken(accountId: string): Promise<string> {
+  return tokenFor(accountId);
+}
+
 export async function downloadBlob(accountId: string, id: string): Promise<Blob> {
   const res = await authedFetch(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?alt=media`);
   if (!res.ok) throw await googleError(res);

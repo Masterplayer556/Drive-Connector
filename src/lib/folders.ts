@@ -1,6 +1,7 @@
 // Ordner anlegen (Pfade in einem Konto sicherstellen), Ordner und Fotos löschen.
 import { createFolder, moveWithin, trashItem, updateItem } from "./google";
 import { moveFolderHues } from "./folderColors";
+import { supabase } from "./supabase";
 import { fetchFolderParts, findFolderInAccount, syncAccounts, writeLog, writeLogs } from "./db";
 import { childPath } from "./naming";
 import { accountStates, areaOf, chooseAccount } from "./placement";
@@ -100,7 +101,7 @@ export async function renameLogicalFolder(folder: LogicalFolder, name: string): 
   for (const p of parts) await updateItem(p.account_id, p.drive_id, { name });
   const parentPath = folder.path.split("/").slice(0, -1).join("/");
   const newPath = childPath(parentPath, name);
-  await moveFolderHues(folder.key, newPath.toLowerCase()).catch(() => undefined);
+  await movePathPrefs(folder.key, newPath.toLowerCase()).catch(() => undefined);
   await writeLog("rename", `Ordner „${folder.path}“ → „${name}“`, { konten: parts.length });
   await syncAccounts([...new Set(parts.map((p) => p.account_id))]);
 }
@@ -119,7 +120,23 @@ export async function moveLogicalFolder(folder: LogicalFolder, target: Crumb, ac
     const parent = await resolver.ensure(p.account_id, pathSegments(target.path));
     if (parent !== p.parent_drive_id) await moveWithin(p.account_id, p.drive_id, parent, p.parent_drive_id);
   }
-  await moveFolderHues(folder.key, childPath(target.path, folder.name).toLowerCase()).catch(() => undefined);
+  await movePathPrefs(folder.key, childPath(target.path, folder.name).toLowerCase()).catch(() => undefined);
   await writeLog("move", `Ordner „${folder.path}“ nach „${target.path || "Drive"}“ verschoben`, { konten: parts.length, created: resolver.created });
   await syncAccounts([...new Set(parts.map((p) => p.account_id))]);
+}
+
+/** Einstellungen, die am Pfad hängen (Farbe, Sperre, Gruppenregel), beim Umbenennen/Verschieben mitnehmen. */
+export async function movePathPrefs(fromKey: string, toKey: string): Promise<void> {
+  const swap = (k: string) => (k === fromKey || k.startsWith(fromKey + "/") ? toKey + k.slice(fromKey.length) : null);
+  await moveFolderHues(fromKey, toKey);
+  const { data: locks } = await supabase.from("folder_locks").select("path_key");
+  for (const l of locks ?? []) {
+    const n = swap(l.path_key as string);
+    if (!n) continue;
+    await supabase.from("folder_locks").delete().eq("path_key", l.path_key);
+    await supabase.from("folder_locks").upsert({ path_key: n }, { onConflict: "owner_id,path_key" });
+  }
+  const { data: st } = await supabase.from("settings").select("owner_id, group_folder").maybeSingle();
+  const g = st?.group_folder ? swap(st.group_folder as string) : null;
+  if (st && g) await supabase.from("settings").update({ group_folder: g }).eq("owner_id", st.owner_id);
 }
