@@ -98,3 +98,28 @@ describe("planUpload", () => {
     expect(summarize(r)).toMatchObject({ upload: 1, duplicate: 1, renamed: 1 });
   });
 });
+
+describe("Duplikate trotzdem hochladen", () => {
+  it("lädt Fotos aus anderen Ordnern hoch, aber nie doppelt in denselben Ordner", async () => {
+    const { planUpload } = await import("./plan");
+    const base = {
+      files: [
+        { id: "a", name: "a.jpg", size: 1, md5: "m1" },
+        { id: "b", name: "b.jpg", size: 1, md5: "m2" },
+        { id: "c", name: "c.jpg", size: 1, md5: "m1" },
+      ],
+      orderMode: false,
+      order: [],
+      startNumber: 1,
+      existingNames: [],
+      knownMd5: new Set(["m1", "m2"]),
+      folderBytes: 0,
+      folderHasSubfolders: true,
+      conflictMode: "skip" as const,
+      now: new Date(2026, 0, 1),
+    };
+    expect(planUpload(base).map((e) => e.status)).toEqual(["duplicate", "duplicate", "duplicate"]);
+    const r = planUpload({ ...base, allowPoolDuplicates: true, folderMd5: new Set(["m2"]) });
+    expect(r.map((e) => e.status)).toEqual(["upload", "duplicate", "duplicate"]);
+  });
+});

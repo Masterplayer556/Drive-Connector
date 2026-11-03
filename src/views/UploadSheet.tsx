@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import PathPicker, { crumbsOf } from "../components/PathPicker";
 import Ring from "../components/Ring";
-import { knownMd5, releaseNumbers, reserveNumbers, syncAccounts, writeLogs, type LogInput } from "../lib/db";
+import { ignoreDuplicate, knownMd5, releaseNumbers, reserveNumbers, syncAccounts, writeLogs, type LogInput } from "../lib/db";
 import { invalidateFolder, loadFolder } from "../lib/cache";
 import { formatBytes } from "../lib/format";
 import { md5OfFile } from "../lib/md5";
@@ -39,6 +39,7 @@ export default function UploadSheet({
   const [orderMode, setOrderMode] = useState(false);
   const [order, setOrder] = useState<string[]>([]);
   const [conflictMode, setConflictMode] = useState<"skip" | "rename">("skip");
+  const [allowDup, setAllowDup] = useState(false);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [result, setResult] = useState<{ upload: UploadResult; plan: PlanEntry[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -99,12 +100,14 @@ export default function UploadSheet({
       startNumber: maxNumber((content?.files ?? []).map((f) => f.name)) + 1,
       existingNames: (content?.files ?? []).map((f) => f.name),
       knownMd5: known,
+      allowPoolDuplicates: allowDup,
+      folderMd5: new Set((content?.files ?? []).map((f) => f.md5).filter((m): m is string => !!m)),
       folderBytes: (content?.files ?? []).reduce((s, f) => s + (f.size ?? 0), 0),
       folderHasSubfolders: (content?.folders.length ?? 0) > 0,
       conflictMode,
       now: new Date(),
     }),
-    [planFiles, orderMode, order, content, known, conflictMode],
+    [planFiles, orderMode, order, content, known, conflictMode, allowDup],
   );
   const plan = useMemo(() => planUpload(baseInput), [baseInput]);
   const sum = summarize(plan);
@@ -174,9 +177,13 @@ export default function UploadSheet({
       // Protokoll + Index im Hintergrund – Ergebnis sofort zeigen
       const toRelease = reserved;
       reserved = [];
+      // Bewusst doppelt hochgeladene Fotos gleich als „bewusst behalten“ markieren (nach dem Abgleich)
+      const intended = [...new Set(upload.uploaded.filter((u) => known.has(u.md5)).map((u) => u.md5))];
       background.current = Promise.all([
         writeLogs(logs),
-        upload.accountIds.length ? syncAccounts(upload.accountIds) : Promise.resolve(),
+        (upload.accountIds.length ? syncAccounts(upload.accountIds) : Promise.resolve()).then(() =>
+          Promise.all(intended.map((m) => ignoreDuplicate(m).catch(() => undefined))),
+        ),
       ])
         .catch(() => undefined)
         .finally(() => releaseNumbers(target.key, toRelease).catch(() => undefined));
@@ -322,6 +329,21 @@ export default function UploadSheet({
                   );
                 })}
               </div>
+
+              {(sum.duplicate > 0 || allowDup) && (
+                <label className="switch-row glass">
+                  <span>
+                    <strong>Duplikate trotzdem hochladen</strong>
+                    <div className="muted small">
+                      Für Fotos, die thematisch auch hierhin gehören. Was schon in diesem Ordner liegt, wird nie doppelt hochgeladen.
+                    </div>
+                  </span>
+                  <span className="switch">
+                    <input type="checkbox" checked={allowDup} onChange={(e) => setAllowDup(e.target.checked)} />
+                    <span />
+                  </span>
+                </label>
+              )}
 
               {conflictsWithoutRename > 0 && !orderMode && (
                 <div className="card glass stack" style={{ margin: 0 }}>
