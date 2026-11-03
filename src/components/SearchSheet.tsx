@@ -4,8 +4,10 @@ import { hueOf } from "../lib/folderColors";
 import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
 import Thumb from "./Thumb";
+import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
 
 const Viewer = lazy(() => import("./Viewer"));
+const AiSearchResults = lazy(() => import("../ai/AiSearchResults")); // KI-SUCHE
 
 /** Suche über alle Konten (#8): Ordner und Fotos nach Name oder Pfad. */
 export default function SearchSheet({
@@ -23,6 +25,7 @@ export default function SearchSheet({
   const [viewer, setViewer] = useState<number | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
+  const ai = useAiEnabled(); // KI-SUCHE
 
   useEffect(() => {
     setTimeout(() => input.current?.focus(), 150);
@@ -61,7 +64,7 @@ export default function SearchSheet({
               ref={input}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Fotos und Ordner suchen"
+              placeholder={ai ? "Suchen oder Foto beschreiben" : "Fotos und Ordner suchen"} // KI-SUCHE
               enterKeyHint="search"
               autoCapitalize="off"
               autoCorrect="off"
@@ -75,9 +78,9 @@ export default function SearchSheet({
         <div className="sheet-body">
           {results === null ? (
             <p className="muted small" style={{ textAlign: "center", marginTop: 24 }}>
-              Mindestens 2 Zeichen – z. B. „Mathe“, „2024“ oder „IMG_45“.
+              {/* KI-SUCHE */ ai ? "Name oder Beschreibung – z. B. „Mathe“, „2024“ oder „Hund im Schnee“." : "Mindestens 2 Zeichen – z. B. „Mathe“, „2024“ oder „IMG_45“."}
             </p>
-          ) : results.length === 0 ? (
+          ) : results.length === 0 && ai ? null /* KI-SUCHE: „Nichts gefunden“ zeigt dann der KI-Abschnitt */ : results.length === 0 ? (
             <div className="empty">
               <div className="empty-icon">
                 <Icon name="search" size={30} />
@@ -137,6 +140,12 @@ export default function SearchSheet({
                 </>
               )}
             </>
+          )}
+          {/* KI-SUCHE */}
+          {ai && (
+            <Suspense fallback={null}>
+              <AiSearchResults query={q} accounts={accounts} />
+            </Suspense>
           )}
         </div>
       </div>

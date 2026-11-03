@@ -1,5 +1,5 @@
 import type { Session } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import Icon, { type IconName } from "../components/Icon";
 import ThemePicker from "../components/ThemePicker";
 import { disableLock, enableLock, lockEnabled, lockError, lockSupported } from "../lib/lock";
@@ -10,6 +10,8 @@ import { syncAccounts } from "../lib/db";
 import { navigate } from "../lib/route";
 import { supabase } from "../lib/supabase";
 import type { Account } from "../lib/types";
+
+const AiSettings = lazy(() => import("../ai/AiSettings")); // KI-SUCHE
 
 interface Enroll {
   factorId: string;
@@ -255,6 +257,14 @@ export default function MehrView({ session, accounts }: { session: Session; acco
         <span>Design</span>
       </div>
       <ThemePicker />
+
+      {/* KI-SUCHE */}
+      <div className="section-title">
+        <span>Suche</span>
+      </div>
+      <Suspense fallback={null}>
+        <AiSettings />
+      </Suspense>
 
       <div className="section-title">
         <span>Sicherheit</span>

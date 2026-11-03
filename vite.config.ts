@@ -5,4 +5,6 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   base: "./",
   plugins: [react()],
+  // KI-SUCHE: der Worker lädt Teile nach → ES-Modul-Format nötig
+  worker: { format: "es" },
 });
