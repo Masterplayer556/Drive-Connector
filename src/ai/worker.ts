@@ -9,12 +9,13 @@ import {
   pipeline,
   RawImage,
 } from "@huggingface/transformers";
-import { CLIP_MODEL, MT_MODEL, type FromWorker, type ToWorker } from "./protocol";
+import { CLIP_MODEL, MT_MODEL, type FromWorker, type ToWorker, type VisionDevice } from "./protocol";
 
 env.allowLocalModels = false;
 const onnx = env.backends.onnx as { wasm?: { numThreads?: number; wasmPaths?: unknown } };
 if (onnx.wasm) {
-  // GitHub Pages erlaubt kein Multithreading (fehlende COOP/COEP-Header) → ein Thread, ohne Warnungen
+  // GitHub Pages erlaubt kein Multithreading (fehlende COOP/COEP-Header) → ein Thread pro Worker;
+  // für mehr Tempo laufen stattdessen mehrere Worker parallel
   onnx.wasm.numThreads = 1;
   // Laufzeit nicht vom CDN holen, sondern die mit der App ausgelieferte Datei nehmen
   delete onnx.wasm.wasmPaths;
@@ -25,7 +26,7 @@ const ctx = self as unknown as {
   onmessage: ((e: MessageEvent<ToWorker>) => void) | null;
 };
 
-type Fn = (...args: unknown[]) => Promise<Record<string, { data: Float32Array }>>;
+type Fn = (...args: unknown[]) => Promise<Record<string, { data: Float32Array; dims: number[] }>>;
 type Translator = (text: string) => Promise<{ translation_text: string }[]>;
 
 const progress = (part: "bild" | "text") => (p: { status: string; file?: string; loaded?: number; total?: number }) => {
@@ -33,40 +34,9 @@ const progress = (part: "bild" | "text") => (p: { status: string; file?: string;
     ctx.postMessage({ type: "progress", part, file: p.file, loaded: p.loaded ?? 0, total: p.total ?? 0 });
   }
 };
-const opts = (part: "bild" | "text") => ({ device: "wasm" as const, dtype: "q8" as const, progress_callback: progress(part) });
 
 let vision: Promise<{ processor: Fn; model: Fn }> | null = null;
 let text: Promise<{ tokenizer: (t: string[], o: object) => unknown; model: Fn; translate: Translator | null }> | null = null;
-
-function loadVision() {
-  vision ??= (async () => {
-    const [processor, model] = await Promise.all([
-      AutoProcessor.from_pretrained(CLIP_MODEL, { progress_callback: progress("bild") }),
-      CLIPVisionModelWithProjection.from_pretrained(CLIP_MODEL, opts("bild")),
-    ]);
-    return { processor: processor as unknown as Fn, model: model as unknown as Fn };
-  })().catch((e) => {
-    vision = null;
-    throw e;
-  });
-  return vision;
-}
-
-function loadText() {
-  text ??= (async () => {
-    const [tokenizer, model, translate] = await Promise.all([
-      AutoTokenizer.from_pretrained(CLIP_MODEL, { progress_callback: progress("text") }),
-      CLIPTextModelWithProjection.from_pretrained(CLIP_MODEL, opts("text")),
-      // Übersetzer Deutsch → Englisch (CLIP versteht nur Englisch gut). Fehlt er, wird direkt gesucht.
-      (pipeline("translation", MT_MODEL, opts("text")) as unknown as Promise<Translator>).catch(() => null),
-    ]);
-    return { tokenizer: tokenizer as unknown as (t: string[], o: object) => unknown, model: model as unknown as Fn, translate };
-  })().catch((e) => {
-    text = null;
-    throw e;
-  });
-  return text;
-}
 
 function normalized(v: Float32Array): Float32Array {
   let s = 0;
@@ -77,12 +47,70 @@ function normalized(v: Float32Array): Float32Array {
   return out;
 }
 
-async function embedImage(blob: Blob): Promise<Float32Array> {
-  const { processor, model } = await loadVision();
-  const image = await RawImage.fromBlob(blob);
-  const inputs = await processor(image);
-  const { image_embeds } = await model(inputs);
-  return normalized(image_embeds.data);
+/** Zeilen aus einem [n, 512]-Ergebnis. */
+function rows(t: { data: Float32Array; dims: number[] }): Float32Array[] {
+  const d = t.dims[t.dims.length - 1];
+  const out: Float32Array[] = [];
+  for (let i = 0; i < t.data.length / d; i++) out.push(normalized(t.data.subarray(i * d, (i + 1) * d)));
+  return out;
+}
+
+function loadVision(device: VisionDevice) {
+  vision ??= (async () => {
+    const [processor, model] = await Promise.all([
+      AutoProcessor.from_pretrained(CLIP_MODEL, { progress_callback: progress("bild") }),
+      // Grafikchip: fp16 (doppelt so gross, aber viel schneller) · Prozessor: q8 (kompakt)
+      CLIPVisionModelWithProjection.from_pretrained(CLIP_MODEL, {
+        device,
+        dtype: device === "webgpu" ? "fp16" : "q8",
+        progress_callback: progress("bild"),
+      }),
+    ]);
+    const v = { processor: processor as unknown as Fn, model: model as unknown as Fn };
+    if (device === "webgpu") {
+      // Probe: liefert der Grafikchip brauchbare Zahlen? (Sonst lieber auf den Prozessor ausweichen)
+      const probe = new RawImage(new Uint8ClampedArray(224 * 224 * 3).map((_, i) => (i * 37) % 255), 224, 224, 3);
+      const { image_embeds } = await v.model(await v.processor(probe));
+      if (!image_embeds.data.every(Number.isFinite) || !image_embeds.data.some((x) => x !== 0)) {
+        throw new Error("Grafikchip liefert keine gültigen Werte");
+      }
+    }
+    return v;
+  })().catch((e) => {
+    vision = null;
+    throw e;
+  });
+  return vision;
+}
+
+function loadText() {
+  text ??= (async () => {
+    const opts = { device: "wasm" as const, dtype: "q8" as const, progress_callback: progress("text") };
+    const [tokenizer, model, translate] = await Promise.all([
+      AutoTokenizer.from_pretrained(CLIP_MODEL, { progress_callback: progress("text") }),
+      CLIPTextModelWithProjection.from_pretrained(CLIP_MODEL, opts),
+      // Übersetzer Deutsch → Englisch (CLIP versteht nur Englisch gut). Fehlt er, wird direkt gesucht.
+      (pipeline("translation", MT_MODEL, opts) as unknown as Promise<Translator>).catch(() => null),
+    ]);
+    return { tokenizer: tokenizer as unknown as (t: string[], o: object) => unknown, model: model as unknown as Fn, translate };
+  })().catch((e) => {
+    text = null;
+    throw e;
+  });
+  return text;
+}
+
+/** Mehrere Bilder in einem Durchgang (auf dem Grafikchip viel schneller als einzeln). */
+async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[]> {
+  if (!vision) throw new Error("Bildmodell nicht geladen");
+  const { processor, model } = await vision;
+  const images = await Promise.all(blobs.map((b) => RawImage.fromBlob(b).catch(() => null)));
+  const ok = images.map((img, i) => (img ? i : -1)).filter((i) => i >= 0);
+  const out: (Float32Array | null)[] = blobs.map(() => null);
+  if (!ok.length) return out;
+  const { image_embeds } = await model(await processor(ok.map((i) => images[i])));
+  rows(image_embeds).forEach((v, j) => (out[ok[j]] = v));
+  return out;
 }
 
 async function embedText(query: string): Promise<{ vec: Float32Array; english: string }> {
@@ -104,11 +132,10 @@ ctx.onmessage = async (e) => {
   const m = e.data;
   try {
     if (m.type === "warm") {
-      await (m.part === "bild" ? loadVision() : loadText());
+      await (m.part === "bild" ? loadVision(m.device) : loadText());
       ctx.postMessage({ type: "ok", id: m.id });
-    } else if (m.type === "image") {
-      const vec = await embedImage(m.blob);
-      ctx.postMessage({ type: "vec", id: m.id, vec });
+    } else if (m.type === "images") {
+      ctx.postMessage({ type: "vecs", id: m.id, vecs: await embedImages(m.blobs) });
     } else if (m.type === "text") {
       const { vec, english } = await embedText(m.text);
       ctx.postMessage({ type: "vec", id: m.id, vec, english });
