@@ -19,12 +19,14 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
 
 function open(): Promise<IDBDatabase> {
   dbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const r = indexedDB.open(DB_NAME, 1);
+    const r = indexedDB.open(DB_NAME, 2);
     r.onupgradeneeded = () => {
       const db = r.result;
-      db.createObjectStore("vectors"); // Schlüssel → Float32Array
-      db.createObjectStore("skip"); // Schlüssel → Zeitpunkt (kein Vorschaubild o. ä.)
-      db.createObjectStore("meta");
+      const has = (n: string) => db.objectStoreNames.contains(n);
+      if (!has("vectors")) db.createObjectStore("vectors"); // Schlüssel → Float32Array
+      if (!has("skip")) db.createObjectStore("skip"); // Schlüssel → { at, n } (kein Vorschaubild o. ä.)
+      if (!has("meta")) db.createObjectStore("meta");
+      if (!has("feedback")) db.createObjectStore("feedback", { keyPath: "id" }); // 👍/👎 bei Treffern
     };
     r.onsuccess = () => resolve(r.result);
     r.onerror = () => reject(r.error ?? new Error("IndexedDB nicht verfügbar"));
@@ -49,9 +51,19 @@ export async function putVector(key: string, vec: Float32Array) {
   await req(db.transaction("vectors", "readwrite").objectStore("vectors").put(vec, key));
 }
 
+/** Foto (noch) nicht lernbar, z. B. weil Google die Vorschau noch nicht fertig hat. Zählt die Versuche. */
 export async function markSkip(key: string) {
   const db = await open();
-  await req(db.transaction("skip", "readwrite").objectStore("skip").put(Date.now(), key));
+  const store = db.transaction("skip", "readwrite").objectStore("skip");
+  const old = (await req(store.get(key))) as Skip | number | undefined;
+  const n = typeof old === "number" ? 3 : (old?.n ?? 0);
+  await req(store.put({ at: Date.now(), n: n + 1 } satisfies Skip, key));
+}
+
+export interface Skip {
+  at: number;
+  /** Anzahl Fehlversuche */
+  n: number;
 }
 
 export async function allVectors(): Promise<Map<string, Float32Array>> {
@@ -66,11 +78,39 @@ export async function vectorKeys(): Promise<Set<string>> {
   return new Set((await req(db.transaction("vectors").objectStore("vectors").getAllKeys())).map(String));
 }
 
-export async function skipped(): Promise<Map<string, number>> {
+export async function skipped(): Promise<Map<string, Skip>> {
   const db = await open();
   const store = db.transaction("skip").objectStore("skip");
   const [keys, values] = await Promise.all([req(store.getAllKeys()), req(store.getAll())]);
-  return new Map(keys.map((k, i) => [String(k), values[i] as number]));
+  // Ältere Einträge waren nur ein Zeitpunkt
+  return new Map(keys.map((k, i) => [String(k), typeof values[i] === "number" ? { at: values[i] as number, n: 3 } : (values[i] as Skip)]));
+}
+
+/** 👍 (+1) oder 👎 (−1) zu einem Foto bei einer bestimmten Suche. */
+export interface Feedback {
+  /** Suche + Foto, z. B. "dog in the snow|konto/datei" */
+  id: string;
+  /** Vektor der Suche (damit ähnliche Suchen davon lernen) */
+  q: Float32Array;
+  english: string;
+  key: string;
+  vote: 1 | -1;
+  at: number;
+}
+
+export async function allFeedback(): Promise<Feedback[]> {
+  const db = await open();
+  return (await req(db.transaction("feedback").objectStore("feedback").getAll())) as Feedback[];
+}
+
+export async function putFeedback(f: Feedback) {
+  const db = await open();
+  await req(db.transaction("feedback", "readwrite").objectStore("feedback").put(f));
+}
+
+export async function deleteFeedback(id: string) {
+  const db = await open();
+  await req(db.transaction("feedback", "readwrite").objectStore("feedback").delete(id));
 }
 
 export async function removeKeys(keys: string[]) {
@@ -89,6 +129,11 @@ export async function removeKeys(keys: string[]) {
 
 /** Index und heruntergeladene Modelle komplett vom Gerät löschen. */
 export async function wipeEverything(): Promise<void> {
+  try {
+    localStorage.removeItem("drivepool.ai.keepsim"); // bewusst behaltene „fast gleiche“ Gruppen
+  } catch {
+    /* ignorieren */
+  }
   const db = await dbPromise?.catch(() => null);
   db?.close();
   dbPromise = null;

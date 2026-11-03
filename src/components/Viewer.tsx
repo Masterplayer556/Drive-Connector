@@ -7,8 +7,10 @@ import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
 import { isFavorite, loadFavorites, onFavoritesChange, toggleFavorite } from "../lib/favorites";
 import { useUI } from "./ui";
+import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
 
 const ShareSheet = lazy(() => import("./ShareSheet"));
+const SimilarSheet = lazy(() => import("../ai/SimilarSheet")); // KI-SUCHE
 
 interface Zoom {
   s: number;
@@ -114,6 +116,8 @@ export default function Viewer({
   // Fingertipps erzeugen zusätzlich Maus-Ereignisse (dblclick) – die dürfen den Zoom nicht nochmals umschalten
   const lastTouch = useRef(0);
   const [sharing, setSharing] = useState(false);
+  const ai = useAiEnabled(); // KI-SUCHE
+  const [similar, setSimilar] = useState(false); // KI-SUCHE
 
   useEffect(() => {
     void loadFavorites().then(() => setFav(isFavorite(item)));
@@ -414,6 +418,12 @@ export default function Viewer({
         <button className="icon-btn glass" onClick={() => setSharing(true)} aria-label="Link teilen">
           <Icon name="link" size={19} />
         </button>
+        {/* KI-SUCHE */}
+        {ai && (
+          <button className="icon-btn glass" onClick={() => setSimilar(true)} aria-label="Ähnliche Fotos">
+            <Icon name="sparkles" size={19} />
+          </button>
+        )}
       </div>
       <div
         ref={stageRef}
@@ -499,6 +509,12 @@ export default function Viewer({
       {sharing && (
         <Suspense fallback={null}>
           <ShareSheet item={item} onClose={() => setSharing(false)} />
+        </Suspense>
+      )}
+      {/* KI-SUCHE */}
+      {similar && (
+        <Suspense fallback={null}>
+          <SimilarSheet item={item} accounts={accounts} onClose={() => setSimilar(false)} />
         </Suspense>
       )}
     </div>

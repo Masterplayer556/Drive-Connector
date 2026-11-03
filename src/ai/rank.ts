@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Treffer nach Ähnlichkeit sortieren. Reine Rechnung, ohne Abhängigkeiten (getestet).
+// KI-SUCHE (Test): Rechnen mit den Fingerabdrücken (Vektoren). Reine Funktionen ohne Abhängigkeiten (getestet).
 
 export interface Hit {
   key: string;
@@ -13,6 +13,19 @@ export function dot(a: Float32Array, b: Float32Array): number {
   return s;
 }
 
+export function normalize(v: Float32Array): Float32Array {
+  let s = 0;
+  for (let i = 0; i < v.length; i++) s += v[i] * v[i];
+  const n = Math.sqrt(s) || 1;
+  return v.map((x) => x / n);
+}
+
+/** Was das Feedback an einer Suche ändert: Treffer nach oben schieben oder ausblenden. */
+export interface Adjust {
+  boost: Map<string, number>;
+  hide: Set<string>;
+}
+
 /**
  * Beste Treffer. CLIP liefert bei passenden Bildern meist ~0.25–0.35, bei unpassenden ~0.15–0.22.
  * Behalten wird, was über der Mindestgrenze liegt und nicht viel schlechter ist als der beste Treffer.
@@ -20,17 +33,82 @@ export function dot(a: Float32Array, b: Float32Array): number {
 export function rank(
   query: Float32Array,
   vectors: Map<string, Float32Array>,
-  { limit = 60, floor = 0.2, window = 0.07 }: { limit?: number; floor?: number; window?: number } = {},
+  { limit = 60, floor = 0.2, window = 0.07, adjust, skip }: { limit?: number; floor?: number; window?: number; adjust?: Adjust; skip?: string } = {},
 ): Hit[] {
-  const hits: Hit[] = [];
-  for (const [key, v] of vectors) hits.push({ key, score: dot(query, v) });
-  hits.sort((a, b) => b.score - a.score);
-  const best = hits[0]?.score ?? 0;
-  const min = Math.max(floor, best - window);
-  const out: Hit[] = [];
-  for (const h of hits) {
-    if (h.score < min || out.length >= limit) break;
-    out.push(h);
+  // Die Grenze „gut genug“ kommt aus der reinen Ähnlichkeit – ein 👍-Bonus schiebt ein Foto nach oben,
+  // soll aber die anderen Treffer nicht verdrängen
+  const all: (Hit & { base: number })[] = [];
+  for (const [key, v] of vectors) {
+    if (key === skip || adjust?.hide.has(key)) continue;
+    const base = dot(query, v);
+    all.push({ key, base, score: base + (adjust?.boost.get(key) ?? 0) });
   }
-  return out;
+  const best = all.reduce((m, h) => Math.max(m, h.base), -Infinity);
+  const min = Math.max(floor, best - window);
+  return all
+    .filter((h) => h.base >= min || h.score >= min + window)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ key, score }) => ({ key, score }));
+}
+
+/** Wie stark eine frühere Suche zur jetzigen passt: gleiche Suche = 1, deutlich andere = 0. */
+export function relatedness(sim: number): number {
+  return Math.max(0, Math.min(1, (sim - 0.9) / 0.08));
+}
+
+/**
+ * Feedback anwenden (👍/👎). Die Suche wird zu den gelobten Fotos hin- und von den abgelehnten
+ * weggeschoben – auch bei ähnlichen Suchen, gewichtet nach Ähnlichkeit. Bei (fast) gleicher Suche
+ * werden 👍-Fotos zusätzlich nach oben geschoben und 👎-Fotos ausgeblendet.
+ */
+export function applyFeedback(
+  query: Float32Array,
+  feedback: { q: Float32Array; key: string; vote: 1 | -1 }[],
+  vectors: Map<string, Float32Array>,
+): { query: Float32Array; adjust: Adjust } {
+  const shift = new Float32Array(query.length);
+  const adjust: Adjust = { boost: new Map(), hide: new Set() };
+  let weight = 0;
+  for (const f of feedback) {
+    const w = relatedness(dot(query, f.q));
+    const v = vectors.get(f.key);
+    if (!w || !v) continue;
+    weight += w;
+    for (let i = 0; i < shift.length; i++) shift[i] += w * f.vote * v[i];
+    if (w >= 0.75) {
+      if (f.vote < 0) adjust.hide.add(f.key);
+      else adjust.boost.set(f.key, (adjust.boost.get(f.key) ?? 0) + 0.08 * w);
+    }
+  }
+  if (!weight) return { query, adjust };
+  const q = new Float32Array(query.length);
+  for (let i = 0; i < q.length; i++) q[i] = query[i] + (0.6 * shift[i]) / Math.max(1, weight);
+  return { query: normalize(q), adjust };
+}
+
+/**
+ * Gruppen fast gleicher Fotos (Serienbilder, bearbeitete Kopien …). Verglichen wird jedes Foto mit den
+ * nächsten `window` Fotos in der gegebenen Reihenfolge (z. B. nach Aufnahmezeit) – sonst wären es bei
+ * tausenden Fotos zu viele Vergleiche.
+ */
+export async function groupSimilar(
+  entries: { key: string; vec: Float32Array }[],
+  { threshold = 0.95, window = 40, yieldEvery = 400 }: { threshold?: number; window?: number; yieldEvery?: number } = {},
+): Promise<string[][]> {
+  const parent = entries.map((_, i) => i);
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < Math.min(entries.length, i + 1 + window); j++) {
+      if (dot(entries[i].vec, entries[j].vec) >= threshold) parent[find(j)] = find(i);
+    }
+    // Zwischendurch Luft holen, damit die App bedienbar bleibt
+    if (yieldEvery && i % yieldEvery === yieldEvery - 1) await new Promise((r) => setTimeout(r, 0));
+  }
+  const groups = new Map<number, string[]>();
+  entries.forEach((e, i) => {
+    const r = find(i);
+    groups.set(r, [...(groups.get(r) ?? []), e.key]);
+  });
+  return [...groups.values()].filter((g) => g.length > 1);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import Icon from "../components/Icon";
 import Ring from "../components/Ring";
 import { LineSkeleton } from "../components/Skeleton";
@@ -13,6 +13,9 @@ import { navigate } from "../lib/route";
 import { accountColor } from "../lib/theme";
 import type { Account, Item } from "../lib/types";
 import { AUTO_ROOT } from "./AutoUploadSheet";
+import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
+
+const AiSimilarDuplicates = lazy(() => import("../ai/AiSimilarDuplicates")); // KI-SUCHE
 
 const key = (i: Item) => `${i.account_id}|${i.drive_id}`;
 const PAGE = 20;
@@ -34,6 +37,7 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
   const [shown, setShown] = useState(PAGE);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const ai = useAiEnabled(); // KI-SUCHE
 
   const load = () =>
     fetchDuplicates()
@@ -252,6 +256,12 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
           )}
           <IgnoredList />
         </>
+      )}
+      {/* KI-SUCHE */}
+      {ai && !progress && groups !== null && (
+        <Suspense fallback={null}>
+          <AiSimilarDuplicates accounts={accounts} />
+        </Suspense>
       )}
     </div>
   );

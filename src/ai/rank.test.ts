@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dot, rank } from "./rank";
+import { applyFeedback, dot, groupSimilar, rank, relatedness } from "./rank";
 
 const v = (...xs: number[]) => {
   const a = new Float32Array(xs);
@@ -42,5 +42,78 @@ describe("KI-Suche: rank", () => {
 
   it("leerer Index → keine Treffer", () => {
     expect(rank(v(1, 0), new Map())).toEqual([]);
+  });
+});
+
+describe("KI-Suche: Feedback", () => {
+  const vectors = new Map([
+    ["hund1", v(1, 0.1, 0)],
+    ["hund2", v(1, 0, 0.1)],
+    ["katze", v(0.6, 1, 0)],
+  ]);
+
+  it("ohne passendes Feedback bleibt alles gleich", () => {
+    const q = v(1, 0, 0);
+    const r = applyFeedback(q, [{ q: v(0, 0, 1), key: "katze", vote: 1 }], vectors);
+    expect(r.query).toBe(q);
+    expect(r.adjust.hide.size).toBe(0);
+  });
+
+  it("gleiche Suche: 👎 blendet aus, 👍 schiebt nach oben", () => {
+    const q = v(1, 0, 0);
+    const r = applyFeedback(
+      q,
+      [
+        { q, key: "hund1", vote: -1 },
+        { q, key: "katze", vote: 1 },
+      ],
+      vectors,
+    );
+    expect(r.adjust.hide.has("hund1")).toBe(true);
+    expect(r.adjust.boost.get("katze")).toBeGreaterThan(0);
+    const before = rank(q, vectors, { floor: 0, window: 2 });
+    const after = rank(r.query, vectors, { floor: 0, window: 2, adjust: r.adjust });
+    expect(after.map((h) => h.key)).not.toContain("hund1");
+    const score = (hs: { key: string; score: number }[]) => hs.find((h) => h.key === "katze")!.score;
+    expect(score(after)).toBeGreaterThan(score(before) + 0.1);
+  });
+
+  it("ähnliche Suche lernt mit (schwächer), ganz andere nicht", () => {
+    expect(relatedness(1)).toBe(1);
+    expect(relatedness(0.94)).toBeCloseTo(0.5);
+    expect(relatedness(0.85)).toBe(0);
+  });
+});
+
+describe("KI-Suche: ähnliche Duplikate", () => {
+  it("gruppiert fast gleiche Fotos, trennt verschiedene", async () => {
+    const entries = [
+      { key: "a1", vec: v(1, 0, 0) },
+      { key: "a2", vec: v(1, 0.05, 0) },
+      { key: "b", vec: v(0, 1, 0) },
+      { key: "a3", vec: v(1, 0, 0.05) },
+      { key: "c", vec: v(0, 0, 1) },
+    ];
+    const groups = await groupSimilar(entries, { threshold: 0.95, window: 3, yieldEvery: 0 });
+    expect(groups.map((g) => g.sort())).toEqual([["a1", "a2", "a3"]]);
+  });
+
+  it("vergleicht nur innerhalb des Fensters", async () => {
+    const unit = (i: number) => v(...Array.from({ length: 8 }, (_, j) => (j === i ? 1 : 0)));
+    const entries = [{ key: "x", vec: unit(0) }, ...Array.from({ length: 5 }, (_, i) => ({ key: `o${i}`, vec: unit(i + 1) })), { key: "y", vec: unit(0) }];
+    expect(await groupSimilar(entries, { window: 2, yieldEvery: 0 })).toEqual([]);
+  });
+});
+
+describe("KI-Suche: 👍 verdrängt keine anderen Treffer", () => {
+  it("gleich gute Treffer bleiben, das gelobte Foto steht zuerst", () => {
+    const q = v(1, 0);
+    const vectors = new Map([
+      ["a", v(1, 0.3)],
+      ["b", v(1, 0.3)],
+      ["c", v(1, 0.3)],
+    ]);
+    const hits = rank(q, vectors, { adjust: { boost: new Map([["c", 0.08]]), hide: new Set() } });
+    expect(hits.map((h) => h.key)).toEqual(["c", "a", "b"]);
   });
 });

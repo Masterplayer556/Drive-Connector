@@ -6,7 +6,8 @@ import Thumb from "../components/Thumb";
 import type { Account, Item } from "../lib/types";
 import { modelProgress, onModelProgress } from "./engine";
 import { indexState, searchClosed, searchOpened } from "./indexer";
-import { aiSearch, type AiResult } from "./search";
+import { aiSearch, vote, type AiResult } from "./search";
+import { itemKey } from "./store";
 
 const Viewer = lazy(() => import("../components/Viewer"));
 
@@ -15,6 +16,7 @@ export default function AiSearchResults({ query, accounts }: { query: string; ac
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewer, setViewer] = useState<number | null>(null);
+  const [votes, setVotes] = useState<Map<string, 1 | -1>>(new Map());
   const [, tick] = useState(0);
   const seq = useRef(0);
 
@@ -38,7 +40,7 @@ export default function AiSearchResults({ query, accounts }: { query: string; ac
     // Etwas länger warten als die Namenssuche: erst wenn du kurz nicht mehr tippst
     const t = setTimeout(() => {
       aiSearch(term)
-        .then((r) => n === seq.current && (setResult(r), setError(null)))
+        .then((r) => n === seq.current && (setResult(r), setVotes(new Map(r.votes)), setError(null)))
         .catch((e) => n === seq.current && setError(e instanceof Error ? e.message : String(e)))
         .finally(() => n === seq.current && setBusy(false));
     }, 550);
@@ -51,6 +53,20 @@ export default function AiSearchResults({ query, accounts }: { query: string; ac
   const p = modelProgress("text");
   const downloading = busy && p && p.total > 0 && p.loaded < p.total;
   const idx = indexState();
+
+  /** 👍/👎 – nochmals tippen nimmt es zurück. Gilt ab der nächsten Suche (auch für ähnliche Suchen). */
+  const rate = (f: Item, value: 1 | -1) => {
+    if (!result) return;
+    const k = itemKey(f);
+    const next = votes.get(k) === value ? null : value;
+    setVotes((m) => {
+      const c = new Map(m);
+      if (next === null) c.delete(k);
+      else c.set(k, next);
+      return c;
+    });
+    void vote(result, f, next).catch(() => undefined);
+  };
 
   return (
     <div className="ai-results">
@@ -74,20 +90,36 @@ export default function AiSearchResults({ query, accounts }: { query: string; ac
         </p>
       )}
       {result && !busy && items.length === 0 && <p className="muted small">Kein Foto passt gut genug.</p>}
+      {result && !busy && items.length > 0 && (
+        <p className="faint small ai-understood">👍 passt · 👎 passt nicht – die Suche lernt daraus, auch für ähnliche Suchen.</p>
+      )}
 
       {items.length > 0 && (
         <div className="grid stagger">
-          {items.map((f, i) => (
-            <button key={`${f.account_id}|${f.drive_id}`} className="cell" style={{ ["--i" as string]: i }} onClick={() => setViewer(i)}>
-              <Thumb item={f} />
-              <span className="cell-name">{f.name}</span>
-              {f.mime_type?.startsWith("video/") && (
-                <span className="cell-play">
-                  <Icon name="play" size={14} />
+          {items.map((f, i) => {
+            const v = votes.get(itemKey(f));
+            return (
+              <div key={`${f.account_id}|${f.drive_id}`} className={`ai-cell ${v === -1 ? "down" : v === 1 ? "up" : ""}`} style={{ ["--i" as string]: i }}>
+                <button className="cell" onClick={() => setViewer(i)}>
+                  <Thumb item={f} />
+                  <span className="cell-name">{f.name}</span>
+                  {f.mime_type?.startsWith("video/") && (
+                    <span className="cell-play">
+                      <Icon name="play" size={14} />
+                    </span>
+                  )}
+                </button>
+                <span className="ai-votes">
+                  <button className={v === 1 ? "on" : ""} onClick={() => rate(f, 1)} aria-label="Passt">
+                    👍
+                  </button>
+                  <button className={v === -1 ? "on" : ""} onClick={() => rate(f, -1)} aria-label="Passt nicht">
+                    👎
+                  </button>
                 </span>
-              )}
-            </button>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
 

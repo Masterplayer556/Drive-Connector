@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toEnglish } from "./dict";
+import { looksEnglish, toEnglish } from "./dict";
 
 describe("KI-Suche: Wörterbuch", () => {
   it("übersetzt typische Suchen", () => {
@@ -13,5 +13,35 @@ describe("KI-Suche: Wörterbuch", () => {
   });
   it("Gross/klein und Satzzeichen", () => {
     expect(toEnglish("  KATZE,  Sofa! ")).toBe("cat, sofa!");
+  });
+});
+
+describe("KI-Suche: Wörterbuch – Endungen, zusammengesetzt, Englisch", () => {
+  it("Mehrzahl und Endungen", () => {
+    expect(toEnglish("Bergen")).toBe("mountain");
+    expect(toEnglish("Rosen im Garten")).toBe("roses in the garden");
+  });
+  it("zusammengesetzte Wörter", () => {
+    expect(toEnglish("Schneeberg")).toBe("snow mountain");
+    expect(toEnglish("Hundespielzeug")).toBe("dogs toy");
+  });
+  it("deutsch bleibt deutsch, auch bei mehrdeutigen Wörtern", () => {
+    expect(toEnglish("See")).toBe("lake");
+    expect(toEnglish("rot")).toBe("red");
+    expect(toEnglish("Bad")).toBe("bathroom");
+  });
+  it("englische Suche wird erkannt und nicht verfälscht", () => {
+    expect(looksEnglish("sunset at the beach")).toBe(true);
+    expect(looksEnglish("Hund im Schnee")).toBe(false);
+    expect(toEnglish("view of the sea")).toBe("view of the sea");
+    expect(toEnglish("I see the lake")).toBe("I see the lake");
+    expect(toEnglish("dog on the beach")).toBe("dog on the beach");
+  });
+  it("gemischt: deutsche Wörter in englischer Suche werden trotzdem übersetzt", () => {
+    expect(toEnglish("Hund on the beach")).toBe("dog on the beach");
+  });
+  it("Schweizer Wörter", () => {
+    expect(toEnglish("Velo")).toBe("bicycle");
+    expect(toEnglish("Gipfeli")).toBe("croissant");
   });
 });
