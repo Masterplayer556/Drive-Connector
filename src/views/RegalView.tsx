@@ -4,7 +4,7 @@ import Segmented from "../components/Segmented";
 import { LineSkeleton } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
-import { runRebalance, saveGroupFolder, savePlan, setLock } from "../lib/db";
+import { purgePlanOriginals, runRebalance, saveGroupFolder, savePlan, setLock, type PlanRow } from "../lib/db";
 import { formatBytes, formatDateTime } from "../lib/format";
 import { blockOf, isLocked, type Unit } from "../lib/rebalance";
 import { loadRebalance, toCaps, type RebalanceState } from "../lib/rebalanceData";
@@ -178,6 +178,26 @@ export default function RegalView({ accounts }: { accounts: Account[] }) {
     void load();
   };
 
+  const [purging, setPurging] = useState<{ id: string; done: number; total: number } | null>(null);
+  const purge = async (p: PlanRow) => {
+    const ok = await ui.confirm({
+      title: "Originale sofort löschen?",
+      message: `Die ${p.done.toLocaleString("de-CH")} Originale dieses Rebalancings liegen im Papierkorb der alten Konten. Sie werden jetzt endgültig gelöscht – der Platz ist sofort frei. Die geprüften Kopien bleiben. Das lässt sich nicht rückgängig machen.`,
+      confirmLabel: "Endgültig löschen",
+      danger: true,
+    });
+    if (!ok) return;
+    setPurging({ id: p.id, done: 0, total: p.done });
+    try {
+      const r = await purgePlanOriginals(p.id, (done, total) => setPurging({ id: p.id, done, total }));
+      ui.toast(r.failed ? `${r.ok} gelöscht, ${r.failed} fehlgeschlagen – nochmals versuchen` : `${r.ok} Originale gelöscht – Platz ist frei`, r.failed ? "error" : "ok");
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+    } finally {
+      setPurging(null);
+      void load();
+    }
+  };
   const history = (state?.plans ?? []).filter((p) => p.status === "done" || p.status === "failed").slice(0, 5);
 
   return (
@@ -387,9 +407,21 @@ export default function RegalView({ accounts }: { accounts: Account[] }) {
               </div>
               <section className="card glass stack" style={{ gap: 10 }}>
                 {history.map((p) => (
-                  <div key={p.id} className="small">
+                  <div key={p.id} className="small stack" style={{ gap: 6 }}>
                     <div className="faint">{formatDateTime(p.finished_at ?? p.created_at)}</div>
                     <div>{p.message}</div>
+                    {p.done > 0 &&
+                      (p.purged_at ? (
+                        <span className="faint">Originale endgültig gelöscht am {formatDateTime(p.purged_at)}</span>
+                      ) : purging?.id === p.id ? (
+                        <span className="muted">
+                          Lösche Originale … {purging.done} / {purging.total}
+                        </span>
+                      ) : (
+                        <button className="btn small danger" style={{ alignSelf: "flex-start" }} onClick={() => purge(p)} disabled={!!purging}>
+                          <Icon name="trash" size={16} /> Papierkorb sofort leeren
+                        </button>
+                      ))}
                   </div>
                 ))}
               </section>

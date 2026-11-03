@@ -2,6 +2,7 @@
 import type { Plan, Step, Unit } from "./rebalance";
 import type { BigFolder, PoolStats } from "./insights";
 import { childKey, naturalCompare } from "./naming";
+import { deleteForever } from "./google";
 import { callFunction, supabase } from "./supabase";
 import type { Account, FolderContent, Item, LogEntry, LogicalFolder, LogKind, Role } from "./types";
 
@@ -404,6 +405,43 @@ export interface PlanRow {
   message: string | null;
   created_at: string;
   finished_at: string | null;
+  purged_at: string | null;
+}
+
+/**
+ * Nach einem Rebalancing die Originale (liegen im Papierkorb der Quellkonten) sofort endgültig löschen,
+ * damit der Platz gleich frei wird. Nur Dateien, deren Kopie geprüft wurde (Status „done“).
+ */
+export async function purgePlanOriginals(planId: string, onProgress?: (done: number, total: number) => void): Promise<{ ok: number; failed: number }> {
+  const rows: { src_account: string; drive_id: string }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("rebalance_tasks")
+      .select("src_account, drive_id")
+      .eq("plan_id", planId)
+      .eq("status", "done")
+      .order("id")
+      .range(from, from + 999);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as typeof rows));
+    if (!data || data.length < 1000) break;
+  }
+  let ok = 0;
+  let failed = 0;
+  for (let i = 0; i < rows.length; i += 6) {
+    await Promise.all(
+      rows.slice(i, i + 6).map((r) =>
+        deleteForever(r.src_account, r.drive_id).then(
+          () => ok++,
+          (e) => (String(e).includes("404") ? ok++ : failed++), // schon weg → zählt als erledigt
+        ),
+      ),
+    );
+    onProgress?.(Math.min(i + 6, rows.length), rows.length);
+  }
+  if (!failed) await supabase.rpc("mark_plan_purged", { p_plan: planId });
+  await writeLog(failed ? "error" : "delete", `Rebalancing: ${ok} Originale endgültig gelöscht${failed ? `, ${failed} fehlgeschlagen` : ""}`, { plan: planId });
+  return { ok, failed };
 }
 
 export async function fetchPlans(limit = 20): Promise<PlanRow[]> {
