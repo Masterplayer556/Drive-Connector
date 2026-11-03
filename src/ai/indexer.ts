@@ -3,8 +3,7 @@
 // Bildschirm bleibt an. Im Hintergrund friert iOS Web-Apps ein – dann geht es beim nächsten Öffnen weiter.
 import type { Item } from "../lib/types";
 import { catalog, thumbsFor } from "./catalog";
-import { embedImages, MAX_WORKERS, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive, visionInfo } from "./engine";
-import type { VisionDevice } from "./protocol";
+import { embedImage, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive } from "./engine";
 import { itemKey, markSkip, putVector, removeKeys, skipped, vectorKeys } from "./store";
 
 export type Phase = "start" | "model" | "indexing" | "done" | "paused" | "searching" | "error" | "off";
@@ -18,9 +17,6 @@ export interface IndexState {
   rate: number;
   /** „Schnell lernen“ aktiv */
   turbo: boolean;
-  /** Womit gerechnet wird und mit wie vielen Workern */
-  device: VisionDevice | null;
-  workers: number;
 }
 
 const CHUNK = 30;
@@ -28,7 +24,7 @@ const RETRY_SKIP_MS = 7 * 24 * 3600_000; // Fotos ohne Vorschau nach einer Woche
 const RECHECK_MS = 10 * 60_000;
 const QUIET_MS = 1500; // so lange nach dem letzten Tippen/Scrollen warten
 
-let state: IndexState = { phase: "off", done: 0, total: 0, error: null, rate: 0, turbo: false, device: null, workers: 0 };
+let state: IndexState = { phase: "off", done: 0, total: 0, error: null, rate: 0, turbo: false };
 const listeners = new Set<() => void>();
 // Jeder Start bekommt eine neue Nummer; ein alter Durchlauf merkt so, dass er aufhören muss.
 let generation = 0;
@@ -173,11 +169,11 @@ async function pass(stopped: () => boolean): Promise<void> {
   if (!todo.length) return;
 
   set({ phase: "model" });
-  await prepareVision(state.turbo ? MAX_WORKERS : 1);
+  await prepareVision();
 
   let done = indexed;
   const meter = rateMeter();
-  const retried = new Set<string>(); // nach einem Absturz einmal neu versuchen statt gleich überspringen
+  const retried = new Set<string>(); // nach einem Abbruch einmal neu versuchen statt gleich überspringen
   const queue: { chunk: Item[]; blobs: Promise<Map<string, Blob>> }[] = [];
   // Vorschaubilder im Voraus laden (bei „Schnell lernen“ zwei Portionen), damit nie aufs Netz gewartet wird
   const refill = () => {
@@ -195,14 +191,7 @@ async function pass(stopped: () => boolean): Promise<void> {
     if (stopped()) break;
     set({ phase: "indexing" });
 
-    // Normal: ein Worker. Schnell lernen: alles, was das Gerät hergibt.
-    await prepareVision(state.turbo ? MAX_WORKERS : 1);
-    const { device, workers } = visionInfo();
-    set({ device, workers });
-    const gpu = device === "webgpu";
-    // Grafikchip bei „Schnell lernen“: zwei Spuren, damit Bilder lesen und Rechnen sich überlappen
-    const lanes = state.turbo ? (gpu ? 2 : workers) : 1;
-    const batch = gpu ? (state.turbo ? 8 : 4) : 1;
+    await prepareVision(); // nach einer Suche wurde das Bildmodell entladen → neu laden
 
     const { chunk, blobs: pendingBlobs } = queue.shift()!;
     let blobs: Map<string, Blob>;
@@ -218,41 +207,34 @@ async function pass(stopped: () => boolean): Promise<void> {
     }
     refill();
 
-    // Fotos in kleinen Stapeln auf die Spuren verteilen
-    let i = 0;
-    const lane = async () => {
-      while (i < chunk.length && !stopped()) {
-        const part = chunk.slice(i, i + batch);
-        i += part.length;
-        const keys = part.map(itemKey);
-        const withBlob = keys.filter((k) => blobs.has(k));
-        let vecs: (Float32Array | null)[] = [];
-        let failed = false;
+    for (const it of chunk) {
+      if (stopped()) break;
+      const k = itemKey(it);
+      const blob = blobs.get(k);
+      let vec: Float32Array | null = null;
+      if (blob) {
         try {
-          vecs = withBlob.length ? await embedImages(withBlob.map((k) => blobs.get(k)!)) : [];
+          vec = await embedImage(blob);
         } catch {
-          failed = true;
-        }
-        for (const [n, k] of keys.entries()) {
-          const j = withBlob.indexOf(k);
-          if (failed && j >= 0 && !retried.has(k)) {
+          // Worker beendet (z. B. Suche geöffnet) → Foto einmal neu einreihen statt überspringen
+          if (!retried.has(k)) {
             retried.add(k);
-            todo.push(part[n]);
+            todo.push(it);
+            refill();
             continue;
           }
-          const v = j >= 0 ? vecs[j] : null;
-          await (v ? putVector(k, v) : markSkip(k));
-          done++;
-          meter.tick();
         }
-        if (failed) refill();
-        set({ done });
-        const before = performance.now();
-        await waitForQuiet(stopped);
-        if (performance.now() - before > 1000) meter.reset(); // Pause verfälscht sonst das Tempo
       }
-    };
-    await Promise.all(Array.from({ length: lanes }, lane));
+      await (vec ? putVector(k, vec) : markSkip(k));
+      done++;
+      meter.tick();
+      set({ done });
+      const before = performance.now();
+      await waitForQuiet(stopped);
+      if (performance.now() - before > 1000) meter.reset(); // Pause verfälscht sonst das Tempo
+      if (stopped()) break;
+      await prepareVision();
+    }
   }
 }
 

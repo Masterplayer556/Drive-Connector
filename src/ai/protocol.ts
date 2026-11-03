@@ -2,18 +2,11 @@
 
 /** Bild-Text-Modell (OpenAI CLIP ViT-B/32, als ONNX für den Browser). */
 export const CLIP_MODEL = "Xenova/clip-vit-base-patch32";
-/**
- * Ändert sich das Modell, muss der Index neu aufgebaut werden.
- * (q8 auf dem Prozessor und fp16 auf dem Grafikchip sind Varianten desselben Modells → gleicher Index.)
- */
+/** Ändert sich das Modell, muss der Index neu aufgebaut werden. */
 export const INDEX_VERSION = `${CLIP_MODEL}@q8`;
 
-/** Womit das Bildmodell rechnet. */
-export type VisionDevice = "webgpu" | "wasm";
-
 export type ToWorker =
-  | { type: "warm"; id: number; part: "bild"; device: VisionDevice }
-  | { type: "warm"; id: number; part: "text" }
+  | { type: "warm"; id: number; part: "bild" | "text" }
   | { type: "images"; id: number; blobs: Blob[] }
   | { type: "text"; id: number; text: string };
 
