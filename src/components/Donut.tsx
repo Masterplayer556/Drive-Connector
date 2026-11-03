@@ -2,6 +2,15 @@ import { useEffect, useId, useState } from "react";
 import { formatBytes } from "../lib/format";
 import { useCountUp } from "../lib/useCountUp";
 
+/** Farbe der Prozentzahl: ab 80 % gelb, ab 90 % rot, ab 95 % dunkelrot – und bei genau 69 % golden. */
+export function levelClass(pct: number, shown = pct): string | undefined {
+  if (pct === 69 && shown === 69) return "gold";
+  if (pct >= 95) return "lvl-crit";
+  if (pct >= 90) return "lvl-red";
+  if (pct >= 80) return "lvl-warn";
+  return undefined;
+}
+
 export interface Segment {
   value: number;
   color: string;
@@ -73,7 +82,7 @@ export default function Donut({ segments, total, size = 132 }: { segments: Segme
       </svg>
       <div className="donut-center">
         {/* Kleines Extra: bei genau 69 % leuchtet die Zahl golden */}
-        <strong className={Math.round(pct) === 69 && Math.round(animatedPct) === 69 ? "gold" : undefined}>{Math.round(animatedPct)}%</strong>
+        <strong className={levelClass(Math.round(pct), Math.round(animatedPct))}>{Math.round(animatedPct)}%</strong>
         <span>{formatBytes(used)}</span>
       </div>
     </div>
