@@ -2,7 +2,7 @@
 // Das Supabase-Login bleibt bestehen; beim Öffnen der App entsperrt Face ID statt Passwort + Code.
 
 const KEY = "drivepool.lock";
-const RELOCK_AFTER_MS = 60_000;
+const RELOCK_AFTER_MS = 5 * 60_000;
 
 interface LockPrefs {
   credId: string;
@@ -82,7 +82,7 @@ export async function unlock(): Promise<boolean> {
   return !!res;
 }
 
-/** Nach einer Minute im Hintergrund wieder sperren. */
+/** Nach 5 Minuten im Hintergrund wieder sperren. */
 export function watchRelock(onLock: () => void): () => void {
   let hiddenAt = 0;
   const handler = () => {
