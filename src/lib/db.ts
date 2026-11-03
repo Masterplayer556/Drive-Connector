@@ -463,10 +463,40 @@ export interface RebalanceProgress {
 }
 
 /** Führt offene Pläne aus und ruft so lange erneut auf, bis alles erledigt ist. */
-export async function runRebalance(onProgress?: (p: RebalanceProgress) => void, signal?: { stop: boolean }): Promise<RebalanceProgress> {
+// Nur ein Lauf pro App: ein zweiter Aufruf (z. B. Regal neu geöffnet) hängt sich an den laufenden an
+let running: Promise<RebalanceProgress> | null = null;
+const listeners = new Set<(p: RebalanceProgress) => void>();
+
+export function runRebalance(onProgress?: (p: RebalanceProgress) => void, signal?: { stop: boolean }): Promise<RebalanceProgress> {
+  if (onProgress) listeners.add(onProgress);
+  if (!running) {
+    running = rebalanceLoop((p) => listeners.forEach((l) => l(p)), signal).finally(() => {
+      running = null;
+      listeners.clear();
+    });
+  }
+  return running;
+}
+
+async function rebalanceLoop(onProgress: (p: RebalanceProgress) => void, signal?: { stop: boolean }): Promise<RebalanceProgress> {
+  let errors = 0;
   for (;;) {
-    const r = await callFunction<RebalanceProgress>("rebalance");
-    onProgress?.(r);
+    const started = Date.now();
+    let r: RebalanceProgress;
+    try {
+      r = await callFunction<RebalanceProgress>("rebalance");
+      errors = 0;
+    } catch (e) {
+      // Verbindung kurz weg (z. B. Bildschirm gesperrt) → der Server arbeitet trotzdem weiter; nochmals versuchen
+      if (++errors > 3 || signal?.stop) {
+        throw new Error("Verbindung unterbrochen – das Rebalancing läuft auf dem Server bzw. nachts automatisch weiter.", { cause: e });
+      }
+      await new Promise((res) => setTimeout(res, 4000 * errors));
+      continue;
+    }
+    onProgress(r);
     if (!r.more || signal?.stop) return r;
+    // Arbeitet gerade ein anderer Lauf, kommt die Antwort sofort → kurz warten statt den Server zu fluten
+    if (Date.now() - started < 5000) await new Promise((res) => setTimeout(res, 4000));
   }
 }

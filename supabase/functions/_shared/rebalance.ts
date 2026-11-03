@@ -44,8 +44,18 @@ const privatPath = (path: string): boolean | null => {
   return null;
 };
 
-/** Schritte eines Plans in Datei-Aufgaben aufteilen (gesperrte Ordner werden übersprungen). */
+/**
+ * Schritte eines Plans in Datei-Aufgaben aufteilen (gesperrte Ordner werden übersprungen).
+ * Nur ein Lauf darf das tun: der Plan wird vorher reserviert (queued → running, noch nicht eingereiht).
+ */
 async function expandPlan(admin: SupabaseClient, plan: { id: string; owner_id: string; steps: Step[] }) {
+  const { data: claimed } = await admin
+    .from("rebalance_plans")
+    .update({ status: "running", expanded: false })
+    .eq("id", plan.id)
+    .eq("status", "queued")
+    .select("id");
+  if (!claimed?.length) return 0; // ein anderer Lauf reiht gerade ein
   const { data: lockRows } = await admin.from("folder_locks").select("path_key").eq("owner_id", plan.owner_id);
   const locks = (lockRows ?? []).map((l) => l.path_key as string);
   // Privat ist abgeschottet: nie zwischen Privat- und Archiv-Konten verschieben
@@ -87,7 +97,7 @@ async function expandPlan(admin: SupabaseClient, plan: { id: string; owner_id: s
       }
     }
   }
-  await admin.from("rebalance_plans").update({ status: "running", total }).eq("id", plan.id);
+  await admin.from("rebalance_plans").update({ status: "running", total, expanded: true }).eq("id", plan.id);
   return total;
 }
 
@@ -159,13 +169,29 @@ async function moveOne(
     ctx.shared.add(shareKey);
   }
 
-  // 2. Serverseitige Kopie im Zielkonto
+  // 2. Serverseitige Kopie im Zielkonto – gibt es sie schon (abgebrochener Lauf), wird sie wiederverwendet
   const parent = await ctx.folders.ensure(t.dst_account, t.owner_id, dst, t.path);
-  const copy = await gfetch<{ id: string; md5Checksum?: string; size?: string; mimeType?: string; description?: string; imageMediaMetadata?: { time?: string }; createdTime?: string; modifiedTime?: string }>(
-    dst,
-    `${DRIVE}/files/${t.drive_id}/copy?fields=id,md5Checksum,size,mimeType,description,createdTime,modifiedTime`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: t.name, parents: [parent] }) },
-  );
+  type Copy = { id: string; md5Checksum?: string; size?: string; mimeType?: string };
+  const q = `'${parent}' in parents and name = '${t.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}' and trashed = false`;
+  const existing = t.md5
+    ? (await gfetch<{ files: Copy[] }>(dst, `${DRIVE}/files?${new URLSearchParams({ q, fields: "files(id,md5Checksum,size,mimeType)", pageSize: "10" })}`)).files.find(
+        (f) => f.md5Checksum === t.md5,
+      )
+    : undefined;
+  let copy: Copy | undefined = existing;
+  // Direkt nach der Freigabe sieht das Zielkonto die Datei manchmal noch nicht (404) → kurz warten, nochmals
+  for (let attempt = 0; !copy; attempt++) {
+    try {
+      copy = await gfetch<Copy>(dst, `${DRIVE}/files/${t.drive_id}/copy?fields=id,md5Checksum,size,mimeType`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: t.name, parents: [parent] }),
+      });
+    } catch (e) {
+      if (!(e instanceof HttpError && e.status === 404) || attempt >= 3) throw e;
+      await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
+    }
+  }
 
   // 3. Prüfsumme und Grösse vergleichen
   let md5 = t.md5;
@@ -252,7 +278,7 @@ async function cleanup(admin: SupabaseClient, planId: string, emails: Map<string
 export async function runRebalance(admin: SupabaseClient, ownerId: string, deadline: number, log: Log = () => {}) {
   const { data: plans } = await admin
     .from("rebalance_plans")
-    .select("id, owner_id, steps, status, total")
+    .select("id, owner_id, steps, status, total, expanded")
     .eq("owner_id", ownerId)
     .in("status", ["queued", "running"])
     .order("created_at");
@@ -263,15 +289,12 @@ export async function runRebalance(admin: SupabaseClient, ownerId: string, deadl
 
   for (const plan of plans ?? []) {
     if (plan.status === "queued") log(`Plan ${plan.id}: ${await expandPlan(admin, plan)} Dateien eingereiht`);
+    else if (!plan.expanded) continue; // ein anderer Lauf reiht gerade ein
     for (;;) {
       if (Date.now() > deadline) break;
-      const { data: batch } = await admin
-        .from("rebalance_tasks")
-        .select("*")
-        .eq("plan_id", plan.id)
-        .eq("status", "pending")
-        .order("id")
-        .limit(8);
+      // Aufgaben exklusiv reservieren – parallele Läufe bekommen nie dieselben Fotos
+      const { data: batch, error: claimError } = await admin.rpc("claim_rebalance_tasks", { p_plan: plan.id, p_limit: 8 });
+      if (claimError) throw claimError;
       if (!batch?.length) break;
       // Erste Aufgabe allein (legt Freigabe und Zielordner an), danach parallel
       const first = batch.slice(0, 1);
@@ -295,9 +318,32 @@ export async function runRebalance(admin: SupabaseClient, ownerId: string, deadl
 
     const count = async (status: string) =>
       (await admin.from("rebalance_tasks").select("id", { count: "exact", head: true }).eq("plan_id", plan.id).eq("status", status)).count ?? 0;
-    const [done, failed, pending] = [await count("done"), await count("failed"), await count("pending")];
+    const [done, failed, pending] = [await count("done"), await count("failed"), (await count("pending")) + (await count("working"))];
     const total = done + failed + pending;
+    // Plan noch nicht fertig eingereiht (anderer Lauf) → nicht abschliessen
+    const { data: fresh } = await admin.from("rebalance_plans").select("expanded, status").eq("id", plan.id).single();
+    if (fresh && fresh.status !== "running") {
+      // ein anderer Lauf hat den Plan schon abgeschlossen
+      summary.push({ plan_id: plan.id, total, done, failed, status: "done" });
+      continue;
+    }
+    if (!fresh?.expanded) {
+      summary.push({ plan_id: plan.id, total, done, failed, status: "running" });
+      continue;
+    }
     if (pending === 0) {
+      // Nur ein Lauf schliesst ab (räumt auf und schreibt den Bericht)
+      const { data: won } = await admin
+        .from("rebalance_plans")
+        .update({ finished_at: new Date().toISOString() })
+        .eq("id", plan.id)
+        // (hängt ein Abschluss seit 10 Minuten, darf ein anderer Lauf übernehmen)
+        .or(`finished_at.is.null,finished_at.lt.${new Date(Date.now() - 10 * 60_000).toISOString()}`)
+        .select("id");
+      if (!won?.length) {
+        summary.push({ plan_id: plan.id, total, done, failed, status: "done" });
+        continue;
+      }
       await cleanup(admin, plan.id, emails);
       const freed = (
         await admin.from("rebalance_tasks").select("size").eq("plan_id", plan.id).eq("status", "done")
