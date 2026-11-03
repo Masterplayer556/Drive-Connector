@@ -3536,3 +3536,31 @@ p {
 .check.on {
   transform: none;
 }
+
+/* 69 % → golden */
+.donut-center strong.gold {
+  background: linear-gradient(135deg, #fff3b0 0%, #f6c445 35%, #d99a1e 60%, #ffe27a 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px rgba(246, 196, 69, 0.55));
+  animation: goldShine 3s ease-in-out infinite;
+}
+
+@keyframes goldShine {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .donut-center strong.gold {
+    animation: none;
+  }
+}
