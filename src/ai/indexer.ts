@@ -20,7 +20,8 @@ export interface IndexState {
 }
 
 const CHUNK = 30;
-const RETRY_SKIP_MS = 7 * 24 * 3600_000; // Fotos ohne Vorschau nach einer Woche nochmals versuchen
+/** Fotos ohne Vorschau nochmals versuchen: nach 10 min, 1 h, 6 h, 36 h, dann wöchentlich (frisch hochgeladen → Google braucht etwas). */
+const retryAfter = (n: number) => Math.min(7 * 24 * 3600_000, 10 * 60_000 * 6 ** Math.max(0, n - 1));
 const RECHECK_MS = 10 * 60_000;
 const QUIET_MS = 1500; // so lange nach dem letzten Tippen/Scrollen warten
 
@@ -57,6 +58,18 @@ const sleep = (ms: number) =>
 const wakeAll = () => [...wakers].forEach((w) => w());
 
 const onInput = () => (lastInput = Date.now());
+/** Nach einem Sync (z. B. nach einem Upload) neue Fotos gleich lernen statt erst beim nächsten Durchgang.
+ *  Kurz warten: Google braucht nach dem Hochladen einen Moment für die Vorschaubilder. */
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+const onSynced = () => {
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    syncTimer = null;
+    pendingRecheck = true;
+    wakeAll();
+  }, 20_000);
+};
+let pendingRecheck = false;
 const onVisible = () => {
   if (document.visibilityState !== "visible") return;
   if (state.turbo) void lockScreen();
@@ -159,7 +172,7 @@ async function pass(stopped: () => boolean): Promise<void> {
       const k = itemKey(it);
       if (have.has(k)) return false;
       const s = skips.get(k);
-      return !s || now - s > RETRY_SKIP_MS;
+      return !s || now - s.at > retryAfter(s.n);
     })
     // Neueste zuerst – die sucht man am ehesten
     .sort((a, b) => (b.taken_at ?? "").localeCompare(a.taken_at ?? ""));
@@ -248,6 +261,7 @@ export function startIndexer() {
   window.addEventListener("scroll", onInput, { passive: true, capture: true });
   window.addEventListener("touchmove", onInput, { passive: true });
   document.addEventListener("visibilitychange", onVisible);
+  window.addEventListener("drivepool-synced", onSynced);
   set({ phase: "start", error: null, rate: 0 });
 
   void (async () => {
@@ -261,7 +275,9 @@ export function startIndexer() {
       } catch (e) {
         if (!stopped()) set({ phase: "error", error: e instanceof Error ? e.message : String(e) });
       }
-      if (!stopped()) await sleep(RECHECK_MS); // neue Fotos? (beim Öffnen der App sofort)
+      // Neue Fotos? Nach einem Sync sofort, sonst alle 10 Minuten (beim Öffnen der App ebenfalls sofort)
+      if (!stopped() && !pendingRecheck) await sleep(RECHECK_MS);
+      pendingRecheck = false;
     }
   })();
 }
@@ -275,6 +291,8 @@ export function stopIndexer() {
   window.removeEventListener("scroll", onInput, { capture: true });
   window.removeEventListener("touchmove", onInput);
   document.removeEventListener("visibilitychange", onVisible);
+  window.removeEventListener("drivepool-synced", onSynced);
+  if (syncTimer) clearTimeout(syncTimer);
   shutdown();
   set({ phase: "off", turbo: false, rate: 0 });
 }

@@ -42,3 +42,71 @@
   background: rgba(251, 191, 36, 0.12);
   color: var(--text, inherit);
 }
+.ai-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: opacity 0.2s;
+}
+.ai-cell > .cell {
+  width: 100%;
+}
+.ai-cell.down {
+  opacity: 0.35;
+}
+.ai-cell.up .thumb-wrap {
+  box-shadow: 0 0 0 2px #22c55e;
+  border-radius: inherit;
+}
+.ai-votes {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+}
+.ai-votes button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 14px;
+  line-height: 30px;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0.85;
+}
+.ai-votes button.on {
+  background: rgba(255, 255, 255, 0.9);
+  opacity: 1;
+}
+.ai-similar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  font-size: 1.05rem;
+}
+.ai-similar-src {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  min-width: 0;
+}
+.ai-similar-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+/* Ein aus „Ähnliche Fotos“ geöffnetes Foto liegt über dem Fenster */
+.ai-similar-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}

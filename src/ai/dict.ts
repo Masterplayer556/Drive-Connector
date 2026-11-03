@@ -70,10 +70,148 @@ const W: Record<string, string> = {
   gross: "big", groß: "big", grosse: "big", große: "big", klein: "small", kleine: "small", alt: "old", alte: "old",
   neu: "new", dunkel: "dark", hell: "bright", nass: "wet", leer: "empty", voll: "full", schön: "beautiful",
   lustig: "funny", süss: "cute", süß: "cute",
+  // ---- Erweiterung ----
+  // Tiere
+  hündchen: "small dog", vogelhaus: "birdhouse", taube: "pigeon", möwe: "seagull", adler: "eagle", eule: "owl",
+  papagei: "parrot", frosch: "frog", schildkröte: "turtle", igel: "hedgehog", fuchs: "fox", reh: "deer",
+  hirsch: "deer", wolf: "wolf", delfin: "dolphin", wal: "whale", hai: "shark", qualle: "jellyfish", krebs: "crab",
+  marienkäfer: "ladybug", käfer: "beetle", ameise: "ant", wespe: "wasp", pinguin: "penguin", kamel: "camel",
+  zebra: "zebra", nashorn: "rhino", krokodil: "crocodile", meerschweinchen: "guinea pig", hamster: "hamster",
+  alpaka: "alpaca", lama: "llama", esel: "donkey", stier: "bull", kalb: "calf", lamm: "lamb", fohlen: "foal",
+  // Menschen, Körper, Kleidung
+  oma: "grandmother", opa: "grandfather", mama: "mother", papa: "father", mutter: "mother", vater: "father",
+  bruder: "brother", schwester: "sister", freund: "friend", freundin: "friend", lehrer: "teacher", lehrerin: "teacher",
+  schüler: "student", schülerin: "student", klassenfoto: "class photo", paar: "couple", menge: "crowd",
+  haare: "hair", auge: "eye", augen: "eyes", mund: "mouth", nase: "nose", ohr: "ear", fuss: "foot", füsse: "feet",
+  bein: "leg", arm: "arm", finger: "finger", bart: "beard", tattoo: "tattoo", rucksack: "backpack", tasche: "bag",
+  koffer: "suitcase", uhr: "watch", armbanduhr: "wristwatch", kette: "necklace", ring: "ring", schal: "scarf",
+  handschuhe: "gloves", stiefel: "boots", hose: "pants", jeans: "jeans", rock: "skirt", pullover: "sweater",
+  pulli: "sweater", tshirt: "t-shirt", anzug: "suit", krawatte: "tie", badehose: "swimsuit", bikini: "bikini",
+  sonnenbrille: "sunglasses", helm: "helmet", uniform: "uniform", kostüm: "costume", maske: "mask",
+  // Natur
+  alpen: "alps", gipfel: "summit", hügel: "hill", tal: "valley", schlucht: "gorge", felsen: "rock", fels: "rock",
+  sand: "sand", düne: "dune", küste: "coast", ufer: "shore", hafen: "harbor", bach: "stream", teich: "pond",
+  sumpf: "swamp", vulkan: "volcano", blätter: "leaves", ast: "branch", wurzel: "root",
+  pilz: "mushroom", pilze: "mushrooms", rose: "rose", rosen: "roses", tulpe: "tulip", sonnenblume: "sunflower",
+  kaktus: "cactus", palme: "palm tree", tanne: "fir tree", pflanze: "plant", pflanzen: "plants", busch: "bush",
+  hecke: "hedge", kürbis: "pumpkin", blitz: "lightning", sturm: "storm", hagel: "hail", tau: "dew",
+  dämmerung: "dusk", mondschein: "moonlight", sternenhimmel: "starry sky", polarlicht: "northern lights",
+  // Orte, Gebäude
+  hütte: "hut", berghütte: "mountain hut", stall: "barn", bauernhof: "farm", zoo: "zoo", museum: "museum",
+  stadion: "stadium", kino: "cinema", theater: "theater", schwimmbad: "swimming pool", pool: "swimming pool",
+  bibliothek: "library", markt: "market", supermarkt: "supermarket", einkaufszentrum: "shopping mall",
+  bäckerei: "bakery", café: "cafe", cafe: "cafe", bar: "bar", turm: "tower", denkmal: "monument", brunnen: "fountain",
+  platz: "square", altstadt: "old town", hochhaus: "skyscraper", wohnung: "apartment", balkon: "balcony",
+  terrasse: "terrace", dach: "roof", keller: "basement", garage: "garage", flur: "hallway", gang: "hallway",
+  turnhalle: "gym", sporthalle: "gym", pausenplatz: "schoolyard", schulhaus: "school building", universität: "university",
+  kirchturm: "church tower", kapelle: "chapel", tempel: "temple", moschee: "mosque", ruine: "ruins",
+  grenze: "border", tunnel: "tunnel", autobahn: "highway", parkplatz: "parking lot", kreuzung: "intersection",
+  ampel: "traffic light", bahn: "train", bahngleis: "railway", gleis: "railway", seilbahn: "cable car",
+  gondel: "gondola", sessellift: "chairlift", skilift: "ski lift", traktor: "tractor", taxi: "taxi",
+  roller: "scooter", trottinett: "scooter", kinderwagen: "stroller", wohnmobil: "camper van",
+  // Dinge im Haus
+  schlüssel: "keys", flasche: "bottle", glas: "glass", teller: "plate", tasse: "cup", becher: "mug",
+  besteck: "cutlery", messer: "knife", gabel: "fork", löffel: "spoon", pfanne: "pan", topf: "pot",
+  ofen: "oven", herd: "stove", kühlschrank: "fridge", spiegel: "mirror", lampe: "lamp", kissen: "pillow",
+  decke: "blanket", vorhang: "curtain", teppich: "carpet", regal: "shelf", schrank: "wardrobe",
+  pult: "desk", schreibtisch: "desk", foto: "photo", rahmen: "frame", vase: "vase",
+  ball: "ball", spielzeug: "toy", puppe: "doll", teddy: "teddy bear", lego: "lego", brettspiel: "board game",
+  karten: "playing cards", puzzle: "puzzle", konsole: "game console", kopfhörer: "headphones",
+  natel: "phone", smartphone: "phone", tablet: "tablet", ipad: "tablet",
+  drucker: "printer", kabel: "cable", ladegerät: "charger", batterie: "battery", fernbedienung: "remote control",
+  // Essen & Trinken
+  rösti: "hash browns", käse: "cheese", wurst: "sausage", cervelat: "sausage", pommes: "french fries",
+  reis: "rice", ei: "egg", eier: "eggs", gipfeli: "croissant", zopf: "braided bread", müesli: "muesli",
+  joghurt: "yogurt", erdbeere: "strawberry", erdbeeren: "strawberries", kirsche: "cherry", kirschen: "cherries",
+  traube: "grapes", trauben: "grapes", zitrone: "lemon", tomate: "tomato",
+  tomaten: "tomatoes", kartoffel: "potato", kartoffeln: "potatoes", karotte: "carrot", rüebli: "carrot",
+  gurke: "cucumber", zwiebel: "onion", knoblauch: "garlic", nuss: "nut", nüsse: "nuts",
+  sushi: "sushi", kebab: "kebab", döner: "kebab", sandwich: "sandwich", grill: "barbecue", grillieren: "barbecue",
+  grillen: "barbecue", steak: "steak", poulet: "chicken", hähnchen: "chicken", lachs: "salmon",
+  guetzli: "cookies", kekse: "cookies", muffin: "muffin", waffel: "waffle", crêpe: "crepe", honig: "honey",
+  milch: "milk", saft: "juice", wasserflasche: "water bottle", cocktail: "cocktail", sekt: "champagne",
+  // Schule & Dokumente
+  schulbuch: "textbook", lösung: "solution", lösungen: "solutions", vokabeln: "vocabulary", voci: "vocabulary",
+  wörter: "words", französisch: "french", englisch: "english", deutsch: "german", geschichte: "history",
+  geografie: "geography", geographie: "geography", biologie: "biology", bio: "biology", chemie: "chemistry",
+  physik: "physics", informatik: "computer science", wirtschaft: "economics", kunst: "art", werken: "crafts",
+  zusammenfassung: "summary", stundenplan: "timetable", zeugnis: "report card", note: "grade", noten: "grades",
+  lineal: "ruler", taschenrechner: "calculator", bleistift: "pencil", stift: "pen", stifte: "pens",
+  kugelschreiber: "pen", füller: "fountain pen", radiergummi: "eraser", schere: "scissors", leim: "glue",
+  ordner: "binder", mappe: "folder", brief: "letter", vertrag: "contract", formular: "form", kalender: "calendar",
+  plan: "plan", grundriss: "floor plan", liste: "list", rezept: "recipe", menükarte: "menu", speisekarte: "menu",
+  schild: "sign", wegweiser: "signpost", etikett: "label", barcode: "barcode", qr: "qr code", code: "code",
+  geld: "money", münze: "coin", münzen: "coins", banknote: "banknote", kreditkarte: "credit card",
+  pass: "passport", reisepass: "passport", fahrkarte: "ticket", busfahrplan: "bus timetable", fahrplan: "timetable",
+  präsentation: "presentation", folie: "slide", chat: "chat messages", nachricht: "message", email: "email",
+  // Aktivitäten & Anlässe
+  fahren: "riding", velofahren: "cycling", radfahren: "cycling", schlitteln: "sledding", schlitten: "sled",
+  snowboard: "snowboard", langlauf: "cross-country skiing", tanzen: "dancing", kochen: "cooking", backen: "baking",
+  lesen: "reading", schreiben: "writing", malen: "painting", basteln: "crafting", spielen: "playing",
+  turnen: "gymnastics", klettern: "climbing", reiten: "horse riding", joggen: "jogging", rennen: "running",
+  laufen: "running", springen: "jumping", schlafen: "sleeping", trinken: "drinking",
+  fischen: "fishing", angeln: "fishing", segeln: "sailing", surfen: "surfing", tauchen: "diving",
+  campen: "camping", camping: "camping", picknick: "picnic", lagerfeuer: "campfire", grillfest: "barbecue party",
+  hockey: "hockey", eishockey: "ice hockey", tennis: "tennis", basketball: "basketball", volleyball: "volleyball",
+  unihockey: "floorball", golf: "golf", yoga: "yoga", fitness: "gym workout", training: "training",
+  match: "match", turnier: "tournament", pokal: "trophy", medaille: "medal", siegerehrung: "award ceremony",
+  abschluss: "graduation", diplom: "diploma", taufe: "baptism", fasnacht: "carnival", karneval: "carnival",
+  halloween: "halloween", silvester: "new year's eve", neujahr: "new year", nikolaus: "santa claus",
+  adventskranz: "advent wreath", krippe: "nativity scene", luftballon: "balloon", ballone: "balloons",
+  ballon: "balloon", girlande: "garland", dekoration: "decoration", deko: "decoration",
+  // Eigenschaften & Stimmung
+  glücklich: "happy", traurig: "sad", müde: "tired", wütend: "angry", schlafend: "sleeping",
+  sonnig: "sunny", bewölkt: "cloudy", neblig: "foggy", verschneit: "snowy", stürmisch: "stormy",
+  warm: "warm", kalt: "cold", heiss: "hot", heiß: "hot", ruhig: "calm", modern: "modern", historisch: "historic",
+  gemütlich: "cozy", romantisch: "romantic", unscharf: "blurry", verschwommen: "blurry", nahaufnahme: "close-up",
+  panorama: "panorama", porträt: "portrait", portrait: "portrait", luftaufnahme: "aerial view",
+  silber: "silver", gold: "gold", golden: "golden", türkis: "turquoise", beige: "beige", dunkelblau: "dark blue",
+  hellblau: "light blue", dunkelgrün: "dark green", hellgrün: "light green",
 };
 
-/** Suchtext grob ins Englische übertragen (Wort für Wort). */
+// Wörter, die es auf Deutsch UND Englisch gibt (mit anderer Bedeutung). In einer englischen Suche
+// behalten sie die englische Bedeutung, sonst gilt die deutsche (z. B. „See“ allein → lake).
+const AMBIGUOUS = new Set(["see", "bad", "hell", "die", "test", "an", "in", "gift", "art", "also", "will", "war", "fast", "mist", "rock", "kind", "hut", "rot", "note", "pass", "plan", "rennen", "boot", "taste"]);
+// Klare Hinweise, dass die Suche auf Englisch ist
+const ENGLISH_HINTS = new Set(["the", "a", "of", "with", "and", "on", "at", "my", "near", "behind", "without", "from", "is", "are", "some", "photo", "photos", "picture", "pictures", "this", "that", "his", "her", "our"]);
+const GERMAN_HINTS = new Set(["der", "die", "das", "den", "dem", "des", "ein", "eine", "einem", "einen", "im", "am", "mit", "und", "ohne", "auf", "vom", "zum", "zur", "beim", "unter", "neben", "vor", "hinter", "bei"]);
+
+/** Einzelnes Wort nachschlagen – auch Mehrzahl/Endungen und zusammengesetzte Wörter (Schneeberg → snow mountain). */
+function lookup(raw: string): string | undefined {
+  const w = raw.toLowerCase();
+  const direct = W[w] ?? W[w.replace(/ß/g, "ss")];
+  if (direct !== undefined) return direct;
+  // Endungen abschneiden: Bergen → Berg, Blumen → Blume, Kindern → Kinder, Autos → Auto
+  for (const suffix of ["ern", "en", "er", "es", "n", "e", "s"]) {
+    if (w.length > suffix.length + 3 && w.endsWith(suffix)) {
+      const hit = W[w.slice(0, -suffix.length)];
+      if (hit) return hit;
+    }
+  }
+  // Zusammengesetzt: längster bekannter Anfang + bekannter Rest (auch mit Fugen-s/-n)
+  if (w.length >= 7) {
+    for (let i = w.length - 3; i >= 3; i--) {
+      const head = W[w.slice(0, i)];
+      if (!head) continue;
+      for (const rest of [w.slice(i), w.slice(i + 1)]) {
+        const tail = rest.length >= 3 ? lookup(rest) : undefined;
+        if (tail) return `${head} ${tail}`;
+      }
+    }
+  }
+  return undefined;
+}
+
+/** Ist die Suche wohl auf Englisch? (englische Füllwörter, keine deutschen, keine Umlaute) */
+export function looksEnglish(query: string): boolean {
+  const words = query.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
+  if (words.some((w) => GERMAN_HINTS.has(w) || /[äöüß]/.test(w))) return false;
+  return words.some((w) => ENGLISH_HINTS.has(w));
+}
+
+/** Suchtext grob ins Englische übertragen (Wort für Wort). In englischen Suchen bleiben mehrdeutige Wörter englisch. */
 export function toEnglish(query: string): string {
+  const english = looksEnglish(query);
   return query
     .trim()
     .split(/\s+/)
@@ -81,7 +219,8 @@ export function toEnglish(query: string): string {
       const m = /^([^\p{L}\p{N}]*)([\p{L}\p{N}-]+)([^\p{L}\p{N}]*)$/u.exec(word);
       if (!m) return word;
       const [, pre, core, post] = m;
-      const hit = W[core.toLowerCase()];
+      if (english && (AMBIGUOUS.has(core.toLowerCase()) || ENGLISH_HINTS.has(core.toLowerCase()))) return word;
+      const hit = lookup(core);
       return hit === undefined ? word : hit ? `${pre}${hit}${post}` : "";
     })
     .filter(Boolean)

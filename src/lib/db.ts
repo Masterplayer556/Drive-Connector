@@ -179,6 +179,7 @@ export async function syncAccounts(accountIds?: string[], full = false): Promise
       results.set(x.account_id, { ...x, changed: (prev?.changed ?? 0) + (x.changed ?? 0) });
     }
   }
+  window.dispatchEvent(new Event("drivepool-synced")); // KI-SUCHE: neue Fotos gleich lernen
   return [...results.values()];
 }
 
