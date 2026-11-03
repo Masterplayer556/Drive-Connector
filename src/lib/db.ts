@@ -202,12 +202,25 @@ export interface DuplicateGroup {
   md5: string;
   total: number;
   items: Item[];
+  /** Bewusst behalten (gehört thematisch in mehrere Ordner) */
+  ignored: boolean;
 }
 
 export async function fetchDuplicates(): Promise<DuplicateGroup[]> {
   const { data, error } = await supabase.rpc("find_duplicates");
   if (error) throw new Error(error.message);
   return (data ?? []) as DuplicateGroup[];
+}
+
+/** Duplikat bewusst behalten – erscheint nicht mehr, solange die Kopien in denselben Ordnern liegen. */
+export async function ignoreDuplicate(md5: string): Promise<void> {
+  const { error } = await supabase.rpc("ignore_duplicate", { p_md5: md5 });
+  if (error) throw new Error(error.message);
+}
+
+export async function unignoreDuplicate(md5: string): Promise<void> {
+  const { error } = await supabase.rpc("unignore_duplicate", { p_md5: md5 });
+  if (error) throw new Error(error.message);
 }
 
 export interface Settings {
