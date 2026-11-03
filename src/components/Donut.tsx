@@ -72,7 +72,8 @@ export default function Donut({ segments, total, size = 132 }: { segments: Segme
         </g>
       </svg>
       <div className="donut-center">
-        <strong>{Math.round(animatedPct)}%</strong>
+        {/* Kleines Extra: bei genau 69 % leuchtet die Zahl golden */}
+        <strong className={Math.round(pct) === 69 && Math.round(animatedPct) === 69 ? "gold" : undefined}>{Math.round(animatedPct)}%</strong>
         <span>{formatBytes(used)}</span>
       </div>
     </div>
