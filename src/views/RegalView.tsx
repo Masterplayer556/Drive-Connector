@@ -256,7 +256,7 @@ export default function RegalView({ accounts }: { accounts: Account[] }) {
                     <span className="rb-step-text">
                       <span className="ellipsis" style={{ fontWeight: 600 }}>{s.label}</span>
                       <span className="faint small">
-                        {s.reason === "zusammenführen" ? "Zusammenführen" : "Entlasten"} · {s.files.toLocaleString("de-CH")} Fotos · {formatBytes(s.bytes)}
+                        {s.reason === "zusammenführen" ? "Zusammenführen" : s.reason === "einordnen" ? "Ins richtige Gebiet" : "Entlasten"} · {s.files.toLocaleString("de-CH")} Fotos · {formatBytes(s.bytes)}
                       </span>
                       <span className="rb-route small">
                         <span className="dot" style={{ background: colorOf(s.from) }} />

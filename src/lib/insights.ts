@@ -64,9 +64,17 @@ export function computeInsights(accounts: Account[], stats: PoolStats | null, bi
     }
   }
 
-  for (const a of active) {
-    if (a.quota_limit && (a.quota_usage ?? 0) / a.quota_limit >= 0.98) {
-      out.push({ id: `acc-${a.id}`, level: "info", title: `${a.email} ist voll`, text: "Neue Fotos landen automatisch in anderen Konten." });
+  // Privat ist abgeschottet: ausgewichen wird nur auf Konten desselben Gebiets
+  const isFull = (a: (typeof active)[number]) => !!a.quota_limit && (a.quota_usage ?? 0) / a.quota_limit >= 0.98;
+  for (const role of ["schule", "privat"] as const) {
+    const area = active.filter((a) => a.role === role);
+    const label = role === "privat" ? "Privat" : "Archiv";
+    if (area.length && area.every(isFull)) {
+      out.push({ id: `area-${role}`, level: "warn", title: `${label} ist voll`, text: `Kein ${label}-Konto hat mehr Platz – Uploads nach ${label} gehen erst mit einem neuen ${label}-Konto.` });
+      continue;
+    }
+    for (const a of area.filter(isFull)) {
+      out.push({ id: `acc-${a.id}`, level: "info", title: `${a.email} ist voll`, text: `Neue Fotos landen automatisch in anderen ${label}-Konten.` });
     }
   }
 
