@@ -27,6 +27,8 @@ export default function PapierkorbView({ accounts }: { accounts: Account[] }) {
   const ui = useUI();
   const [entries, setEntries] = useState<TrashEntry[] | null>(null);
   const [trashBytes, setTrashBytes] = useState<number | null>(null);
+  /** Belegter Platz im Papierkorb pro Konto (laut Google) */
+  const [perAccount, setPerAccount] = useState<Map<string, number>>(new Map());
   const [autoDays, setAutoDays] = useState<number | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -44,6 +46,7 @@ export default function PapierkorbView({ accounts }: { accounts: Account[] }) {
       ]);
       setEntries(list);
       setTrashBytes(quotas.reduce((s, q) => s + (q?.trash ?? 0), 0));
+      setPerAccount(new Map(active.map((a, i) => [a.id, quotas[i]?.trash ?? 0])));
       setAutoDays(settings.trash_auto_days);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -114,16 +117,20 @@ export default function PapierkorbView({ accounts }: { accounts: Account[] }) {
     await load();
   };
 
-  const emptyAll = async () => {
+  /** Papierkorb endgültig leeren – in allen Konten oder nur in einem */
+  const emptyAll = async (only?: Account) => {
+    const targets = only ? [only] : active;
+    const count = only ? (entries ?? []).filter((e) => e.account.id === only.id).length : (entries?.length ?? 0);
+    const bytes = only ? (perAccount.get(only.id) ?? 0) : (trashBytes ?? 0);
     const yes = await ui.confirm({
-      title: "Papierkorb leeren?",
-      message: `Alle ${entries?.length ?? 0} Einträge in allen Konten werden endgültig gelöscht${trashBytes ? ` – ${formatBytes(trashBytes)} werden frei` : ""}.`,
-      confirmLabel: "Leeren",
+      title: only ? `Papierkorb von ${only.email} leeren?` : "Alles endgültig löschen?",
+      message: `${count} Einträge${only ? "" : " in allen Konten"} werden endgültig gelöscht${bytes ? ` – ${formatBytes(bytes)} werden frei` : ""}. Das kann nicht rückgängig gemacht werden.`,
+      confirmLabel: only ? "Leeren" : "Alles löschen",
       danger: true,
     });
     if (!yes) return;
-    setProgress({ done: 0, total: active.length, label: "Konten geleert" });
-    for (const a of active) {
+    setProgress({ done: 0, total: targets.length, label: targets.length === 1 ? "Konto geleert" : "Konten geleert" });
+    for (const a of targets) {
       try {
         await emptyTrash(a.id);
       } catch (e) {
@@ -132,11 +139,18 @@ export default function PapierkorbView({ accounts }: { accounts: Account[] }) {
       setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
     }
     setProgress(null);
-    await writeLog("delete", "Papierkorb in allen Konten geleert");
-    await syncAccounts(active.map((a) => a.id)).catch(() => undefined);
-    ui.toast("Papierkorb geleert", "ok");
+    await writeLog(
+      "delete",
+      only ? `Papierkorb von ${only.email} geleert (${formatBytes(bytes)})` : `Papierkorb in allen Konten geleert (${formatBytes(bytes)})`,
+    );
+    await syncAccounts(targets.map((a) => a.id)).catch(() => undefined);
+    invalidateAll();
+    ui.toast(bytes ? `Papierkorb geleert – ${formatBytes(bytes)} frei` : "Papierkorb geleert", "ok");
     await load();
   };
+
+  const selectAll = () =>
+    setSelected((s) => (entries && s.size === entries.length ? new Set() : new Set((entries ?? []).map(key))));
 
   const toggle = (e: TrashEntry) =>
     setSelected((s) => {
@@ -182,6 +196,41 @@ export default function PapierkorbView({ accounts }: { accounts: Account[] }) {
           <Icon name="alert" size={18} />
           {error}
         </div>
+      )}
+
+      {entries && entries.length > 0 && !progress && (
+        <section className="card glass stack enter">
+          <div className="row between">
+            <span>
+              <strong>{trashBytes !== null ? formatBytes(trashBytes) : "…"}</strong>
+              <span className="muted small"> belegt · {entries.length} Einträge</span>
+            </span>
+          </div>
+          <div className="stack" style={{ gap: 6 }}>
+            {active
+              .filter((a) => entries.some((e) => e.account.id === a.id))
+              .map((a) => {
+                const ai = accounts.findIndex((x) => x.id === a.id);
+                return (
+                  <div key={a.id} className="row between small" style={{ gap: 8 }}>
+                    <span className="row" style={{ gap: 8, minWidth: 0 }}>
+                      <span className="dot" style={{ background: accountColor(ai), color: accountColor(ai) }} />
+                      <span className="ellipsis">{a.email}</span>
+                    </span>
+                    <span className="row" style={{ gap: 8, flexShrink: 0 }}>
+                      <span className="muted">{formatBytes(perAccount.get(a.id) ?? 0)}</span>
+                      <button className="btn ghost small" onClick={() => emptyAll(a)}>
+                        Leeren
+                      </button>
+                    </span>
+                  </div>
+                );
+              })}
+          </div>
+          <button className="btn danger-solid block" onClick={() => emptyAll()}>
+            <Icon name="trash" size={18} /> Alles endgültig löschen
+          </button>
+        </section>
       )}
 
       <section className="card glass stack enter">
@@ -272,13 +321,6 @@ export default function PapierkorbView({ accounts }: { accounts: Account[] }) {
               </div>
             </>
           )}
-          {!selectMode && (
-            <div className="stack pad" style={{ marginTop: 10 }}>
-              <button className="btn danger-solid block" onClick={emptyAll}>
-                <Icon name="trash" size={18} /> Papierkorb leeren
-              </button>
-            </div>
-          )}
         </>
       )}
 
@@ -286,6 +328,9 @@ export default function PapierkorbView({ accounts }: { accounts: Account[] }) {
         <div className="actionbar glass">
           <span>
             <b>{selected.size}</b> ausgewählt
+            <button className="link small" style={{ marginLeft: 8 }} onClick={selectAll}>
+              {entries && selected.size === entries.length ? "Keine" : "Alle"}
+            </button>
           </span>
           <div className="row" style={{ flexWrap: "nowrap" }}>
             <button className="btn small" disabled={!selected.size} onClick={restore}>
