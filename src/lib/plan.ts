@@ -37,6 +37,10 @@ export interface PlanInput {
   existingNames: string[];
   /** Prüfsummen, die im Pool schon vorkommen */
   knownMd5: Set<string>;
+  /** Duplikate aus anderen Ordnern trotzdem hochladen (Foto gehört in mehrere Ordner) */
+  allowPoolDuplicates?: boolean;
+  /** Prüfsummen, die im Zielordner selbst schon liegen – die werden immer übersprungen */
+  folderMd5?: Set<string>;
   /** Gesamtgrösse der Fotos, die direkt im Zielordner liegen */
   folderBytes: number;
   folderHasSubfolders: boolean;
@@ -77,7 +81,7 @@ export function planUpload(input: PlanInput): PlanEntry[] {
   }));
 
   // 1. Duplikate (im Pool oder doppelt in der Auswahl)
-  const seenMd5 = new Set(input.knownMd5);
+  const seenMd5 = new Set(input.allowPoolDuplicates ? (input.folderMd5 ?? []) : input.knownMd5);
   for (const e of entries) {
     if (seenMd5.has(e.md5)) e.status = "duplicate";
     else seenMd5.add(e.md5);

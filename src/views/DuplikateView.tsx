@@ -6,7 +6,7 @@ import Thumb from "../components/Thumb";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
 import { invalidateAll } from "../lib/cache";
-import { fetchDuplicates, syncAccounts, writeLog, type DuplicateGroup } from "../lib/db";
+import { fetchDuplicates, ignoreDuplicate, syncAccounts, unignoreDuplicate, writeLog, type DuplicateGroup } from "../lib/db";
 import { formatBytes } from "../lib/format";
 import { trashItem } from "../lib/google";
 import { navigate } from "../lib/route";
@@ -26,7 +26,10 @@ export function defaultKeep(items: Item[]): string {
 
 export default function DuplikateView({ accounts }: { accounts: Account[] }) {
   const ui = useUI();
-  const [groups, setGroups] = useState<DuplicateGroup[] | null>(null);
+  const [all, setAll] = useState<DuplicateGroup[] | null>(null);
+  const groups = useMemo(() => all?.filter((g) => !g.ignored) ?? null, [all]);
+  const ignored = useMemo(() => all?.filter((g) => g.ignored) ?? [], [all]);
+  const [showIgnored, setShowIgnored] = useState(false);
   const [keep, setKeep] = useState<Record<string, string>>({});
   const [shown, setShown] = useState(PAGE);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -35,7 +38,7 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
   const load = () =>
     fetchDuplicates()
       .then((g) => {
-        setGroups(g);
+        setAll(g);
         setKeep(Object.fromEntries(g.map((x) => [x.md5, defaultKeep(x.items)])));
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
@@ -92,6 +95,67 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
 
   const accIndex = (id: string) => accounts.findIndex((a) => a.id === id);
 
+  /** Gehört thematisch in mehrere Ordner → alle Kopien behalten und nicht mehr vorschlagen */
+  const keepAll = async (g: DuplicateGroup) => {
+    setAll((a) => a?.map((x) => (x.md5 === g.md5 ? { ...x, ignored: true } : x)) ?? a);
+    try {
+      await ignoreDuplicate(g.md5);
+      ui.toast("Behalten – wird nicht mehr als Duplikat vorgeschlagen", "ok");
+    } catch (e) {
+      setAll((a) => a?.map((x) => (x.md5 === g.md5 ? { ...x, ignored: false } : x)) ?? a);
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
+  const undoKeepAll = async (g: DuplicateGroup) => {
+    setAll((a) => a?.map((x) => (x.md5 === g.md5 ? { ...x, ignored: false } : x)) ?? a);
+    try {
+      await unignoreDuplicate(g.md5);
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+      await load();
+    }
+  };
+  const folderOf = (it: Item) => (it.path ?? "").split("/").slice(0, -1).join("/") || "Drive";
+  const distinctFolders = (g: DuplicateGroup) => new Set(g.items.map((i) => i.parent_key)).size > 1;
+
+  // Bewusst behaltene Gruppen: eingeklappt, mit „Wieder vorschlagen“
+  const IgnoredList = () =>
+    ignored.length === 0 ? null : (
+      <>
+        <div className="section-title">
+          <span>Bewusst behalten</span>
+          <button className="link small" onClick={() => setShowIgnored((v) => !v)}>
+            {showIgnored ? "Ausblenden" : `Anzeigen (${ignored.length})`}
+          </button>
+        </div>
+        {showIgnored &&
+          ignored.map((g) => (
+            <section key={g.md5} className="card glass stack" style={{ gap: 8 }}>
+              <div className="row between small">
+                <span className="muted">
+                  {g.total}× · {formatBytes(g.items[0]?.size)}
+                </span>
+                <button className="btn small ghost" onClick={() => undoKeepAll(g)}>
+                  <Icon name="rotateCcw" size={15} /> Wieder vorschlagen
+                </button>
+              </div>
+              <div className="row" style={{ gap: 10, alignItems: "center" }}>
+                <div style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}>
+                  <Thumb item={g.items[0]} />
+                </div>
+                <div className="stack" style={{ gap: 2, minWidth: 0 }}>
+                  {g.items.map((it) => (
+                    <span key={key(it)} className="small ellipsis">
+                      {folderOf(it)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </section>
+          ))}
+      </>
+    );
+
   return (
     <div className="view page-forward">
       <Topbar
@@ -117,18 +181,21 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
       ) : groups === null ? (
         <LineSkeleton count={8} />
       ) : groups.length === 0 ? (
-        <div className="empty">
-          <div className="empty-icon">
-            <Icon name="checkCircle" size={34} />
+        <>
+          <div className="empty">
+            <div className="empty-icon">
+              <Icon name="checkCircle" size={34} />
+            </div>
+            <strong>Keine Duplikate</strong>
+            <span>{ignored.length ? "Übrig sind nur bewusst behaltene Fotos." : "Jedes Foto ist nur einmal im Pool."}</span>
           </div>
-          <strong>Keine Duplikate</strong>
-          <span>Jedes Foto ist nur einmal im Pool.</span>
-        </div>
+          <IgnoredList />
+        </>
       ) : (
         <>
           <p className="muted small pad">
             Gleiche Fotos werden über ihre Prüfsumme erkannt. Tippe das Foto an, das bleiben soll – die anderen
-            landen im Papierkorb.
+            landen im Papierkorb. Gehört ein Foto in mehrere Ordner, tippe auf „Beide behalten“.
           </p>
           <div className="stack pad" style={{ marginTop: 10 }}>
             <button className="btn primary block" onClick={cleanAll}>
@@ -142,9 +209,16 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
                   <span className="muted">
                     {g.total}× · {formatBytes(g.items[0]?.size)}
                   </span>
-                  <button className="btn small" onClick={() => cleanGroup(g)}>
-                    <Icon name="trash" size={15} /> {g.total - 1} entfernen
-                  </button>
+                  <span className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                    {distinctFolders(g) && (
+                      <button className="btn small ghost" onClick={() => keepAll(g)} title="Gehört thematisch in mehrere Ordner">
+                        <Icon name="check" size={15} /> {g.total === 2 ? "Beide behalten" : "Alle behalten"}
+                      </button>
+                    )}
+                    <button className="btn small" onClick={() => cleanGroup(g)}>
+                      <Icon name="trash" size={15} /> {g.total - 1} entfernen
+                    </button>
+                  </span>
                 </div>
                 <div className="dup-row">
                   {g.items.map((it) => {
@@ -176,6 +250,7 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
               </button>
             </div>
           )}
+          <IgnoredList />
         </>
       )}
     </div>
