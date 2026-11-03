@@ -194,6 +194,13 @@ export default function MehrView({ session, accounts }: { session: Session; acco
           onClick={() => navigate("statistik")}
         />
         <Item
+          icon="archive"
+          bg="linear-gradient(135deg,#f59e0b,#ec4899)"
+          title="Regal & Rebalancing"
+          sub="Konten als Regal, Vorschläge, Ordner sperren"
+          onClick={() => navigate("regal")}
+        />
+        <Item
           icon="copy"
           bg="linear-gradient(135deg,#22d3ee,#3b82f6)"
           title="Duplikate"

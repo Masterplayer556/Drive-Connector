@@ -4,7 +4,7 @@ import { formatBytes } from "./format";
 import type { Account } from "./types";
 
 export type InsightLevel = "info" | "warn" | "crit";
-export type InsightAction = { kind: "route"; to: "duplikate" | "papierkorb" | "konten" } | { kind: "folder"; path: string };
+export type InsightAction = { kind: "route"; to: "duplikate" | "papierkorb" | "konten" | "regal" } | { kind: "folder"; path: string };
 
 export interface Insight {
   id: string;

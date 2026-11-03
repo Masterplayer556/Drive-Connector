@@ -3154,3 +3154,173 @@ p {
   height: 6px;
   margin-top: 4px;
 }
+
+/* ---------- Regal & Rebalancing (#4) ---------- */
+.shelves {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px;
+}
+.shelves .card {
+  margin: 0;
+}
+.shelf {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.shelf-bar {
+  display: flex;
+  gap: 2px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(var(--tint-rgb), 0.06);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint-rgb), 0.1);
+  overflow: hidden;
+}
+.seg {
+  position: relative;
+  flex: none;
+  min-width: 4px;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  border-radius: 4px;
+  background: linear-gradient(180deg, hsl(var(--h) 80% 62%), hsl(var(--h) 72% 48%));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: width 0.5s var(--ease), opacity 0.3s, box-shadow 0.3s;
+}
+.seg.locked {
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0 4px, transparent 4px 8px),
+    linear-gradient(180deg, hsl(var(--h) 80% 62%), hsl(var(--h) 72% 48%));
+}
+.seg.out {
+  opacity: 0.4;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.9);
+}
+.seg.in {
+  box-shadow: 0 0 0 2px #fff, 0 0 14px hsl(var(--h) 90% 60% / 0.9);
+  animation: segIn 1.2s var(--ease) both;
+}
+@keyframes segIn {
+  from {
+    filter: brightness(1.8);
+  }
+}
+.seg.other {
+  cursor: default;
+  background: rgba(148, 163, 184, 0.45);
+}
+.seg.free {
+  flex: 1;
+  min-width: 0;
+  cursor: default;
+  background: repeating-linear-gradient(135deg, rgba(148, 163, 184, 0.14) 0 3px, transparent 3px 7px);
+}
+.shelf-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 3px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.legend-item.static {
+  cursor: default;
+}
+.legend-item .ellipsis {
+  flex: 1;
+}
+.rb-swatch {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 3px;
+  background: hsl(var(--h) 76% 55%);
+}
+.rb-swatch.other {
+  background: rgba(148, 163, 184, 0.6);
+}
+.rb-tag {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.rb-tag.in {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+.rb-tag.out {
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--muted);
+}
+.rb-plan,
+.rb-run {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rb-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rb-steps li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.rb-steps .rb-swatch {
+  margin-top: 5px;
+}
+.rb-step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.rb-route {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted);
+}
+.rb-ok {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.rb-ok-icon {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #22c55e, #0d9488);
+}

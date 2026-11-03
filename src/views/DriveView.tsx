@@ -6,6 +6,7 @@ import Thumb from "../components/Thumb";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
 import { AREA_KEYS } from "../lib/areas";
+import { loadRebalance } from "../lib/rebalanceData";
 import { cachedFolder, invalidateAll, invalidateFolder, loadFolder, patchFolder, prefetchFolder } from "../lib/cache";
 import { countSubtreeFiles, fetchBigFolders, fetchStats, fetchSubtreeFiles, syncAccounts, writeLog } from "../lib/db";
 import { createLogicalFolder, trashFiles, trashLogicalFolder } from "../lib/folders";
@@ -705,7 +706,28 @@ function useInsights(accounts: Account[]): Insight[] {
       })
       .catch(() => undefined);
   }, [accounts]);
-  return useMemo(() => computeInsights(accounts, data?.stats ?? null, data?.big ?? []), [accounts, data]);
+  // Rebalancing (Regel 6): Vorschlag bzw. laufende Ausführung als Hinweis
+  const [reb, setReb] = useState<Insight | null>(null);
+  useEffect(() => {
+    if (accounts.filter((a) => a.status === "active").length < 2) return;
+    loadRebalance(accounts)
+      .then((r) => {
+        if (r.active) {
+          setReb({ id: "rebalance", level: "info", title: "Rebalancing läuft", text: `${r.active.done} von ${r.active.total || "…"} Fotos verschoben – antippen für Details.`, action: { kind: "route", to: "regal" } });
+        } else if (r.plan.steps.length && !r.rejected) {
+          const fresh = accounts.some((a) => Date.now() - Date.parse(a.created_at) < 7 * 864e5);
+          setReb({
+            id: "rebalance",
+            level: "info",
+            title: fresh ? "Neues Konto – Rebalancing-Vorschlag bereit" : "Rebalancing-Vorschlag bereit",
+            text: `${r.plan.steps.length} Ordner, ${formatBytes(r.plan.bytes)} – antippen zum Ansehen.`,
+            action: { kind: "route", to: "regal" },
+          });
+        } else setReb(null);
+      })
+      .catch(() => undefined);
+  }, [accounts]);
+  return useMemo(() => [...computeInsights(accounts, data?.stats ?? null, data?.big ?? []), ...(reb ? [reb] : [])], [accounts, data, reb]);
 }
 
 const INSIGHT_ICON = { crit: "alert", warn: "alert", info: "info" } as const;

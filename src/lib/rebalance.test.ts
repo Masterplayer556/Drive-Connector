@@ -99,6 +99,17 @@ describe("planRebalance", () => {
     expect(s!.bytes).toBeCloseTo(3 * GB);
   });
 
+  it("zieht nie doppelt um: Zusammenführen + Entlasten wird ein direkter Schritt", () => {
+    const p = planRebalance({
+      accounts: [acc("a", 14), acc("b", 13), acc("neu", 0)],
+      units: [unit("a", "Archiv/G", 3.4), unit("a", "Archiv/M", 10), unit("b", "Archiv/G", 0.6), unit("b", "Archiv/S", 12)],
+    });
+    const g = p.steps.filter((s) => s.block === "archiv/g");
+    for (const s of g) expect(s.to).toBe("neu");
+    expect(new Set(p.steps.map((s) => s.block + s.from)).size).toBe(p.steps.length);
+    expect(p.steps.every((s) => s.units.every((u) => u.account_id === s.from))).toBe(true);
+  });
+
   it("gleiche Lage → gleiche Signatur (abgelehnte Vorschläge kommen nicht wieder)", () => {
     const input = { accounts: [acc("voll", 14.6), acc("neu", 0)], units: [unit("voll", "Archiv/C", 3), unit("voll", "Archiv/D", 11.6)] };
     expect(planRebalance(input).signature).toBe(planRebalance(input).signature);

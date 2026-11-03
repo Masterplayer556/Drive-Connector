@@ -45,6 +45,8 @@ export default function Viewer({
   onClose: () => void;
 }) {
   const item = items[index];
+  // Nur ein anderes Foto (nicht ein neu geladenes Objekt desselben Fotos) setzt Zoom & Bilder zurück
+  const itemKey = `${item.account_id}|${item.drive_id}`;
   // Sofort: kleine Vorschau aus dem Speicher, dann die scharfe Version
   const [low, setLow] = useState<string | null>(() => peekThumb(item));
   const [high, setHigh] = useState<string | null>(() => peekThumb(item, VIEW_SIZE));
@@ -66,12 +68,15 @@ export default function Viewer({
   const stageRef = useRef<HTMLDivElement>(null);
   const g = useRef<Gesture | null>(null);
   const lastTap = useRef<{ t: number; x: number; y: number } | null>(null);
+  // Fingertipps erzeugen zusätzlich Maus-Ereignisse (dblclick) – die dürfen den Zoom nicht nochmals umschalten
+  const lastTouch = useRef(0);
   const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     void loadFavorites().then(() => setFav(isFavorite(item)));
     return onFavoritesChange(() => setFav(isFavorite(item)));
-  }, [item]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemKey]);
 
   const heart = async () => {
     try {
@@ -111,7 +116,8 @@ export default function Viewer({
       alive = false;
       if (revoke) URL.revokeObjectURL(revoke);
     };
-  }, [item]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemKey]);
 
   // Nachbarbilder vorladen → Wischen fühlt sich sofort an
   useEffect(() => {
@@ -162,10 +168,18 @@ export default function Viewer({
       })
       .catch(() => setFullState("error"));
   };
+  // Original nur für das aktuelle Foto im Speicher halten – beim nächsten Foto wieder freigeben
   const fullUrls = useRef<string[]>([]);
-  useEffect(() => () => fullUrls.current.forEach((u) => URL.revokeObjectURL(u)), []);
+  useEffect(
+    () => () => {
+      fullUrls.current.forEach((u) => URL.revokeObjectURL(u));
+      fullUrls.current = [];
+    },
+    [itemKey],
+  );
 
   const onTouchStart = (e: React.TouchEvent) => {
+    lastTouch.current = Date.now();
     const t = e.touches;
     if (t.length === 2) {
       const a = rel(t[0].clientX, t[0].clientY);
@@ -285,7 +299,7 @@ export default function Viewer({
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         onTouchCancel={onTouchEnd}
-        onDoubleClick={(e) => toggleZoom(rel(e.clientX, e.clientY))}
+        onDoubleClick={(e) => Date.now() - lastTouch.current > 800 && toggleZoom(rel(e.clientX, e.clientY))}
         onWheel={(e) => {
           if (!e.ctrlKey && Math.abs(e.deltaY) < 1) return;
           loadFull();

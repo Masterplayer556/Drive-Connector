@@ -25,6 +25,7 @@ const DuplikateView = lazy(() => import("./views/DuplikateView"));
 const PapierkorbView = lazy(() => import("./views/PapierkorbView"));
 const FavoritenView = lazy(() => import("./views/FavoritenView"));
 const StatistikView = lazy(() => import("./views/StatistikView"));
+const RegalView = lazy(() => import("./views/RegalView"));
 const LinksView = lazy(() => import("./views/LinksView"));
 
 type Phase = "loading" | "login" | "mfa" | "ready" | "error";
@@ -155,7 +156,7 @@ function Shell() {
     );
   }
 
-  const active = ["einrichtung", "duplikate", "papierkorb", "favoriten", "statistik", "links"].includes(route.name)
+  const active = ["einrichtung", "duplikate", "papierkorb", "favoriten", "statistik", "links", "regal"].includes(route.name)
     ? "mehr"
     : route.name;
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.name === active));
@@ -201,6 +202,7 @@ function Shell() {
           {route.name === "papierkorb" && <PapierkorbView accounts={accounts} />}
           {route.name === "favoriten" && <FavoritenView accounts={accounts} />}
           {route.name === "statistik" && <StatistikView accounts={accounts} />}
+          {route.name === "regal" && <RegalView accounts={accounts} />}
           {route.name === "links" && <LinksView accounts={accounts} />}
         </Suspense>
       </>

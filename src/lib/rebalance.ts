@@ -163,6 +163,31 @@ export function planRebalance(input: {
     }
   }
 
+  // Mehrfach-Umzüge zusammenfassen: jede Einheit zieht direkt vom Ursprung an ihren Endort
+  // (sonst würde z. B. „zusammenführen“ + „entlasten“ jedes Foto zweimal kopieren).
+  const origin = new Map<string, string>(); // folder_id → ursprüngliches Konto
+  for (const u of input.units) origin.set(u.folder_id, u.account_id);
+  const finalSteps = new Map<string, Step>();
+  for (const b of blocks.values()) {
+    const moved = steps.filter((s) => s.block === b.key);
+    if (!moved.length) continue;
+    const origins = new Set([...b.parts.values()].flat().map((u) => origin.get(u.folder_id)));
+    const reason: Step["reason"] = origins.size > 1 ? "zusammenführen" : "entlasten";
+    for (const [to, units] of b.parts) {
+      for (const u of units) {
+        const from = origin.get(u.folder_id)!;
+        if (from === to) continue;
+        const key = `${b.key}|${from}|${to}`;
+        const s = finalSteps.get(key) ?? { block: b.key, label: b.label, from, to, bytes: 0, files: 0, reason, units: [] };
+        s.units.push({ ...u, account_id: from });
+        s.bytes += u.bytes;
+        s.files += u.files;
+        finalSteps.set(key, s);
+      }
+    }
+  }
+  steps.splice(0, steps.length, ...finalSteps.values());
+
   const signature = steps
     .map((s) => `${s.block}:${s.from}>${s.to}`)
     .sort()
