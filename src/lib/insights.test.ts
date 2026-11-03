@@ -16,11 +16,8 @@ describe("computeInsights", () => {
     expect(computeInsights([acc("a", 14.5 * GB)], null, [])[0]).toMatchObject({ level: "crit" });
     expect(computeInsights([acc("a", 5 * GB)], null, []).find((i) => i.id === "fill")).toBeUndefined();
   });
-  it("berechnet die Prognose aus dem Tempo", () => {
-    // 10 GB frei, 3 GB / Monat → ca. 3 Monate
-    const r = computeInsights([acc("a", 5 * GB)], stats, []).find((i) => i.id === "forecast")!;
-    expect(r.title).toBe("Voll in ca. 3 Monaten");
-    expect(r.level).toBe("info");
+  it("zeigt keine „Voll in ca. …“-Prognose als Hinweis", () => {
+    expect(computeInsights([acc("a", 5 * GB)], stats, []).find((i) => i.id === "forecast")).toBeUndefined();
   });
   it("meldet Ordner nahe und über 15 GB (Regel 4) zuerst", () => {
     const r = computeInsights([acc("a", 1 * GB)], null, [
