@@ -3,12 +3,23 @@ import "./ai.css";
 import { useEffect, useState } from "react";
 import Icon from "../components/Icon";
 import { useUI } from "../components/ui";
-import { modelProgress, onModelProgress } from "./engine";
+import { forgetGpu, modelProgress, onModelProgress } from "./engine";
 import { setAiEnabled, useAiEnabled } from "./flag";
-import { indexState, onIndexState, stopIndexer, type IndexState } from "./indexer";
+import { indexState, onIndexState, setTurbo, stopIndexer, type IndexState } from "./indexer";
 import { usedBytes, wipeEverything } from "./store";
 
 const mb = (b: number) => `${Math.round(b / 1e6).toLocaleString("de-CH")} MB`;
+
+/** „noch ca. 1 h 10 min“ aus Restmenge und Tempo. */
+function eta(left: number, rate: number): string | null {
+  if (!rate || !left) return null;
+  const min = Math.ceil(left / rate / 60);
+  if (min <= 1) return "noch knapp 1 min";
+  if (min < 60) return `noch ca. ${min} min`;
+  const h = Math.floor(min / 60);
+  const m = Math.round((min % 60) / 5) * 5;
+  return `noch ca. ${h} h${m ? ` ${m} min` : ""}`;
+}
 
 function statusText(s: IndexState): string {
   const left = Math.max(0, s.total - s.done);
@@ -51,7 +62,7 @@ export default function AiSettings() {
     const ok = await ui.confirm({
       title: "KI-Suche testen?",
       message:
-        "Die App lädt einmalig ein KI-Modell (ca. 250 MB – am besten im WLAN) und lernt danach nebenbei deine Fotos kennen, " +
+        "Die App lädt einmalig ein KI-Modell (ca. 250–350 MB – am besten im WLAN) und lernt danach nebenbei deine Fotos kennen, " +
         "solange die App offen ist. Alles läuft auf diesem iPhone, keine Fotos oder Suchen gehen an einen KI-Dienst. " +
         "Ausschalten löscht Modell und Index wieder vollständig.",
       confirmLabel: "Einschalten",
@@ -71,6 +82,7 @@ export default function AiSettings() {
     try {
       stopIndexer();
       setAiEnabled(false);
+      forgetGpu();
       await wipeEverything();
       ui.toast("KI-Suche aus – alles gelöscht", "ok");
     } catch (e) {
@@ -81,6 +93,8 @@ export default function AiSettings() {
   };
 
   const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+  const left = Math.max(0, s.total - s.done);
+  const learning = left > 0 && ["start", "model", "indexing", "paused"].includes(s.phase);
 
   return (
     <div className="list glass enter">
@@ -112,6 +126,27 @@ export default function AiSettings() {
             </span>
             {bytes !== null && bytes >= 1e6 && <span>{mb(bytes)} belegt</span>}
           </div>
+          {learning && s.phase === "indexing" && s.rate > 0 && (
+            <div className="ai-settings-meta faint small">
+              <span>
+                {s.rate.toLocaleString("de-CH", { maximumFractionDigits: 1 })} Fotos/s ·{" "}
+                {s.device === "webgpu" ? "Grafikchip" : s.workers > 1 ? `${s.workers} Prozessorkerne` : "1 Prozessorkern"}
+              </span>
+              <span>{eta(left, s.rate)}</span>
+            </div>
+          )}
+          {learning && (
+            <>
+              <button className={`btn small ${s.turbo ? "ghost" : "primary"}`} onClick={() => setTurbo(!s.turbo)}>
+                <Icon name="sparkles" size={16} /> {s.turbo ? "Schnell lernen beenden" : "Schnell lernen"}
+              </button>
+              <p className="faint small" style={{ margin: 0 }}>
+                {s.turbo
+                  ? "Nutzt alles, was das iPhone hergibt, ohne Pausen – der Bildschirm bleibt an. App offen lassen, am besten am Ladekabel (das iPhone wird warm). Endet von selbst, wenn alles fertig ist."
+                  : "Lernt nur, solange die App offen ist (iOS erlaubt Web-Apps nichts im Hintergrund), sparsam und mit Pausen, während du sie bedienst."}
+              </p>
+            </>
+          )}
           <p className="faint small" style={{ margin: 0 }}>
             Tipp: In der Suche einfach beschreiben, z. B. „Hund im Schnee“ oder „Arbeitsblatt mit Tabelle“.
           </p>
