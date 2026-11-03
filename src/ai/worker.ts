@@ -8,7 +8,7 @@ import {
   env,
   RawImage,
 } from "@huggingface/transformers";
-import { CLIP_MODEL, type FromWorker, type ToWorker, type VisionDevice } from "./protocol";
+import { CLIP_MODEL, type FromWorker, type ToWorker } from "./protocol";
 
 env.allowLocalModels = false;
 const onnx = env.backends.onnx as { wasm?: { numThreads?: number; wasmPaths?: unknown } };
@@ -57,28 +57,18 @@ function rows(t: { data: Float32Array; dims: number[] }): Float32Array[] {
   return out;
 }
 
-function loadVision(device: VisionDevice) {
+function loadVision() {
   vision ??= (async () => {
     const [processor, model] = await Promise.all([
       AutoProcessor.from_pretrained(CLIP_MODEL, { progress_callback: progress("bild") }),
-      // Grafikchip: fp16 (doppelt so gross, aber viel schneller) · Prozessor: q8 (kompakt)
       CLIPVisionModelWithProjection.from_pretrained(CLIP_MODEL, {
-        device,
-        dtype: device === "webgpu" ? "fp16" : "q8",
+        device: "wasm",
+        dtype: "q8",
         progress_callback: progress("bild"),
-        ...(device === "wasm" ? { session_options: LEAN } : {}),
+        session_options: LEAN,
       }),
     ]);
-    const v = { processor: processor as unknown as Fn, model: model as unknown as Fn };
-    if (device === "webgpu") {
-      // Probe: liefert der Grafikchip brauchbare Zahlen? (Sonst lieber auf den Prozessor ausweichen)
-      const probe = new RawImage(new Uint8ClampedArray(224 * 224 * 3).map((_, i) => (i * 37) % 255), 224, 224, 3);
-      const { image_embeds } = await v.model(await v.processor(probe));
-      if (!image_embeds.data.every(Number.isFinite) || !image_embeds.data.some((x) => x !== 0)) {
-        throw new Error("Grafikchip liefert keine gültigen Werte");
-      }
-    }
-    return v;
+    return { processor: processor as unknown as Fn, model: model as unknown as Fn };
   })().catch((e) => {
     vision = null;
     throw e;
@@ -102,7 +92,7 @@ function loadText() {
   return text;
 }
 
-/** Mehrere Bilder in einem Durchgang (auf dem Grafikchip viel schneller als einzeln). */
+/** Bilder → Vektoren (null = Bild nicht lesbar). */
 async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[]> {
   if (!vision) throw new Error("Bildmodell nicht geladen");
   const { processor, model } = await vision;
@@ -127,7 +117,7 @@ ctx.onmessage = async (e) => {
   const m = e.data;
   try {
     if (m.type === "warm") {
-      await (m.part === "bild" ? loadVision(m.device) : loadText());
+      await (m.part === "bild" ? loadVision() : loadText());
       ctx.postMessage({ type: "ok", id: m.id });
     } else if (m.type === "images") {
       ctx.postMessage({ type: "vecs", id: m.id, vecs: await embedImages(m.blobs) });

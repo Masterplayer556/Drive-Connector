@@ -5,8 +5,8 @@
 
 const KEY = "drivepool.ai.risk";
 
-/** Was gerade läuft: Grafikchip, n Prozessor-Worker oder die Suche. */
-export type Risk = "gpu" | `workers:${number}` | "search";
+/** Was gerade läuft: Lernen (Bildmodell) oder Suche (Textmodell). */
+export type Risk = "learn" | "search";
 
 let current: Risk | null = null;
 
