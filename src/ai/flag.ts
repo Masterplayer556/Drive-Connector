@@ -32,3 +32,29 @@ export function onAiFlag(cb: () => void): () => void {
 export function useAiEnabled(): boolean {
   return useSyncExternalStore(onAiFlag, aiEnabled, () => false);
 }
+
+// ---- 👍/👎-Feedback ein/aus (Standard: an) ----
+const FEEDBACK_KEY = "drivepool.ai.feedback";
+
+export function feedbackEnabled(): boolean {
+  try {
+    return localStorage.getItem(FEEDBACK_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function setFeedbackEnabled(on: boolean) {
+  try {
+    if (on) localStorage.removeItem(FEEDBACK_KEY);
+    else localStorage.setItem(FEEDBACK_KEY, "0");
+  } catch {
+    /* ignorieren */
+  }
+  window.dispatchEvent(new Event("drivepool-ai"));
+}
+
+/** React-Hook: 👍/👎 anzeigen und Bewertungen in die Suche einrechnen? */
+export function useFeedbackEnabled(): boolean {
+  return useSyncExternalStore(onAiFlag, feedbackEnabled, () => true);
+}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Icon from "../components/Icon";
 import { useUI } from "../components/ui";
 import { crashNote, forgetOldSettings, modelProgress, onModelProgress } from "./engine";
-import { setAiEnabled, useAiEnabled } from "./flag";
+import { setAiEnabled, setFeedbackEnabled, useAiEnabled, useFeedbackEnabled } from "./flag";
 import { indexState, onIndexState, setTurbo, stopIndexer, type IndexState } from "./indexer";
 import { usedBytes, wipeEverything } from "./store";
 
@@ -48,6 +48,7 @@ function statusText(s: IndexState): string {
 export default function AiSettings() {
   const ui = useUI();
   const on = useAiEnabled();
+  const feedbackOn = useFeedbackEnabled();
   const [s, setS] = useState(indexState);
   const [bytes, setBytes] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -147,6 +148,20 @@ export default function AiSettings() {
               </p>
             </>
           )}
+          <label className="ai-toggle small">
+            <span>
+              <strong>👍/👎-Feedback</strong>
+              <span className="faint">
+                {feedbackOn
+                  ? " Bewertungen bei den Treffern – die Suche lernt daraus."
+                  : " Aus – keine Knöpfe, Bewertungen wirken nicht (bleiben aber gespeichert)."}
+              </span>
+            </span>
+            <span className="switch">
+              <input type="checkbox" checked={feedbackOn} onChange={(e) => setFeedbackEnabled(e.target.checked)} />
+              <span />
+            </span>
+          </label>
           <p className="faint small" style={{ margin: 0 }}>
             Tipp: In der Suche einfach beschreiben, z. B. „Hund im Schnee“ oder „Arbeitsblatt mit Tabelle“.
           </p>

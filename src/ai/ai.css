@@ -194,3 +194,13 @@
 .ai-mode-check.off {
   opacity: 0.45;
 }
+.ai-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+.ai-toggle > span:first-child {
+  min-width: 0;
+}

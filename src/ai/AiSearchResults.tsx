@@ -8,6 +8,7 @@ import { modelProgress, onModelProgress } from "./engine";
 import { indexState, searchClosed, searchOpened } from "./indexer";
 import { aiSearch, privateAccounts, vote, type AiResult } from "./search";
 import { itemKey } from "./store";
+import { useFeedbackEnabled } from "./flag";
 
 const Viewer = lazy(() => import("../components/Viewer"));
 
@@ -26,6 +27,7 @@ export default function AiSearchResults({
   const [error, setError] = useState<string | null>(null);
   const [viewer, setViewer] = useState<number | null>(null);
   const [votes, setVotes] = useState<Map<string, 1 | -1>>(new Map());
+  const feedbackOn = useFeedbackEnabled();
   const [, tick] = useState(0);
   const seq = useRef(0);
 
@@ -48,14 +50,14 @@ export default function AiSearchResults({
     setBusy(true);
     // Etwas länger warten als die Namenssuche: erst wenn du kurz nicht mehr tippst
     const t = setTimeout(() => {
-      aiSearch(term, { exclude: includePrivate ? undefined : privateAccounts(accounts) })
+      aiSearch(term, { exclude: includePrivate ? undefined : privateAccounts(accounts), useFeedback: feedbackOn })
         .then((r) => n === seq.current && (setResult(r), setVotes(new Map(r.votes)), setError(null)))
         .catch((e) => n === seq.current && setError(e instanceof Error ? e.message : String(e)))
         .finally(() => n === seq.current && setBusy(false));
     }, 550);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, includePrivate]);
+  }, [query, includePrivate, feedbackOn]);
 
   if (query.trim().length < 3) return null;
 
@@ -100,14 +102,14 @@ export default function AiSearchResults({
         </p>
       )}
       {result && !busy && items.length === 0 && <p className="muted small">Kein Foto passt gut genug.</p>}
-      {result && !busy && items.length > 0 && (
+      {feedbackOn && result && !busy && items.length > 0 && (
         <p className="faint small ai-understood">👍 passt · 👎 passt nicht – die Suche lernt daraus, auch für ähnliche Suchen.</p>
       )}
 
       {items.length > 0 && (
         <div className="grid stagger">
           {items.map((f, i) => {
-            const v = votes.get(itemKey(f));
+            const v = feedbackOn ? votes.get(itemKey(f)) : undefined;
             return (
               <div key={`${f.account_id}|${f.drive_id}`} className={`ai-cell ${v === -1 ? "down" : v === 1 ? "up" : ""}`} style={{ ["--i" as string]: i }}>
                 <button className="cell" onClick={() => setViewer(i)}>
@@ -119,14 +121,16 @@ export default function AiSearchResults({
                     </span>
                   )}
                 </button>
-                <span className="ai-votes">
-                  <button className={v === 1 ? "on" : ""} onClick={() => rate(f, 1)} aria-label="Passt">
-                    👍
-                  </button>
-                  <button className={v === -1 ? "on" : ""} onClick={() => rate(f, -1)} aria-label="Passt nicht">
-                    👎
-                  </button>
-                </span>
+                {feedbackOn && (
+                  <span className="ai-votes">
+                    <button className={v === 1 ? "on" : ""} onClick={() => rate(f, 1)} aria-label="Passt">
+                      👍
+                    </button>
+                    <button className={v === -1 ? "on" : ""} onClick={() => rate(f, -1)} aria-label="Passt nicht">
+                      👎
+                    </button>
+                  </span>
+                )}
               </div>
             );
           })}
