@@ -289,7 +289,7 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
       ) : (
         <>
           <p className="muted small pad">
-            Hier sind gleiche Fotos im selben Ordner und Kopien im Ordner „Random“, die es schon woanders gibt.
+            Hier sind gleiche Fotos im selben Ordner und Kopien direkt im Ordner „Random“ (nicht in Unterordnern), die es schon woanders gibt.
             Antippen = behalten oder entfernen. Bei 3 oder mehr Kopien kannst du auch nur eine entfernen.
           </p>
           <div className="stack pad" style={{ marginTop: 10 }}>
