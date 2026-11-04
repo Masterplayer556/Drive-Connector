@@ -150,3 +150,18 @@ export function keywordPrompts(keyword: string): string[] {
   const core = stripPhotoWords(keyword) || keyword;
   return [keywordPrompt(core), ...synonymVariants(core, 2).map((v) => `a photo of ${v}.`)];
 }
+
+// ---- Geschriebenes Wort statt Sache: Fotos, auf denen das Suchwort nur als Text steht ----
+/** Suchen, bei denen Text auf dem Bild gerade gewünscht ist – dort nichts abziehen. */
+const TEXTY = /\b(text|word|words|letter|letters|writing|written|handwrit\w*|screenshot\w*|document\w*|page|sign|signs|poster|label|logo|meme\w*|receipt|ticket|worksheet\w*|notes?|book|books|menu|chat|message\w*|caption|title|quote)\b/i;
+
+/**
+ * Formulierungen für „das Wort steht nur als Text auf dem Bild“. Dieser Anteil wird von der Suche
+ * abgezogen (manche Modelle finden sonst vor allem Bilder, auf denen das Wort geschrieben steht).
+ * Leer, wenn die Suche selbst nach Text fragt.
+ */
+export function typographicPrompts(english: string): string[] {
+  const core = stripPhotoWords(english) || english.trim();
+  if (!core || TEXTY.test(core)) return [];
+  return [`the word "${core}".`, `text that says "${core}".`, `a sign that says "${core}".`, `a screenshot with the text "${core}".`];
+}

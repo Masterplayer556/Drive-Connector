@@ -42,6 +42,8 @@ export function rank(
     keywords,
     keywordWeight = 0.35,
     auto = false,
+    negative,
+    negativeWeight = 0.5,
   }: {
     limit?: number;
     floor?: number;
@@ -53,9 +55,12 @@ export function rank(
     keywordWeight?: number;
     /**
      * Grenzen relativ zur Verteilung dieser Suche: „gut genug“ = Mittelwert + 2 Standardabweichungen,
-     * Fenster = 3 Standardabweichungen (bei CLIP entspricht das etwa 0.07). Für Modelle mit anderer Skala.
+     * Fenster = 2,5 Standardabweichungen (bei CLIP etwa 0.06). Für Modelle mit anderer Skala.
      */
     auto?: boolean;
+    /** Was NICHT gesucht ist (z. B. „das Wort als Text auf dem Bild“) – wird anteilig abgezogen */
+    negative?: Float32Array;
+    negativeWeight?: number;
   } = {},
 ): Hit[] {
   const kw = keywords && keywords.length >= 2 ? keywords : null;
@@ -65,7 +70,8 @@ export function rank(
   for (const [key, v] of vectors) {
     if (key === skip || adjust?.hide.has(key)) continue;
     // Stichwörter: das am schlechtesten passende Stichwort zählt mit (alle sollen passen, nicht nur eines)
-    const base = kw ? (1 - keywordWeight) * dot(query, v) + keywordWeight * Math.min(...kw.map((k) => dot(k, v))) : dot(query, v);
+    const raw = kw ? (1 - keywordWeight) * dot(query, v) + keywordWeight * Math.min(...kw.map((k) => dot(k, v))) : dot(query, v);
+    const base = negative ? raw - negativeWeight * dot(negative, v) : raw;
     all.push({ key, base, score: base + (adjust?.boost.get(key) ?? 0) });
   }
   const best = all.reduce((m, h) => Math.max(m, h.base), -Infinity);
@@ -74,7 +80,7 @@ export function rank(
   if (auto && all.length >= 20) {
     const { mean, sd } = spread(all.map((h) => h.base));
     lo = mean + 2 * sd;
-    win = 3 * sd;
+    win = 2.5 * sd;
   }
   const min = Math.max(lo, best - win);
   return all
