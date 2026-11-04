@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Donut from "../components/Donut";
 import { DragGhost, useDragToFolder } from "../components/DragToFolder";
-import { TagDots } from "../components/TagSheet";
+import { FolderTagDots, TagDots } from "../components/TagSheet";
 import { useTags } from "../lib/tags";
 import Icon from "../components/Icon";
 import { FolderSkeleton, GridSkeleton } from "../components/Skeleton";
@@ -972,6 +972,7 @@ function FolderGrid({
               <div className="folder-meta">{f.parts.length} Konten</div>
             ) : null}
           </span>
+          <FolderTagDots parts={f.parts} />
           {select && f.parts.length > 0 && (
             <span className={`check ${select.keys.has(f.key) ? "on" : ""}`}>
               {select.keys.has(f.key) && <Icon name="check" size={15} />}

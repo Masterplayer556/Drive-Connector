@@ -96,6 +96,7 @@ export async function addTag(items: Item[], raw: string): Promise<void> {
   if (!todo.length) return;
   for (const i of todo) byItem!.set(tagKey(i), [...tagsOf(i), label]);
   changed();
+  if (items.some((i) => i.is_folder)) folderTags = null; // Ordner-Tags neu laden
   const { error } = await supabase
     .from("item_tags")
     .upsert(todo.map((i) => ({ account_id: i.account_id, drive_id: i.drive_id, tag: label })), { onConflict: "owner_id,account_id,drive_id,tag" });
@@ -121,6 +122,7 @@ export async function removeTag(items: Item[], tag: string): Promise<void> {
     else byItem!.delete(tagKey(i));
   }
   changed();
+  if (items.some((i) => i.is_folder)) folderTags = null;
   // Pro Konto ein Aufruf; alle Schreibweisen des Tags
   const variants = [...new Set(affected.flatMap((i) => (before.get(tagKey(i)) ?? []).filter((t) => t.toLowerCase() === low)))];
   const byAccount = new Map<string, string[]>();
@@ -133,6 +135,32 @@ export async function removeTag(items: Item[], tag: string): Promise<void> {
       throw new Error(error.message);
     }
   }
+}
+
+// ---- Ordner-Tags: gelten für alles darin ----
+let folderTags: { tag: string; path: string }[] | null = null;
+let folderLoading: Promise<{ tag: string; path: string }[]> | null = null;
+
+/** Ordner mit Tags (Tag + Pfad). */
+export function loadFolderTags(force = false): Promise<{ tag: string; path: string }[]> {
+  if (folderTags && !force) return Promise.resolve(folderTags);
+  folderLoading ??= (async () => {
+    const { data, error } = await supabase.rpc("folder_tags");
+    if (error) throw new Error(error.message);
+    folderTags = (data ?? []) as { tag: string; path: string }[];
+    return folderTags;
+  })()
+    .catch(() => (folderTags ??= []))
+    .finally(() => (folderLoading = null));
+  return folderLoading;
+}
+
+/** Hat die Datei (Pfad „A/B/x.jpg“) den Tag über einen ihrer Ordner? */
+export function inheritsTag(path: string | null, tag: string, folders: { tag: string; path: string }[]): boolean {
+  if (!path) return false;
+  const p = path.toLowerCase();
+  const t = tag.toLowerCase();
+  return folders.some((f) => f.tag.toLowerCase() === t && p.startsWith(`${f.path.toLowerCase()}/`));
 }
 
 /** Alle Fotos/Videos mit diesem Tag (neueste Markierung zuerst). */

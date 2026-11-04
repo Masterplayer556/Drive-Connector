@@ -4,9 +4,9 @@ import type { Item } from "../lib/types";
 import { catalog } from "./catalog";
 import { embedText } from "./engine";
 import { nameWords, toEnglish } from "./dict";
-import { learnedNames, prototypeOf, rankByName } from "./names";
+import { expandNameKeys, FOLDER_KEY, folderKey, isFolderKey, learnedNames, prototypeOf, rankByName } from "./names";
 import { inFolder, parseQuery } from "./query";
-import { loadTags, tagKey } from "../lib/tags";
+import { inheritsTag, loadFolderTags, loadTags, tagKey } from "../lib/tags";
 import { applyFeedback, groupSimilar, rank } from "./rank";
 import { allFeedback, allVectors, deleteFeedback, itemKey, putFeedback, type Feedback } from "./store";
 
@@ -57,8 +57,9 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
   feedback = fb;
 
   // Filter: Ordner, nur Videos, eigener Tag
-  const tagged = tag ? await loadTags() : null;
-  const hasTag = (it: Item) => !tag || (tagged?.get(tagKey(it)) ?? []).some((t) => t.toLowerCase() === tag.toLowerCase());
+  const [tagged, tagFolders] = tag ? await Promise.all([loadTags(), loadFolderTags()]) : [null, []];
+  const hasTag = (it: Item) =>
+    !tag || (tagged?.get(tagKey(it)) ?? []).some((t) => t.toLowerCase() === tag.toLowerCase()) || inheritsTag(it.path, tag, tagFolders);
   const allowed = (it: Item) => (!folder || inFolder(it.path, folder)) && (!video || !!it.mime_type?.startsWith("video/")) && hasTag(it);
   let map = without(all, exclude);
   if (folder || video || tag) map = new Map([...map].filter(([k]) => { const it = items.get(k); return !!it && allowed(it); }));
@@ -75,9 +76,12 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
 
   // Gelernte Namen („Luca“, „Pikachu“): Fotos, die wie die gelobten aussehen
   const learned = learnedNames(fb);
+  const fileList = filesOf(items);
   const known = nameWords(text)
     .map((n) => learned.get(n))
-    .filter((n): n is NonNullable<typeof n> => !!n && n.keys.some((k) => all.has(k)));
+    .filter((n): n is NonNullable<typeof n> => !!n)
+    .map((n) => ({ ...n, keys: expandNameKeys(n.keys, fileList) })) // verknüpfte Ordner → ihre Fotos
+    .filter((n) => n.keys.some((k) => all.has(k)));
   if (known.length) {
     const keys = [...new Set(known.flatMap((n) => n.keys))];
     const proto = prototypeOf(keys, all)!;
@@ -170,9 +174,59 @@ export async function namesOf(item: Item): Promise<string[]> {
 }
 
 /** Alle gelernten Namen mit Anzahl Fotos (neueste zuletzt). */
-export async function allNames(): Promise<{ name: string; label: string; count: number }[]> {
-  const names = learnedNames(await allFeedback());
-  return [...names.values()].map((n) => ({ name: n.name, label: n.label, count: n.keys.length }));
+export async function allNames(): Promise<{ name: string; label: string; count: number; folders: string[] }[]> {
+  const [names, items] = await Promise.all([allFeedback().then(learnedNames), catalog().catch(() => new Map<string, Item>())]);
+  const files = filesOf(items);
+  return [...names.values()].map((n) => ({
+    name: n.name,
+    label: n.label,
+    count: expandNameKeys(n.keys, files).length,
+    folders: n.keys.filter(isFolderKey).map((k) => k.slice(FOLDER_KEY.length)),
+  }));
+}
+
+/** [Schlüssel, Pfad] aller Fotos – zum Auflösen verknüpfter Ordner. */
+function filesOf(items: Map<string, Item>): [string, string | null][] {
+  return [...items].map(([k, it]) => [k, it.path]);
+}
+
+// ---- Ordner: mit Namen verknüpfen, passende Fotos ausserhalb finden ----
+
+/** Namen, mit denen dieser Ordner verknüpft ist. */
+export async function folderNames(path: string): Promise<string[]> {
+  const key = folderKey(path).toLowerCase();
+  const fb = (await allFeedback()).filter((f) => f.key.toLowerCase() === key && f.vote === 1);
+  return [...new Set(fb.map((f) => f.english))];
+}
+
+/** Ordner mit einem Namen verknüpfen: alle Fotos darin (auch spätere) zählen für die Suche nach dem Namen. */
+export async function linkFolderName(path: string, name: string) {
+  const label = name.trim().replace(/\s+/g, " ");
+  if (!label) return;
+  const key = folderKey(path);
+  await putFeedback({ id: feedbackId(label, key), q: new Float32Array(0), english: label, key, vote: 1, at: Date.now() });
+  feedback = null;
+}
+
+export async function unlinkFolderName(path: string, name: string) {
+  await deleteFeedback(feedbackId(name, folderKey(path)));
+  feedback = null;
+}
+
+/**
+ * Fotos ausserhalb des Ordners, die aussehen wie die darin – z. B. weitere Bilder einer Figur,
+ * die noch woanders liegen. null = im Ordner ist noch nichts gelernt.
+ */
+export async function similarToFolder(path: string, { exclude }: { exclude?: Set<string> } = {}): Promise<{ items: Item[]; learned: number } | null> {
+  const [all, items] = await Promise.all([loadVectors(), catalog()]);
+  const prefix = `${path.toLowerCase()}/`;
+  const inside = [...items].filter(([, it]) => it.path?.toLowerCase().startsWith(prefix)).map(([k]) => k);
+  const proto = prototypeOf(inside, all);
+  if (!proto) return null;
+  const skip = new Set(inside);
+  const outside = new Map([...without(all, exclude)].filter(([k]) => !skip.has(k)));
+  const hits = rank(proto, outside, { limit: 60, floor: 0.72, window: 0.2 });
+  return { items: hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x), learned: inside.filter((k) => all.has(k)).length };
 }
 
 /** Diesem Foto einen Namen geben. false = Foto ist noch nicht gelernt. */

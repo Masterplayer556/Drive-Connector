@@ -37,6 +37,19 @@ export function learnedNames(feedback: (FeedbackLike & { at?: number })[]): Map<
   return out;
 }
 
+/** Ein Name kann mit einem Ordner verknüpft sein: dann gehören alle Fotos darin (auch spätere) dazu. */
+export const FOLDER_KEY = "folder:";
+export const folderKey = (path: string) => `${FOLDER_KEY}${path}`;
+export const isFolderKey = (k: string) => k.startsWith(FOLDER_KEY);
+
+/** Ordner-Verknüpfungen in echte Foto-Schlüssel auflösen. `files` = [Schlüssel, Pfad]. */
+export function expandNameKeys(keys: string[], files: Iterable<[string, string | null]>): string[] {
+  const folders = keys.filter(isFolderKey).map((k) => `${k.slice(FOLDER_KEY.length).toLowerCase()}/`);
+  const out = new Set(keys.filter((k) => !isFolderKey(k)));
+  if (folders.length) for (const [k, path] of files) if (path && folders.some((f) => path.toLowerCase().startsWith(f))) out.add(k);
+  return [...out];
+}
+
 /** Mittelwert der Fotos – „so sieht X aus“. null, wenn keines davon gelernt ist. */
 export function prototypeOf(keys: string[], vectors: Map<string, Float32Array>): Float32Array | null {
   let sum: Float32Array | null = null;
@@ -59,11 +72,12 @@ export function rankByName(
   vectors: Map<string, Float32Array>,
   { limit = 60, adjust }: { limit?: number; adjust?: Adjust } = {},
 ): Hit[] {
-  const liked = new Set(keys);
-  const hits = rank(proto, vectors, { limit: limit + keys.length, floor: 0.7, window: 0.2, adjust });
+  // Einzeln gelobte Fotos zuerst; bei sehr vielen (verknüpfter Ordner) zählt nur die Ähnlichkeit
+  const liked = new Set(keys.length <= limit ? keys : []);
+  const hits = rank(proto, vectors, { limit: limit + liked.size, floor: 0.7, window: 0.2, adjust });
   const seen = new Set(hits.map((h) => h.key));
   // Gelobte Fotos immer zeigen, auch wenn sie etwas anders aussehen als der Durchschnitt
-  for (const k of keys) {
+  for (const k of liked) {
     const v = vectors.get(k);
     if (v && !seen.has(k) && !adjust?.hide.has(k)) hits.push({ key: k, score: dot(proto, v) });
   }

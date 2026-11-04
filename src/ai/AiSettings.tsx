@@ -175,7 +175,7 @@ export default function AiSettings() {
 
 /** Gelernte Namen (aus 👍 und „Wer ist das?“) – ansehen und vergessen. */
 function LearnedNames() {
-  const [names, setNames] = useState<{ name: string; label: string; count: number }[] | null>(null);
+  const [names, setNames] = useState<{ name: string; label: string; count: number; folders: string[] }[] | null>(null);
   const ui = useUI();
   const load = () => allNames().then(setNames).catch(() => setNames([]));
   useEffect(() => {
@@ -202,6 +202,7 @@ function LearnedNames() {
       <div className="ai-name-chips">
         {names.map((n) => (
           <span key={n.name} className="ai-name-chip on">
+            {n.folders.length > 0 && <Icon name="folder" size={12} />}
             {n.label} <span className="faint">{n.count}</span>
             <button onClick={() => void forget(n)} aria-label={`${n.label} vergessen`}>
               <Icon name="x" size={12} />
