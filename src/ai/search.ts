@@ -2,14 +2,14 @@
 // Dazu: Feedback (👍/👎), „Ähnliche Fotos“ und Gruppen fast gleicher Fotos – alles nur mit dem Index, ohne Modell.
 import type { Item } from "../lib/types";
 import { catalog } from "./catalog";
-import { embedText } from "./engine";
-import { nameWords, toEnglish } from "./dict";
+import { embedConcepts, embedText } from "./engine";
+import { conceptVocabulary, nameWords, toEnglish } from "./dict";
 import { expandNameKeys, FOLDER_KEY, folderKey, isFolderKey, learnedNames, prototypeOf, rankByName } from "./names";
 import { inFolder, parseQuery } from "./query";
-import { collectTerms, pickCards, type Term } from "./train";
-import { allTags, inheritsTag, loadFolderTags, loadTags, markerColor, tagKey } from "../lib/tags";
+import { frequentConcepts, pickCards, sample, type Term } from "./train";
+import { inheritsTag, loadFolderTags, loadTags, tagKey } from "../lib/tags";
 import { applyFeedback, groupSimilar, rank } from "./rank";
-import { allFeedback, allVectors, deleteFeedback, itemKey, putFeedback, type Feedback } from "./store";
+import { allFeedback, allVectors, deleteFeedback, getMeta, itemKey, putFeedback, putMeta, type Feedback } from "./store";
 
 export interface AiResult {
   items: Item[];
@@ -256,21 +256,58 @@ export async function removeName(item: Item | null, name: string) {
 
 // ---- KI trainieren (Wischen: passt / passt nicht) ----
 
-/** Begriffe aus deiner Ablage: gelernte Namen, Ordner, eigene Tags, frühere Suchen. */
-export async function trainingTerms(): Promise<Term[]> {
-  const [fb, items] = await Promise.all([allFeedback(), catalog()]);
-  await loadTags().catch(() => undefined);
-  const names = [...learnedNames(fb).values()].map((n) => n.label);
-  // Ordner = letzter Ordnername im Pfad, mit Anzahl Fotos darin
-  const folders = new Map<string, number>();
-  for (const it of items.values()) {
-    const segs = (it.path ?? "").split("/");
-    const dir = segs.length > 2 ? segs[segs.length - 2] : null; // oberste Ebene (Bereich) zählt nicht
-    if (dir) folders.set(dir, (folders.get(dir) ?? 0) + 1);
+const CONCEPTS_KEY = "concepts";
+const RANK_KEY = "concept-rank";
+const DAY = 24 * 3600_000;
+
+/**
+ * Begriffe zum Trainieren: was auf deinen Fotos oft vorkommt (die KI ordnet eine Stichprobe deiner Fotos
+ * rund 600 Begriffen zu und zählt), dazu deine gelernten Namen. Beim ersten Mal werden die Begriffe einmal
+ * durchs Textmodell geschickt (dauert etwas, wird gespeichert); die Zählung gilt einen Tag.
+ */
+export async function trainingTerms(onProgress?: (msg: string) => void): Promise<Term[]> {
+  const [fb, all] = await Promise.all([allFeedback(), loadVectors()]);
+  const names: Term[] = [...learnedNames(fb).values()].map((n) => ({ label: n.label, source: "name", note: "Gelernter Name" }));
+
+  type Ranked = { en: string; de: string; share: number };
+  const cached = await getMeta<{ at: number; photos: number; terms: Ranked[] }>(RANK_KEY).catch(() => undefined);
+  let ranked: Ranked[] | null =
+    cached && Date.now() - cached.at < DAY && Math.abs(cached.photos - all.size) <= all.size * 0.1 ? cached.terms : null;
+
+  if (!ranked && all.size >= 20) {
+    const vocab = conceptVocabulary();
+    let cv = await getMeta<{ labels: string[]; vecs: Float32Array[] }>(CONCEPTS_KEY).catch(() => undefined);
+    if (!cv || cv.labels.length !== vocab.length || cv.labels.some((l, i) => l !== vocab[i].en)) {
+      const vecs = await embedConcepts(
+        vocab.map((v) => v.en),
+        (d) => onProgress?.(`Begriffe vorbereiten (nur beim ersten Mal) … ${Math.round((d / vocab.length) * 100)} %`),
+      );
+      cv = { labels: vocab.map((v) => v.en), vecs };
+      await putMeta(CONCEPTS_KEY, cv).catch(() => undefined);
+    }
+    onProgress?.("Deine Fotos durchsehen …");
+    const photos = sample([...all.values()], 1500);
+    const freq = await frequentConcepts(cv.vecs, photos);
+    ranked = freq.slice(0, 40).map((f) => ({ en: vocab[f.index].en, de: vocab[f.index].de, share: f.count / photos.length }));
+    await putMeta(RANK_KEY, { at: Date.now(), photos: all.size, terms: ranked }).catch(() => undefined);
   }
-  const tags = allTags().filter((t) => !markerColor(t.tag)).map((t) => t.tag);
-  const searches = [...new Set(fb.filter((f) => !isFolderKey(f.key)).map((f) => f.english))];
-  return collectTerms({ names, folders, tags, searches });
+
+  const concepts: Term[] = (ranked ?? []).map((t) => ({
+    label: t.en,
+    source: "foto",
+    note: `${t.de} · bei ca. ${Math.max(1, Math.round(t.share * 100))} % deiner Fotos`,
+  }));
+  // Häufige Begriffe zuerst, gelernte Namen dazwischen (nach jedem dritten)
+  const out: Term[] = [];
+  const seen = new Set<string>();
+  const push = (t: Term) => !seen.has(t.label.toLowerCase()) && (seen.add(t.label.toLowerCase()), out.push(t));
+  let ni = 0;
+  concepts.forEach((t, i) => {
+    push(t);
+    if (i % 3 === 2 && ni < names.length) push(names[ni++]);
+  });
+  names.slice(ni).forEach(push);
+  return out;
 }
 
 export interface TrainingBatch {

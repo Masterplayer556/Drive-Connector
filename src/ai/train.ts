@@ -1,54 +1,12 @@
-// KI-SUCHE (Test): „KI trainieren“ – Begriffe aus deiner eigenen Ablage (Namen, Ordner, Tags, frühere
-// Suchen) und je Begriff eine Reihe Fotos zum Wischen (passt / passt nicht). Reine Funktionen (getestet).
+// KI-SUCHE (Test): „KI trainieren“ – Begriffe, die auf deinen Fotos oft vorkommen (und gelernte Namen),
+// und je Begriff eine Reihe Fotos zum Wischen (passt / passt nicht). Reine Funktionen (getestet).
 
 export interface Term {
   label: string;
   /** Woher der Begriff kommt – für die Anzeige */
-  source: "name" | "ordner" | "tag" | "suche";
-}
-
-// Ordnernamen, die nichts über den Inhalt sagen
-const GENERIC = new Set([
-  "archiv", "privat", "schule", "drive", "neuer ordner", "new folder", "ordner", "fotos", "photos", "bilder",
-  "images", "camera roll", "kamera", "dcim", "downloads", "screenshots", "sonstiges", "diverses", "misc", "temp",
-]);
-
-/** Taugt ein Ordnername als Begriff? (keine Jahre/Daten, keine Sammelnamen) */
-export function usefulFolderName(name: string): boolean {
-  const n = name.trim().toLowerCase();
-  if (n.length < 3 || GENERIC.has(n)) return false;
-  if (/^[\d\s._-]+$/.test(n)) return false; // 2024, 2024-05, 01.03.
-  if (/^(img|dsc|pxl|vid)[_-]?\d/i.test(n)) return false;
-  return /\p{L}{3}/u.test(n);
-}
-
-/**
- * Begriffe aus der eigenen Ablage, ohne Doppelte. Ordner zählen nur, wenn sie genug Fotos haben.
- * `folders` = Ordnername → Anzahl Fotos darin.
- */
-export function collectTerms(input: {
-  names: string[];
-  folders: Map<string, number>;
-  tags: string[];
-  searches: string[];
-  minFolderFiles?: number;
-}): Term[] {
-  const seen = new Set<string>();
-  const out: Term[] = [];
-  const add = (label: string, source: Term["source"]) => {
-    const l = label.trim().replace(/\s+/g, " ");
-    const k = l.toLowerCase();
-    if (!l || seen.has(k)) return;
-    seen.add(k);
-    out.push({ label: l, source });
-  };
-  for (const n of input.names) add(n, "name");
-  for (const [name, count] of [...input.folders].sort((a, b) => b[1] - a[1])) {
-    if (count >= (input.minFolderFiles ?? 5) && usefulFolderName(name)) add(name, "ordner");
-  }
-  for (const t of input.tags) add(t, "tag");
-  for (const s of input.searches) add(s, "suche");
-  return out;
+  source: "foto" | "name" | "suche";
+  /** Zusatz für die Anzeige, z. B. deutsches Wort und wie oft es vorkommt */
+  note?: string;
 }
 
 /**
@@ -66,4 +24,54 @@ export function pickCards(ranked: string[], voted: Set<string>, n = 12, random: 
     if (k) out.push(k);
   }
   return out;
+}
+
+/**
+ * Welche Begriffe kommen auf deinen Fotos oft vor? Für jedes Foto zählen die `topK` Begriffe, die am
+ * besten passen (wie eine Einordnung). Ergebnis: Index des Begriffs + Anzahl Fotos, häufigste zuerst.
+ * `yieldEvery` gibt zwischendurch die Kontrolle ab, damit die App bedienbar bleibt.
+ */
+export async function frequentConcepts(
+  concepts: Float32Array[],
+  photos: Float32Array[],
+  { topK = 3, minShare = 0.01, yieldEvery = 100 }: { topK?: number; minShare?: number; yieldEvery?: number } = {},
+): Promise<{ index: number; count: number }[]> {
+  const counts = new Array<number>(concepts.length).fill(0);
+  const scores = new Float32Array(concepts.length);
+  for (let p = 0; p < photos.length; p++) {
+    const v = photos[p];
+    for (let c = 0; c < concepts.length; c++) {
+      const w = concepts[c];
+      let s = 0;
+      for (let i = 0; i < v.length; i++) s += v[i] * w[i];
+      scores[c] = s;
+    }
+    // Die besten topK finden (topK ist klein)
+    const best: number[] = [];
+    for (let c = 0; c < concepts.length; c++) {
+      if (best.length < topK) best.push(c);
+      else {
+        let worst = 0;
+        for (let j = 1; j < best.length; j++) if (scores[best[j]] < scores[best[worst]]) worst = j;
+        if (scores[c] > scores[best[worst]]) best[worst] = c;
+      }
+    }
+    for (const c of best) counts[c]++;
+    if (yieldEvery && p % yieldEvery === yieldEvery - 1) await new Promise((r) => setTimeout(r, 0));
+  }
+  const min = Math.max(2, Math.ceil(photos.length * minShare));
+  return counts
+    .map((count, index) => ({ index, count }))
+    .filter((c) => c.count >= min)
+    .sort((a, b) => b.count - a.count);
+}
+
+/** Zufällige Stichprobe (ohne Zurücklegen). */
+export function sample<T>(list: T[], n: number, random: () => number = Math.random): T[] {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
 }

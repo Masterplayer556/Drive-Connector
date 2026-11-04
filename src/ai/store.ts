@@ -168,3 +168,14 @@ export async function usedBytes(): Promise<number | null> {
     return null;
   }
 }
+
+/** Kleiner Zwischenspeicher (z. B. Begriffe zum Trainieren) – gilt nur für das aktuelle Modell. */
+export async function getMeta<T>(key: string): Promise<T | undefined> {
+  const db = await open();
+  return (await req(db.transaction("meta").objectStore("meta").get(`${INDEX_VERSION}|${key}`))) as T | undefined;
+}
+
+export async function putMeta(key: string, value: unknown) {
+  const db = await open();
+  await req(db.transaction("meta", "readwrite").objectStore("meta").put(value, `${INDEX_VERSION}|${key}`));
+}

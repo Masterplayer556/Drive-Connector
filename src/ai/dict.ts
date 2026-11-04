@@ -310,3 +310,35 @@ export function nameRuns(text: string): { name: string; label: string }[] {
   flush();
   return out;
 }
+
+// ---- Begriffe zum Trainieren: Dinge, die man auf Fotos sieht (aus dem Wörterbuch) ----
+const NOT_CONCEPTS = new Set([
+  // Füllwörter, Zahlen
+  "a", "and", "at", "at the", "after", "behind", "between", "from", "from the", "in", "in front of", "in the", "next to",
+  "of", "on", "or", "over", "to the", "under", "with", "without", "lots of", "many", "few", "one", "two", "three",
+  "four", "five",
+  // Farben und Eigenschaften (beschreiben, sind aber selbst kein Motiv)
+  "red", "blue", "green", "yellow", "black", "white", "grey", "brown", "orange", "pink", "purple", "colorful", "beige",
+  "turquoise", "silver", "gold", "golden", "dark blue", "light blue", "dark green", "light green", "big", "small", "old",
+  "new", "dark", "bright", "wet", "empty", "full", "beautiful", "funny", "cute", "happy", "sad", "tired", "angry", "warm",
+  "cold", "hot", "calm", "modern", "historic", "cozy", "romantic", "blurry", "sunny", "cloudy", "foggy", "snowy", "stormy",
+  // Schulfächer/abstrakt – auf Fotos kaum erkennbar
+  "english", "french", "german", "history", "geography", "economics", "biology", "chemistry", "physics",
+  "computer science", "art", "grade", "grades", "plan", "solution", "solutions", "summary", "training", "travel", "trip",
+  "photo", "picture", "playing", "exercise", "money", "code",
+]);
+
+/** Begriffe (Englisch) mit deutschem Wort – ohne Füllwörter, Farben und doppelte Mehrzahl. */
+export function conceptVocabulary(): { en: string; de: string }[] {
+  const de = new Map<string, string>();
+  for (const [k, v] of Object.entries(W)) if (v && !de.has(v)) de.set(v, k);
+  const all = new Set(de.keys());
+  const singular = (w: string) =>
+    (w.endsWith("ies") && all.has(`${w.slice(0, -3)}y`)) || (w.endsWith("es") && all.has(w.slice(0, -2))) || (w.endsWith("s") && all.has(w.slice(0, -1)));
+  return [...all]
+    .filter((en) => !NOT_CONCEPTS.has(en) && !singular(en))
+    .map((en) => {
+      const g = de.get(en)!;
+      return { en, de: g.charAt(0).toUpperCase() + g.slice(1) };
+    });
+}
