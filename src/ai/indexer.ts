@@ -4,11 +4,10 @@
 import type { Item } from "../lib/types";
 import { catalog, thumbsFor } from "./catalog";
 import { aiModel, inTestFolders, testFolders } from "./flag";
-import { MODELS } from "./protocol";
 import { embedImage, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive } from "./engine";
 import { itemKey, markSkip, putVector, removeKeys, skipped, vectorKeys } from "./store";
 
-export type Phase = "start" | "model" | "indexing" | "done" | "paused" | "searching" | "waiting" | "error" | "off";
+export type Phase = "start" | "model" | "indexing" | "done" | "paused" | "searching" | "error" | "off";
 
 export interface IndexState {
   phase: Phase;
@@ -129,14 +128,6 @@ async function waitForQuiet(stopped: () => boolean) {
     }
     if (state.turbo) return;
     const idle = Date.now() - lastInput;
-    if (MODELS[aiModel()].heavy) {
-      // Grosses Modell: lernt nur bei „Schnell lernen“. Neben der bedienten App (und beim Neuladen nach
-      // einer Pause) wird der Speicher auf dem iPhone zu knapp – Safari gibt ihn nicht sofort wieder frei.
-      releaseIdleVision();
-      if (state.phase !== "waiting") set({ phase: "waiting", rate: 0 });
-      await sleep(2000);
-      continue;
-    }
     if (idle >= QUIET_MS) return;
     await sleep(QUIET_MS - idle + 50);
   }
@@ -194,9 +185,6 @@ async function pass(stopped: () => boolean): Promise<void> {
   set({ total: indexed + todo.length, done: indexed, error: null });
   if (!todo.length) return;
 
-  // Grosses Modell ohne „Schnell lernen“: gar nicht erst laden
-  await waitForQuiet(stopped);
-  if (stopped()) return;
   set({ phase: "model" });
   await prepareVision();
 
