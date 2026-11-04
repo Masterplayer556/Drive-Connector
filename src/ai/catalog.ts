@@ -54,6 +54,9 @@ function dataUrlToBlob(dataUrl: string): Blob {
  * Vorschaubilder für mehrere Fotos desselben Ordners (max. 30).
  * Anders als getThumb() bleibt hier nichts im Arbeitsspeicher liegen – wichtig bei tausenden Fotos.
  */
+/** Vorschaubilder holen: nach so langer Zeit abbrechen (sonst bleibt das Lernen hängen) und später nochmals. */
+const THUMB_TIMEOUT = 45_000;
+
 export async function thumbsFor(items: Item[]): Promise<Map<string, Blob>> {
   const out = new Map<string, Blob>();
   const cache = "caches" in window ? await caches.open(THUMB_CACHE).catch(() => null) : null;
@@ -70,7 +73,7 @@ export async function thumbsFor(items: Item[]): Promise<Map<string, Blob>> {
       folder_id: first.parent_drive_id,
       ids: missing.map((m) => m.drive_id),
       size: GRID_SIZE,
-    });
+    }, { timeout: THUMB_TIMEOUT });
     for (const it of missing) {
       const data = r.thumbs[it.drive_id];
       if (data) out.set(itemKey(it), dataUrlToBlob(data));
