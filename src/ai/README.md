@@ -1,4 +1,4 @@
-# KI-Suche (Test)
+# KI-Suche (Beta)
 
 Fotos per Beschreibung finden („Hund im Schnee“, „Arbeitsblatt mit Tabelle“) – **komplett auf dem Gerät**.
 
@@ -12,8 +12,9 @@ Fotos per Beschreibung finden („Hund im Schnee“, „Arbeitsblatt mit Tabelle
 | Nebenbei jedes Foto in einen Vektor umrechnen, solange die App offen ist – normal sparsam mit Pausen, „Schnell lernen“ ohne Pausen (Bildschirm bleibt an); immer nur ein Bild-Worker, während der Suche entladen – auf dem iPhone teilen sich App und Worker den Speicher | `indexer.ts`, Vorschaubilder über `catalog.ts` |
 | Index speichern – nur in IndexedDB auf dem Gerät | `store.ts` |
 | Suchtext → Vektor → ähnlichste Fotos | `search.ts`, `rank.ts`, Anzeige `AiSearchResults.tsx` |
-| 👍/👎 bei Treffern: schiebt die Suche zu den gelobten Fotos, blendet abgelehnte aus – auch für ähnliche Suchen | `rank.ts` (`applyFeedback`), gespeichert in IndexedDB (`feedback`) |
-| „Ähnliche Fotos“ (✨ in der Foto-Ansicht) | `SimilarSheet.tsx`, `search.ts` (`similarTo`) |
+| Menü im Suchfeld: mit KI oder nach Namen suchen (gemerkt); private Konten nur per Häkchen (nur KI-Suche, gilt bis zum Schliessen) | `SearchModeMenu.tsx`, Filter `privateAccounts` in `search.ts` |
+| 👍/👎 bei Treffern (Knöpfe abschaltbar in den KI-Einstellungen, Standard: an – bisherige Bewertungen wirken immer): schiebt die Suche zu den gelobten Fotos, blendet abgelehnte aus – auch für ähnliche Suchen | `rank.ts` (`applyFeedback`), gespeichert in IndexedDB (`feedback`) |
+| „Ähnliche Fotos“ (✨ in der Foto-Ansicht; private Fotos nur, wenn das Ausgangsfoto privat ist) | `SimilarSheet.tsx`, `search.ts` (`similarTo`) |
 | „Fast gleiche Fotos“ in den Duplikaten (Serienbilder, bearbeitete Kopien) | `AiSimilarDuplicates.tsx`, `rank.ts` (`groupSimilar`) |
 | Neue Fotos nach einem Sync/Upload gleich lernen | Ereignis `drivepool-synced` aus `syncAccounts` → `indexer.ts` |
 
