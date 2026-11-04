@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import Icon from "../components/Icon";
 import { GridSkeleton } from "../components/Skeleton";
 import Thumb from "../components/Thumb";
+import { TagDots } from "../components/TagSheet";
+import { useTags } from "../lib/tags";
 import Topbar from "../components/Topbar";
 import { fetchFavoriteItems } from "../lib/db";
 import { onFavoritesChange } from "../lib/favorites";
@@ -11,6 +13,7 @@ import type { Account, Item } from "../lib/types";
 const Viewer = lazy(() => import("../components/Viewer"));
 
 export default function FavoritenView({ accounts }: { accounts: Account[] }) {
+  useTags();
   const [items, setItems] = useState<Item[] | null>(null);
   const [viewer, setViewer] = useState<number | null>(null);
 
@@ -46,6 +49,7 @@ export default function FavoritenView({ accounts }: { accounts: Account[] }) {
           {items.map((f, i) => (
             <button key={`${f.account_id}|${f.drive_id}`} className="cell" style={{ ["--i" as string]: i }} onClick={() => setViewer(i)}>
               <Thumb item={f} />
+              <TagDots item={f} />
               <span className="cell-name">{f.name}</span>
                           {f.mime_type?.startsWith("video/") && (
                             <span className="cell-play">

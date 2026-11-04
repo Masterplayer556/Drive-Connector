@@ -9,6 +9,8 @@ export interface ParsedQuery {
   folder: string | null;
   /** Nur Videos? */
   video: boolean;
+  /** Eigener Tag / Merkzeichen („#Ferien“, „#Rot“), sonst null */
+  tag: string | null;
 }
 
 const VIDEO_WORDS = new Set(["video", "videos", "film", "filme", "filmli", "clip", "clips"]);
@@ -20,6 +22,13 @@ export function parseQuery(raw: string): ParsedQuery {
   // O: oder Ordner: – Name in Anführungszeichen (mit Leerzeichen) oder ein Wort
   let rest = raw.replace(/(^|\s)(?:o|ordner|folder)\s*:\s*(?:["“„«]([^"“”«»]+)["”“»]|(\S+))/i, (_m, pre: string, quoted?: string, word?: string) => {
     folder = (quoted ?? word ?? "").trim() || null;
+    return pre;
+  });
+
+  // #Tag – in Anführungszeichen mit Leerzeichen: #"Ferien 2024"
+  let tag: string | null = null;
+  rest = rest.replace(/(^|\s)#(?:["“„«]([^"“”«»]+)["”“»]|([^\s#]+))/, (_m, pre: string, quoted?: string, word?: string) => {
+    tag = (quoted ?? word ?? "").trim() || null;
     return pre;
   });
 
@@ -37,7 +46,7 @@ export function parseQuery(raw: string): ParsedQuery {
   if (video && kept.length === 1 && LEFTOVER.has(kept[0].toLowerCase())) kept.shift();
   rest = kept.join(" ");
 
-  return { text: rest.trim(), folder, video };
+  return { text: rest.trim(), folder, video, tag };
 }
 
 /** Liegt die Datei (Pfad „A/B/datei.jpg“) in einem Ordner, der zum Suchbegriff passt? Unterordner zählen mit. */

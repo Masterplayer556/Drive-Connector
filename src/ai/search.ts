@@ -6,6 +6,7 @@ import { embedText } from "./engine";
 import { nameWords, toEnglish } from "./dict";
 import { learnedNames, prototypeOf, rankByName } from "./names";
 import { inFolder, parseQuery } from "./query";
+import { loadTags, tagKey } from "../lib/tags";
 import { applyFeedback, groupSimilar, rank } from "./rank";
 import { allFeedback, allVectors, deleteFeedback, itemKey, putFeedback, type Feedback } from "./store";
 
@@ -18,9 +19,10 @@ export interface AiResult {
   q: Float32Array;
   /** Bisherige Bewertungen dieser Suche: Foto-Schlüssel → +1/−1 */
   votes: Map<string, 1 | -1>;
-  /** Filter aus dem Suchtext („O: Ferien“, „Video“) */
+  /** Filter aus dem Suchtext („O: Ferien“, „Video“, „#Tag“) */
   folder: string | null;
   video: boolean;
+  tag: string | null;
   /** Nur gefiltert, ohne Beschreibung → neueste zuerst, keine 👍/👎 */
   filterOnly: boolean;
   /** Gelernte Namen, die in dieser Suche vorkamen (mit Anzahl gelobter Fotos) */
@@ -49,16 +51,18 @@ export const privateAccounts = (accounts: { id: string; role: string }[]) =>
   new Set(accounts.filter((a) => a.role === "privat").map((a) => a.id));
 
 export async function aiSearch(query: string, { exclude }: { exclude?: Set<string> } = {}): Promise<AiResult> {
-  const { text, folder, video } = parseQuery(query);
+  const { text, folder, video, tag } = parseQuery(query);
   // Bisherige Bewertungen wirken immer – der Schalter in den Einstellungen blendet nur die 👍/👎-Knöpfe aus
   const [all, fb, items] = await Promise.all([loadVectors(), feedback ?? allFeedback().catch(() => []), catalog()]);
   feedback = fb;
 
-  // Filter: Ordner und/oder nur Videos
-  const allowed = (it: Item) => (!folder || inFolder(it.path, folder)) && (!video || !!it.mime_type?.startsWith("video/"));
+  // Filter: Ordner, nur Videos, eigener Tag
+  const tagged = tag ? await loadTags() : null;
+  const hasTag = (it: Item) => !tag || (tagged?.get(tagKey(it)) ?? []).some((t) => t.toLowerCase() === tag.toLowerCase());
+  const allowed = (it: Item) => (!folder || inFolder(it.path, folder)) && (!video || !!it.mime_type?.startsWith("video/")) && hasTag(it);
   let map = without(all, exclude);
-  if (folder || video) map = new Map([...map].filter(([k]) => { const it = items.get(k); return !!it && allowed(it); }));
-  const base = { folder, video, votes: new Map<string, 1 | -1>(), names: [] as AiResult["names"] };
+  if (folder || video || tag) map = new Map([...map].filter(([k]) => { const it = items.get(k); return !!it && allowed(it); }));
+  const base = { folder, video, tag, votes: new Map<string, 1 | -1>(), names: [] as AiResult["names"] };
 
   // Nur Filter, keine Beschreibung → alle passenden Fotos/Videos, neueste zuerst (auch noch nicht gelernte)
   if (!text) {

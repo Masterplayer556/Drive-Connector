@@ -6,11 +6,13 @@ import { getThumb, peekThumb, VIEW_SIZE } from "../lib/thumbs";
 import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
 import { isFavorite, loadFavorites, onFavoritesChange, toggleFavorite } from "../lib/favorites";
+import { markerColor, useTags } from "../lib/tags";
 import { useUI } from "./ui";
 import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
 
 const ShareSheet = lazy(() => import("./ShareSheet"));
 const SimilarSheet = lazy(() => import("../ai/SimilarSheet")); // KI-SUCHE
+const TagSheet = lazy(() => import("./TagSheet"));
 
 interface Zoom {
   s: number;
@@ -118,6 +120,10 @@ export default function Viewer({
   const [sharing, setSharing] = useState(false);
   const ai = useAiEnabled(); // KI-SUCHE
   const [similar, setSimilar] = useState(false); // KI-SUCHE
+  const [tagging, setTagging] = useState(false);
+  const tagMap = useTags();
+  const itemTags = tagMap?.get(`${item.account_id}|${item.drive_id}`) ?? [];
+  const markerDots = itemTags.map(markerColor).filter((c): c is string => !!c);
 
   useEffect(() => {
     void loadFavorites().then(() => setFav(isFavorite(item)));
@@ -415,6 +421,16 @@ export default function Viewer({
         <button className={`icon-btn glass fav-btn ${fav ? "on" : ""}`} onClick={heart} aria-label="Favorit">
           <Icon name="heart" size={20} />
         </button>
+        <button className={`icon-btn glass tag-btn ${itemTags.length ? "on" : ""}`} onClick={() => setTagging(true)} aria-label="Tags">
+          <Icon name="tag" size={19} />
+          {markerDots.length > 0 && (
+            <span className="tag-btn-dots">
+              {markerDots.slice(0, 3).map((c) => (
+                <i key={c} style={{ background: c }} />
+              ))}
+            </span>
+          )}
+        </button>
         <button className="icon-btn glass" onClick={() => setSharing(true)} aria-label="Link teilen">
           <Icon name="link" size={19} />
         </button>
@@ -509,6 +525,11 @@ export default function Viewer({
       {sharing && (
         <Suspense fallback={null}>
           <ShareSheet item={item} onClose={() => setSharing(false)} />
+        </Suspense>
+      )}
+      {tagging && (
+        <Suspense fallback={null}>
+          <TagSheet items={[item]} onClose={() => setTagging(false)} />
         </Suspense>
       )}
       {/* KI-SUCHE */}

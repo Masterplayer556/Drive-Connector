@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Donut from "../components/Donut";
 import { DragGhost, useDragToFolder } from "../components/DragToFolder";
+import { TagDots } from "../components/TagSheet";
+import { useTags } from "../lib/tags";
 import Icon from "../components/Icon";
 import { FolderSkeleton, GridSkeleton } from "../components/Skeleton";
 import Thumb from "../components/Thumb";
@@ -30,6 +32,7 @@ const AutoUploadSheet = lazy(() => import("./AutoUploadSheet"));
 const SortSheet = lazy(() => import("../components/SortSheet"));
 const DownloadSheet = lazy(() => import("../components/DownloadSheet"));
 const MoveSheet = lazy(() => import("../components/MoveSheet"));
+const TagSheet = lazy(() => import("../components/TagSheet"));
 const SearchSheet = lazy(() => import("../components/SearchSheet"));
 const Viewer = lazy(() => import("../components/Viewer"));
 
@@ -82,6 +85,8 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   const [autoFiles, setAutoFiles] = useState<File[] | null>(null);
   const [sortOpen, setSortOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [tagOpen, setTagOpen] = useState(false);
+  useTags();
   /** Per Ziehen verschieben: was und wohin */
   const [dropMove, setDropMove] = useState<{ items: Item[]; folders: LogicalFolder[]; target: Crumb[] } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -618,6 +623,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
                           onClick={() => (selectMode ? toggle(f) : setViewer(i))}
                         >
                           <Thumb item={f} />
+                          <TagDots item={f} />
                           {selectMode && (
                             <span className={`check ${selected.has(itemKey(f)) ? "on" : ""}`}>
                               {selected.has(itemKey(f)) && <Icon name="check" size={15} />}
@@ -660,6 +666,9 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
           <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
             <button className="btn small" disabled={!selCount} onClick={() => setMoveOpen(true)} aria-label="Verschieben">
               <Icon name="move" size={17} />
+            </button>
+            <button className="btn small" disabled={!selectedItems.length} onClick={() => setTagOpen(true)} aria-label="Tags">
+              <Icon name="tag" size={17} />
             </button>
             <button
               className="btn small"
@@ -789,6 +798,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
           onClose={() => setActionFolder(null)}
         />
       )}
+      {tagOpen && <TagSheet items={selectedItems} onClose={() => setTagOpen(false)} />}
       {dropMove && (
           <MoveSheet
             items={dropMove.items}
