@@ -86,50 +86,6 @@ export function useAiModel(): ModelId {
   return useSyncExternalStore(onAiFlag, aiModel, () => "clip" as const);
 }
 
-// ---- Testordner: das Test-Modell lernt nur Fotos in diesen Ordnern (Name irgendwo im Pfad) ----
-const TEST_KEY = "drivepool.ai.testFolders";
-export const DEFAULT_TEST_FOLDERS = ["HH", "TLOZ", "Super Mario", "Underrune"];
-
-let testCache: { raw: string | null; list: string[] } | null = null;
-export function testFolders(): string[] {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(TEST_KEY);
-  } catch {
-    /* ignorieren */
-  }
-  if (testCache?.raw === raw) return testCache.list; // gleiche Liste → gleiches Objekt (für React)
-  let list = DEFAULT_TEST_FOLDERS;
-  try {
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed)) list = parsed.filter((x) => typeof x === "string");
-  } catch {
-    /* ignorieren */
-  }
-  testCache = { raw, list };
-  return list;
-}
-
-export function setTestFolders(list: string[]) {
-  try {
-    localStorage.setItem(TEST_KEY, JSON.stringify(list));
-  } catch {
-    /* ignorieren */
-  }
-  window.dispatchEvent(new Event("drivepool-ai"));
-}
-
-export function useTestFolders(): string[] {
-  return useSyncExternalStore(onAiFlag, testFolders, () => DEFAULT_TEST_FOLDERS);
-}
-
-/** Liegt die Datei in einem der Ordner? (Ordnername exakt, Gross/klein egal, irgendwo im Pfad) */
-export function inTestFolders(path: string | null, folders: string[]): boolean {
-  if (!path || !folders.length) return false;
-  const dirs = path.toLowerCase().split("/").slice(0, -1);
-  return folders.some((f) => dirs.includes(f.trim().toLowerCase()));
-}
-
 // ---- Vergleich: Strichliste je Paarung (links gegen rechts), welches Modell besser war ----
 const TALLY_KEY = "drivepool.ai.compare2";
 export interface Tally {
@@ -208,29 +164,4 @@ export function setLearningDevice(on: boolean) {
 
 export function useLearningDevice(): boolean {
   return useSyncExternalStore(onAiFlag, learningDevice, () => false);
-}
-
-// ---- Nur Testordner lernen (Standard: ja) ----
-const TEST_ONLY_KEY = "drivepool.ai.testOnly";
-
-export function testOnly(): boolean {
-  try {
-    return localStorage.getItem(TEST_ONLY_KEY) !== "0";
-  } catch {
-    return true;
-  }
-}
-
-export function setTestOnly(on: boolean) {
-  try {
-    if (on) localStorage.removeItem(TEST_ONLY_KEY);
-    else localStorage.setItem(TEST_ONLY_KEY, "0");
-  } catch {
-    /* ignorieren */
-  }
-  window.dispatchEvent(new Event("drivepool-ai"));
-}
-
-export function useTestOnly(): boolean {
-  return useSyncExternalStore(onAiFlag, testOnly, () => true);
 }

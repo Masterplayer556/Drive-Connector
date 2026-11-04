@@ -4,7 +4,7 @@ import type { Item } from "../lib/types";
 import { catalog } from "./catalog";
 import { MODELS, type ModelId } from "./protocol";
 import { syncDown } from "./cloud";
-import { aiModel, inTestFolders, testFolders } from "./flag";
+import { aiModel } from "./flag";
 import { embedConcepts, embedText } from "./engine";
 import { conceptVocabulary, nameWords, toEnglish } from "./dict";
 import { expandNameKeys, FOLDER_KEY, folderKey, isFolderKey, learnedNames, prototypeOf, rankByName } from "./names";
@@ -405,11 +405,11 @@ async function tagExamples(text: string, items: Map<string, Item>): Promise<{ na
     .filter((t) => t.keys.length);
 }
 
-// ---- Vergleich der Modelle (nur Testordner, ohne 👍/👎, Namen und Tags – reiner Modellvergleich) ----
+// ---- Vergleich der Modelle (alle Fotos, ohne 👍/👎, Namen und Tags – reiner Modellvergleich) ----
 
 export interface CompareSide {
   items: Item[];
-  /** So viele Fotos aus den Testordnern hat dieses Modell schon gelernt */
+  /** So viele Fotos hat dieses Modell schon gelernt */
   learned: number;
 }
 
@@ -419,14 +419,12 @@ export async function compareModels(
   right: ModelId,
   { exclude }: { exclude?: Set<string> } = {},
 ): Promise<{ english: string; left: CompareSide; right: CompareSide }> {
-  const folders = testFolders();
   const items = await catalog();
-  const inTest = new Set([...items].filter(([, it]) => inTestFolders(it.path, folders)).map(([k]) => k));
   const side = async (model: ModelId): Promise<CompareSide & { english: string }> => {
     // Was der PC gelernt hat, zuerst holen (auch wenn gerade ein anderes Modell gewählt ist)
     if (MODELS[model].cloud) await syncDown(model).catch(() => 0);
     const all = without(await allVectors(model), exclude);
-    const map = new Map([...all].filter(([k]) => inTest.has(k)));
+    const map = new Map([...all].filter(([k]) => items.has(k)));
     if (!map.size) return { items: [], learned: 0, english: "" };
     const { vec, english, kvecs } = await embedText(query, model);
     const hits = rank(vec, map, { limit: 12, keywords: kvecs });

@@ -6,22 +6,16 @@ import Icon from "../components/Icon";
 import { useUI } from "../components/ui";
 import { crashNote, forgetOldSettings, modelProgress, onModelProgress, visionDevice } from "./engine";
 import {
-  inTestFolders,
   isAppleMobile,
   setAiEnabled,
   setAiModel,
   setFeedbackEnabled,
   setLearningDevice,
-  setTestFolders,
-  setTestOnly,
   useAiEnabled,
   useAiModel,
   useFeedbackEnabled,
   useLearningDevice,
-  useTestFolders,
-  useTestOnly,
 } from "./flag";
-import { catalog } from "./catalog";
 import { MODEL_IDS, MODELS, type ModelId } from "./protocol";
 
 const MODEL_INFO: Record<ModelId, string> = {
@@ -323,70 +317,10 @@ function LearnedNames() {
   );
 }
 
-/** Abstand zweier Wörter (Tippfehler-Vorschläge für Testordner). */
-function distance(a: string, b: string): number {
-  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
-  for (let j = 1; j <= b.length; j++) d[0][j] = j;
-  for (let i = 1; i <= a.length; i++)
-    for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-  return d[a.length][b.length];
-}
-
-/** Haben zwei Wörter 4 Buchstaben am Stück gemeinsam? */
-function shares4(a: string, b: string): boolean {
-  for (let i = 0; i + 4 <= a.length; i++) if (b.includes(a.slice(i, i + 4))) return true;
-  return false;
-}
-
-/** Modell wählen: Standard oder MobileCLIP (Test, nur in Testordnern). */
+/** Modell wählen: Standard oder MobileCLIP (Test). */
 function ModelChoice({ accounts }: { accounts: Account[] }) {
   const model = useAiModel();
   const [comparing, setComparing] = useState(false);
-  const testOnlyOn = useTestOnly();
-  const folders = useTestFolders();
-  const [counts, setCounts] = useState<Map<string, number> | null>(null);
-  const [allDirs, setAllDirs] = useState<string[]>([]);
-  const [text, setText] = useState("");
-
-  useEffect(() => {
-    if (!MODELS[model].cloud) return;
-    let alive = true;
-    catalog()
-      .then((items) => {
-        if (!alive) return;
-        const c = new Map<string, number>();
-        const dirs = new Set<string>();
-        for (const it of items.values()) {
-          for (const d of (it.path ?? "").split("/").slice(0, -1)) dirs.add(d);
-          for (const f of folders) if (inTestFolders(it.path, [f])) c.set(f, (c.get(f) ?? 0) + 1);
-        }
-        setCounts(c);
-        setAllDirs([...dirs]);
-      })
-      .catch(() => setCounts(new Map()));
-    return () => {
-      alive = false;
-    };
-  }, [model, folders]);
-
-  const suggest = (f: string) => {
-    const low = f.toLowerCase();
-    return allDirs
-      .map((d) => ({ d, n: distance(low, d.toLowerCase()) }))
-      // Ähnlich geschrieben, oder 4 Buchstaben am Stück gleich („Underrune“ → „Deltarune“, „Undertale“)
-      .filter((x) => x.n <= Math.max(2, Math.floor(low.length / 3)) || shares4(low, x.d.toLowerCase()))
-      .sort((a, b) => a.n - b.n)
-      .slice(0, 4)
-      .map((x) => x.d);
-  };
-  const add = (name: string) => {
-    const n = name.trim();
-    setText("");
-    if (n && !folders.some((f) => f.toLowerCase() === n.toLowerCase())) setTestFolders([...folders, n]);
-  };
-  const replace = (from: string, to: string) => setTestFolders(folders.map((f) => (f === from ? to : f)));
-  const total = counts ? [...counts.values()].reduce((a, b) => a + b, 0) : null;
-
   return (
     <div className="ai-names">
       <div className="ai-names-head">
@@ -404,71 +338,11 @@ function ModelChoice({ accounts }: { accounts: Account[] }) {
           </span>
         </label>
       ))}
-      {MODELS[model].cloud && (
-        <>
-          <label className="ai-toggle small">
-            <span>
-              <strong>Nur Testordner</strong>
-              <span className="faint">{testOnlyOn ? " An – lernt nur Fotos in diesen Ordnern." : " Aus – lernt alle Fotos."}</span>
-            </span>
-            <span className="switch">
-              <input type="checkbox" checked={testOnlyOn} onChange={(e) => setTestOnly(e.target.checked)} />
-              <span />
-            </span>
-          </label>
-          <div className="faint small">
-            Testordner{total !== null && ` · ${total.toLocaleString("de-CH")} Fotos`} – der Vergleich sucht nur darin.
-          </div>
-          <div className="ai-name-chips">
-            {folders.map((f) => {
-              const n = counts?.get(f) ?? 0;
-              const tips = counts && n === 0 ? suggest(f) : [];
-              return (
-                <span key={f} className="ai-folder-chip">
-                  <span className={`ai-name-chip on ${counts && !n ? "missing" : ""}`}>
-                    <Icon name="folder" size={12} /> {f} <span className="faint">{counts ? n : "…"}</span>
-                    <button onClick={() => setTestFolders(folders.filter((x) => x !== f))} aria-label={`${f} entfernen`}>
-                      <Icon name="x" size={12} />
-                    </button>
-                  </span>
-                  {counts && !n && (
-                    <span className="faint small">
-                      Nicht gefunden
-                      {tips.length > 0 && " – meintest du "}
-                      {tips.map((t, i) => (
-                        <span key={t}>
-                          {i > 0 && ", "}
-                          <button className="link small" onClick={() => replace(f, t)}>
-                            {t}
-                          </button>
-                        </span>
-                      ))}
-                      {tips.length > 0 && "?"}
-                    </span>
-                  )}
-                </span>
-              );
-            })}
-          </div>
-          <form
-            className="ai-name-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              add(text);
-            }}
-          >
-            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ordnername hinzufügen" enterKeyHint="done" autoCorrect="off" />
-            <button className="btn small primary" disabled={!text.trim()}>
-              Hinzufügen
-            </button>
-          </form>
-        </>
-      )}
       <button className="btn small" onClick={() => setComparing(true)}>
         <Icon name="search" size={16} /> Modelle vergleichen
       </button>
       <span className="faint small">
-        Gleiche Suche mit beiden Modellen nebeneinander (nur Testordner). MobileCLIP lernt am PC per Knopf, solange es oben gewählt ist.
+        Gleiche Suche mit zwei Modellen nebeneinander, über alle gelernten Fotos. MobileCLIP lernt am PC per Knopf, solange es oben gewählt ist.
       </span>
       {comparing && (
         <Suspense fallback={null}>
