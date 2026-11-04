@@ -5,7 +5,7 @@ import type { Item } from "../lib/types";
 import Icon from "./Icon";
 import { useUI } from "./ui";
 
-export default function TagSheet({ items, onClose }: { items: Item[]; onClose: () => void }) {
+export default function TagSheet({ items, title, onClose }: { items: Item[]; title?: string; onClose: () => void }) {
   useTags();
   const ui = useUI();
   const [text, setText] = useState("");
@@ -34,7 +34,7 @@ export default function TagSheet({ items, onClose }: { items: Item[]; onClose: (
         <div className="sheet-grip" />
         <div className="sheet-head">
           <div style={{ minWidth: 0 }}>
-            <div className="muted small ellipsis">{n === 1 ? items[0].name : `${n} Fotos`}</div>
+            <div className="muted small ellipsis">{title ?? (n === 1 ? items[0].name : `${n} Fotos`)}</div>
             <h2>Tags & Merkzeichen</h2>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Fertig">
@@ -115,6 +115,11 @@ export default function TagSheet({ items, onClose }: { items: Item[]; onClose: (
               </div>
             </>
           )}
+          {items.some((i) => i.is_folder) && (
+            <p className="faint small" style={{ margin: 0 }}>
+              Gilt für alles im Ordner – auch Unterordner und Fotos, die später dazukommen.
+            </p>
+          )}
           <p className="faint small" style={{ margin: 0 }}>
             Finden: in der Suche „#Tag“ eingeben, z. B. „#Ferien“ oder „#Rot“ – auch zusammen mit der KI-Suche.
           </p>
@@ -132,6 +137,22 @@ export function TagDots({ item }: { item: Item }) {
   const plain = tags.length - colors.length;
   return (
     <span className="tag-dots" aria-label={`Tags: ${tags.join(", ")}`}>
+      {colors.slice(0, 4).map((c) => (
+        <i key={c} style={{ background: c }} />
+      ))}
+      {plain > 0 && <Icon name="tag" size={11} />}
+    </span>
+  );
+}
+
+/** Merkzeichen und Tag-Zeichen eines Ordners (über alle Konten-Teile), in der Ordnerzeile. */
+export function FolderTagDots({ parts }: { parts: Item[] }) {
+  const tags = [...new Map(parts.flatMap(tagsOf).map((t) => [t.toLowerCase(), t])).values()];
+  if (!tags.length) return null;
+  const colors = tags.map(markerColor).filter((c): c is string => !!c);
+  const plain = tags.length - colors.length;
+  return (
+    <span className="tag-dots inline" aria-label={`Tags: ${tags.join(", ")}`}>
       {colors.slice(0, 4).map((c) => (
         <i key={c} style={{ background: c }} />
       ))}

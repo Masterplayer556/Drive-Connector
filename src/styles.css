@@ -3812,3 +3812,14 @@ body.drag-moving {
   border-radius: 50%;
   margin-right: 2px;
 }
+.tag-dots.inline {
+  position: static;
+  margin-left: auto;
+  flex: none;
+  color: var(--muted);
+  background: rgba(var(--tint-rgb), 0.08);
+  backdrop-filter: none;
+}
+.tag-dots.inline i {
+  box-shadow: none;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isNameWord, keywordsOf, nameWords } from "./dict";
-import { learnedNames, prototypeOf, rankByName } from "./names";
+import { expandNameKeys, folderKey, learnedNames, prototypeOf, rankByName } from "./names";
 
 const v = (...xs: number[]) => {
   const n = Math.hypot(...xs) || 1;
@@ -54,5 +54,19 @@ describe("KI-Suche: mehrteilige Namen", () => {
     expect(nameWords("Luca, Mia")).toEqual(["luca", "mia"]);
     const names = learnedNames([{ english: "Darth Vader", key: "a", vote: 1 }]);
     expect(names.get("darth vader")?.label).toBe("Darth Vader");
+  });
+});
+
+describe("KI-Suche: Name mit Ordner verknüpft", () => {
+  it("alle Fotos im Ordner (auch Unterordner) gehören dazu", () => {
+    const files: [string, string][] = [
+      ["a", "Privat/Pikachu/a.jpg"],
+      ["b", "Privat/Pikachu/2024/b.jpg"],
+      ["c", "Privat/Pikachu2/c.jpg"],
+      ["d", "Privat/d.jpg"],
+    ];
+    expect(expandNameKeys([folderKey("Privat/Pikachu"), "d"], files).sort()).toEqual(["a", "b", "d"]);
+    const names = learnedNames([{ english: "Pikachu", key: folderKey("Privat/Pikachu"), vote: 1 }]);
+    expect(names.get("pikachu")?.keys).toEqual([folderKey("Privat/Pikachu")]);
   });
 });

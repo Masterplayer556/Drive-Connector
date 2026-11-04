@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanTag, countTags, markerColor } from "./tags";
+import { cleanTag, countTags, inheritsTag, markerColor } from "./tags";
 
 describe("Tags", () => {
   it("räumt Eingaben auf", () => {
@@ -18,5 +18,18 @@ describe("Tags", () => {
       ["c", ["Schule"]],
     ]);
     expect(countTags(m).map((t) => `${t.tag}:${t.count}`)).toEqual(["Rot:1", "Blau:1", "Ferien:2", "Schule:1"]);
+  });
+});
+
+describe("Ordner-Tags", () => {
+  const folders = [{ tag: "Pikachu", path: "Privat/Figuren/Pikachu" }];
+  it("gelten für alles im Ordner, auch in Unterordnern", () => {
+    expect(inheritsTag("Privat/Figuren/Pikachu/a.jpg", "pikachu", folders)).toBe(true);
+    expect(inheritsTag("Privat/Figuren/Pikachu/2024/a.jpg", "Pikachu", folders)).toBe(true);
+  });
+  it("nicht für Nachbarn mit ähnlichem Namen", () => {
+    expect(inheritsTag("Privat/Figuren/Pikachu2/a.jpg", "Pikachu", folders)).toBe(false);
+    expect(inheritsTag("Privat/Figuren/a.jpg", "Pikachu", folders)).toBe(false);
+    expect(inheritsTag(null, "Pikachu", folders)).toBe(false);
   });
 });

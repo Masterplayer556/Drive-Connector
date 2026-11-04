@@ -286,3 +286,35 @@
   font: inherit;
   font-size: 16px; /* kein Hineinzoomen auf dem iPhone */
 }
+
+/* ✨ für Ordner: Leiste zum Verschieben der ausgewählten Fotos */
+.ai-folder-bar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(var(--surface-rgb), 0.96);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  z-index: 2;
+}
+.ai-cell-zoom {
+  position: absolute;
+  left: 6px;
+  bottom: 24px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+}

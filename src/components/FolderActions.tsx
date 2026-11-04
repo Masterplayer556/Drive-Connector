@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
+import { tagsOf, useTags } from "../lib/tags";
 import { customHue, FOLDER_HUES, hueOf, setFolderHue, useFolderColors } from "../lib/folderColors";
 import { moveLogicalFolder, PRIVAT_SEALED, renameLogicalFolder } from "../lib/folders";
 import { childPath, validFolderName } from "../lib/naming";
@@ -7,6 +9,9 @@ import type { Account, LogicalFolder } from "../lib/types";
 import Icon from "./Icon";
 import PathPicker from "./PathPicker";
 import { useUI } from "./ui";
+
+const TagSheet = lazy(() => import("./TagSheet"));
+const FolderAiSheet = lazy(() => import("../ai/FolderAiSheet")); // KI-SUCHE
 
 /** Menü beim Gedrückthalten eines Ordners: öffnen, Farbe, umbenennen, verschieben, ZIP, löschen. */
 export default function FolderActions({
@@ -32,6 +37,11 @@ export default function FolderActions({
   const ui = useUI();
   useFolderColors();
   const [picking, setPicking] = useState(false);
+  const [tagging, setTagging] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false); // KI-SUCHE
+  const ai = useAiEnabled(); // KI-SUCHE
+  useTags();
+  const folderTagCount = new Set(folder.parts.flatMap((p) => tagsOf(p).map((t) => t.toLowerCase()))).size;
   // Die ersten Augenblicke nach dem Öffnen keine Berührungen annehmen (Finger liegt evtl. noch auf)
   const [armed, setArmed] = useState(false);
   useEffect(() => {
@@ -72,6 +82,20 @@ export default function FolderActions({
     }
   };
 
+  if (tagging) {
+    return (
+      <Suspense fallback={null}>
+        <TagSheet items={folder.parts} title={folder.name} onClose={() => setTagging(false)} />
+      </Suspense>
+    );
+  }
+  if (aiOpen) {
+    return (
+      <Suspense fallback={null}>
+        <FolderAiSheet folder={folder} accounts={accounts} onClose={() => setAiOpen(false)} />
+      </Suspense>
+    );
+  }
   if (picking) {
     return (
       <PathPicker
@@ -140,6 +164,16 @@ export default function FolderActions({
             <button className="action" onClick={onOpen}>
               <Icon name="chevronRight" size={18} /> Öffnen
             </button>
+            <button className="action" onClick={() => setTagging(true)}>
+              <Icon name="tag" size={18} /> Tags & Merkzeichen
+              {folderTagCount > 0 && <span className="faint small" style={{ marginLeft: "auto" }}>{folderTagCount}</span>}
+            </button>
+            {/* KI-SUCHE */}
+            {ai && (
+              <button className="action" onClick={() => setAiOpen(true)}>
+                <Icon name="sparkles" size={18} /> KI: Name & passende Fotos
+              </button>
+            )}
             {!protectedFolder && (
               <>
                 <button className="action" onClick={rename} disabled={busy}>
