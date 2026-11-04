@@ -3,7 +3,6 @@
 import type { Item } from "../lib/types";
 import { catalog } from "./catalog";
 import { MODELS, type ModelId } from "./protocol";
-import { syncDown } from "./cloud";
 import { aiModel, kombi } from "./flag";
 import { embedConcepts, embedText } from "./engine";
 import { conceptVocabulary, nameWords, toEnglish } from "./dict";
@@ -457,57 +456,4 @@ async function tagExamples(text: string, items: Map<string, Item>): Promise<{ na
       return { name: low, label: h.tag, keys };
     })
     .filter((t) => t.keys.length);
-}
-
-// ---- Vergleich der Modelle (alle Fotos, ohne 👍/👎, Namen und Tags – reiner Modellvergleich) ----
-
-export interface CompareSide {
-  items: Item[];
-  /** So viele Fotos hat dieses Modell schon gelernt */
-  learned: number;
-}
-
-/** Im Vergleich wählbar: ein Modell oder die Kombi (MobileCLIP-B + Standard). */
-export type CompareId = ModelId | "kombi";
-
-export async function compareModels(
-  query: string,
-  left: CompareId,
-  right: CompareId,
-  { exclude }: { exclude?: Set<string> } = {},
-): Promise<{ english: string; left: CompareSide; right: CompareSide }> {
-  const items = await catalog();
-  const learnedOf = async (model: ModelId) => {
-    // Was der PC gelernt hat, zuerst holen (auch wenn gerade ein anderes Modell gewählt ist)
-    if (MODELS[model].cloud) await syncDown(model).catch(() => 0);
-    const all = without(await allVectors(model), exclude);
-    return new Map([...all].filter(([k]) => items.has(k)));
-  };
-  const toItems = (hits: Hit[]) => hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x);
-  const side = async (id: CompareId): Promise<CompareSide & { english: string }> => {
-    if (id === "kombi") {
-      const map = await learnedOf("mobileclipB");
-      const pmap = await learnedOf("clip");
-      if (!map.size && !pmap.size) return { items: [], learned: 0, english: "" };
-      const a = await embedText(query, "mobileclipB");
-      const b = await embedText(query, "clip");
-      const hits = fuse(
-        [
-          { scores: scoreAll(a.vec, map, { keywords: a.kvecs, negative: a.nvec }), weight: 1 },
-          { scores: scoreAll(b.vec, pmap, { keywords: b.kvecs }), weight: 1 },
-        ],
-        { limit: 12 },
-      );
-      return { items: toItems(hits), learned: Math.max(map.size, pmap.size), english: a.english };
-    }
-    const map = await learnedOf(id);
-    if (!map.size) return { items: [], learned: 0, english: "" };
-    const { vec, english, kvecs, nvec } = await embedText(query, id);
-    const hits = rank(vec, map, { limit: 12, keywords: kvecs, auto: !!MODELS[id].autoFloor, negative: nvec });
-    return { items: toItems(hits), learned: map.size, english };
-  };
-  // Nacheinander, nicht gleichzeitig (Arbeitsspeicher)
-  const l = await side(left);
-  const r = await side(right);
-  return { english: l.english || r.english, left: l, right: r };
 }

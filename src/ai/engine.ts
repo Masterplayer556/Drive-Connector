@@ -42,7 +42,7 @@ forgetOldSettings();
 
 /** Merker früherer Versionen entfernen (auch beim Ausschalten der KI-Suche). */
 export function forgetOldSettings() {
-  for (const k of ["drivepool.ai.gpu", "drivepool.ai.maxw", "drivepool.ai.notr", "drivepool.ai.testFolders", "drivepool.ai.testOnly"]) {
+  for (const k of ["drivepool.ai.gpu", "drivepool.ai.maxw", "drivepool.ai.notr", "drivepool.ai.testFolders", "drivepool.ai.testOnly", "drivepool.ai.compare2", "drivepool.ai.comparePair"]) {
     try {
       localStorage.removeItem(k);
     } catch {
