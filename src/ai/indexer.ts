@@ -26,7 +26,6 @@ const CHUNK = 30;
 const retryAfter = (n: number) => Math.min(7 * 24 * 3600_000, 10 * 60_000 * 6 ** Math.max(0, n - 1));
 const RECHECK_MS = 10 * 60_000;
 const QUIET_MS = 1500; // so lange nach dem letzten Tippen/Scrollen warten
-const HEAVY_QUIET_MS = 15_000; // beim grossen Modell: länger warten (Neuladen kostet Zeit und Speicher)
 
 let state: IndexState = { phase: "off", done: 0, total: 0, error: null, rate: 0, turbo: false };
 const listeners = new Set<() => void>();
@@ -131,15 +130,11 @@ async function waitForQuiet(stopped: () => boolean) {
     if (state.turbo) return;
     const idle = Date.now() - lastInput;
     if (MODELS[aiModel()].heavy) {
-      // Grosses Modell: während du die App bedienst oder ein Foto ansiehst, Bildmodell entladen
-      const viewing = !!document.querySelector(".viewer");
-      if (!viewing && idle >= HEAVY_QUIET_MS) {
-        if (state.phase === "waiting") set({ phase: "indexing" });
-        return;
-      }
+      // Grosses Modell: lernt nur bei „Schnell lernen“. Neben der bedienten App (und beim Neuladen nach
+      // einer Pause) wird der Speicher auf dem iPhone zu knapp – Safari gibt ihn nicht sofort wieder frei.
       releaseIdleVision();
       if (state.phase !== "waiting") set({ phase: "waiting", rate: 0 });
-      await sleep(viewing ? 2000 : Math.min(2000, HEAVY_QUIET_MS - idle + 50));
+      await sleep(2000);
       continue;
     }
     if (idle >= QUIET_MS) return;
@@ -199,6 +194,9 @@ async function pass(stopped: () => boolean): Promise<void> {
   set({ total: indexed + todo.length, done: indexed, error: null });
   if (!todo.length) return;
 
+  // Grosses Modell ohne „Schnell lernen“: gar nicht erst laden
+  await waitForQuiet(stopped);
+  if (stopped()) return;
   set({ phase: "model" });
   await prepareVision();
 
