@@ -342,10 +342,13 @@ export interface TrainingBatch {
 }
 
 /**
- * Fotos zum Wischen für einen Begriff. null = der Begriff passt zu keinem Foto gut genug
- * (dann lohnt sich das Trainieren nicht – nächster Begriff).
+ * Fotos zum Wischen für einen Begriff (das nächste Paket). null = der Begriff passt zu keinem Foto gut
+ * genug oder alle passenden sind schon bewertet. `skip` = schon gezeigte Fotos (Schlüssel wie im Index).
  */
-export async function trainingBatch(term: string, { exclude, n = 12 }: { exclude?: Set<string>; n?: number } = {}): Promise<TrainingBatch | null> {
+export async function trainingBatch(
+  term: string,
+  { exclude, skip, n = 12 }: { exclude?: Set<string>; skip?: Set<string>; n?: number } = {},
+): Promise<TrainingBatch | null> {
   const [all, fb, items] = await Promise.all([loadVectors(), allFeedback(), catalog()]);
   const map = without(all, exclude);
   const learned = learnedNames(fb);
@@ -363,16 +366,18 @@ export async function trainingBatch(term: string, { exclude, n = 12 }: { exclude
     q = proto;
     english = term.trim();
     const liked = new Set(keys);
-    ranked = rank(proto, map, { limit: 200, floor: 0.6, window: 1 }).map((h) => h.key).filter((k) => !liked.has(k));
+    ranked = rank(proto, map, { limit: 600, floor: 0.6, window: 1 }).map((h) => h.key).filter((k) => !liked.has(k));
   } else {
     const e = await embedText(term);
     q = e.vec;
     english = e.english;
-    const hits = rank(q, map, { limit: 200, floor: 0, window: 1, keywords: e.kvecs });
+    const hits = rank(q, map, { limit: 600, floor: 0, window: 1, keywords: e.kvecs });
     if (!hits.length || hits[0].score < 0.2) return null; // passt zu nichts in deiner Ablage
     ranked = hits.map((h) => h.key);
   }
+  // Schon bewertet oder in dieser Runde schon gezeigt (auch „weiss nicht“) → nicht nochmals
   const voted = new Set(fb.filter((f) => f.english.toLowerCase() === english.toLowerCase()).map((f) => f.key));
+  skip?.forEach((k) => voted.add(k));
   const cards = pickCards(ranked, voted, n);
   if (!cards.length) return null;
   return { term, english, q, items: cards.map((k) => items.get(k)).filter((x): x is Item => !!x) };

@@ -16,7 +16,7 @@ export interface Term {
 export function pickCards(ranked: string[], voted: Set<string>, n = 12, random: () => number = Math.random): string[] {
   const open = ranked.filter((k) => !voted.has(k));
   const sure = open.slice(0, 30);
-  const unsure = open.slice(30, 200);
+  const unsure = open.slice(30);
   const take = (list: string[]) => (list.length ? list.splice(Math.floor(random() * Math.min(list.length, 15)), 1)[0] : undefined);
   const out: string[] = [];
   while (out.length < n && (sure.length || unsure.length)) {
