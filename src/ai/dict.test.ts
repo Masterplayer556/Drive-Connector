@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { keywordsOf, looksEnglish, toEnglish } from "./dict";
+import { conceptVocabulary, keywordsOf, looksEnglish, toEnglish } from "./dict";
 
 describe("KI-Suche: Wörterbuch", () => {
   it("übersetzt typische Suchen", () => {
@@ -80,5 +80,20 @@ describe("KI-Suche: Stichwörter", () => {
     expect(keywordsOf("dog in the snow")).toEqual([]);
     expect(keywordsOf("Hund")).toEqual([]);
     expect(keywordsOf("Strand 2024")).toEqual([]);
+  });
+});
+
+describe("Begriffe zum Trainieren", () => {
+  it("nur Motive, keine Füllwörter/Farben, keine doppelte Mehrzahl", () => {
+    const v = conceptVocabulary();
+    const en = new Set(v.map((c) => c.en));
+    expect(en.has("dog")).toBe(true);
+    expect(en.has("dogs")).toBe(false);
+    expect(en.has("potatoes")).toBe(false);
+    expect(en.has("strawberries")).toBe(false);
+    expect(en.has("red")).toBe(false);
+    expect(en.has("in the")).toBe(false);
+    expect(v.find((c) => c.en === "dog")?.de).toBe("Hund");
+    expect(v.length).toBeGreaterThan(400);
   });
 });

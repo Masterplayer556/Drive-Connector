@@ -163,14 +163,32 @@ export async function embedImage(blob: Blob): Promise<Float32Array | null> {
   return m.vecs[0] ?? null;
 }
 
-/** Text der Suche → Vektor. Lädt das Textmodell beim ersten Mal (im eigenen Such-Worker). */
-export async function embedText(text: string): Promise<{ vec: Float32Array; english: string; kvecs: Float32Array[] }> {
+/** Erst wenn das Bildmodell entladen ist (Lernen pausiert, sobald die Suche offen ist), sonst wären beide im Speicher. */
+async function readyForText() {
   if (textTimer) clearTimeout(textTimer);
-  // Erst wenn das Bildmodell entladen ist (Lernen pausiert, sobald die Suche offen ist), sonst wären beide im Speicher
   for (let t = 0; t < 100 && workers[VISION]; t++) {
     releaseIdleVision();
     await new Promise((r) => setTimeout(r, 100));
   }
+}
+
+/** Viele einzelne Begriffe → je ein Vektor („a photo of …“). In kleinen Portionen (Speicher). */
+export async function embedConcepts(labels: string[], onProgress?: (done: number) => void): Promise<Float32Array[]> {
+  await readyForText();
+  const out: Float32Array[] = [];
+  for (let i = 0; i < labels.length; i += 24) {
+    const part = labels.slice(i, i + 24);
+    const m = await send({ type: "text", groups: part.map((l) => [`a photo of ${l}.`]) }, TEXT);
+    if (m.type !== "vec") throw new Error("Unerwartete Antwort");
+    out.push(...m.vecs);
+    onProgress?.(out.length);
+  }
+  return out;
+}
+
+/** Text der Suche → Vektor. Lädt das Textmodell beim ersten Mal (im eigenen Such-Worker). */
+export async function embedText(text: string): Promise<{ vec: Float32Array; english: string; kvecs: Float32Array[] }> {
+  await readyForText();
   const english = toEnglish(text) || text;
   const keywords = keywordsOf(text);
   const m = await send({ type: "text", groups: [searchPrompts(english), ...keywords.map(keywordPrompts)] }, TEXT);

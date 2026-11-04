@@ -13,7 +13,7 @@ import type { Term } from "./train";
 const CARD_SIZE = 800;
 const SWIPE = 90; // ab so vielen Pixeln zählt das Wischen
 
-const SOURCE: Record<Term["source"], string> = { name: "Name", ordner: "Ordner", tag: "Tag", suche: "Frühere Suche" };
+const SOURCE: Record<Term["source"], string> = { foto: "Oft auf deinen Fotos", name: "Gelernter Name", suche: "Deine Suche" };
 
 export default function TrainSheet({ accounts, start, onClose }: { accounts: Account[]; start?: string; onClose: () => void }) {
   const [terms, setTerms] = useState<Term[] | null>(null);
@@ -22,6 +22,7 @@ export default function TrainSheet({ accounts, start, onClose }: { accounts: Acc
   const [ci, setCi] = useState(0);
   const [done, setDone] = useState({ yes: 0, no: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState<string | null>(null);
   const skipped = useRef(0);
   const [round, setRound] = useState(0);
 
@@ -32,7 +33,7 @@ export default function TrainSheet({ accounts, start, onClose }: { accounts: Acc
   }, []);
 
   useEffect(() => {
-    trainingTerms()
+    trainingTerms(setPreparing)
       .then((t) => setTerms(start ? [{ label: start, source: "suche" as const }, ...t.filter((x) => x.label.toLowerCase() !== start.toLowerCase())] : t))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [start]);
@@ -90,10 +91,13 @@ export default function TrainSheet({ accounts, start, onClose }: { accounts: Acc
           {error ? (
             <p className="muted small">Nicht möglich: {error}</p>
           ) : !terms ? (
-            <div className="spinner" style={{ margin: "40px auto" }} />
+            <div className="train-card train-placeholder">
+              <div className="spinner" />
+              <p className="muted small">{preparing ?? "Schaue, was oft auf deinen Fotos ist …"}</p>
+            </div>
           ) : !terms.length ? (
             <p className="muted small">
-              Noch keine Begriffe – sobald du Ordner, Tags, Namen oder Suchen hast, kommen sie hier zum Trainieren.
+              Noch keine Begriffe – die KI muss zuerst mehr Fotos lernen (mindestens 20). Später nochmals versuchen.
             </p>
           ) : (
             <>
@@ -102,6 +106,7 @@ export default function TrainSheet({ accounts, start, onClose }: { accounts: Acc
                   {term ? SOURCE[term.source] : ""} · {done.yes + done.no} bewertet
                 </span>
                 <h2>Passt „{term?.label}“?</h2>
+                {term?.note && term.source === "foto" && <span className="muted small">{term.note}</span>}
                 <button className="link small" onClick={next}>
                   Anderer Begriff
                 </button>
