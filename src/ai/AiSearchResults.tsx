@@ -15,6 +15,7 @@ import { parseQuery } from "./query";
 import { useFeedbackEnabled } from "./flag";
 
 const Viewer = lazy(() => import("../components/Viewer"));
+const TrainSheet = lazy(() => import("./TrainSheet"));
 
 export default function AiSearchResults({
   query,
@@ -32,6 +33,7 @@ export default function AiSearchResults({
   const [viewer, setViewer] = useState<number | null>(null);
   const [votes, setVotes] = useState<Map<string, 1 | -1>>(new Map());
   const feedbackOn = useFeedbackEnabled();
+  const [training, setTraining] = useState(false);
   useTags();
   const [, tick] = useState(0);
   const seq = useRef(0);
@@ -161,7 +163,17 @@ export default function AiSearchResults({
         </p>
       )}
       {feedbackOn && result && !busy && !result.filterOnly && items.length > 0 && (
-        <p className="faint small ai-understood">👍 passt · 👎 passt nicht – die Suche lernt daraus, auch für ähnliche Suchen.</p>
+        <p className="faint small ai-understood">
+          👍 passt · 👎 passt nicht – die Suche lernt daraus, auch für ähnliche Suchen.{" "}
+          <button className="link small" onClick={() => setTraining(true)}>
+            Schneller trainieren
+          </button>
+        </p>
+      )}
+      {training && (
+        <Suspense fallback={null}>
+          <TrainSheet accounts={accounts} start={parseQuery(query).text || query} onClose={() => setTraining(false)} />
+        </Suspense>
       )}
 
       {items.length > 0 && (

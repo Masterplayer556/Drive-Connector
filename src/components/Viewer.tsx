@@ -56,12 +56,15 @@ export default function Viewer({
   accounts,
   onIndex,
   onClose,
+  action,
 }: {
   items: Item[];
   index: number;
   accounts: Account[];
   onIndex: (i: number) => void;
   onClose: () => void;
+  /** Zusätzlicher Knopf unten, z. B. „In ‚Pikachu‘ verschieben“ */
+  action?: { label: string; icon: string; run: (item: Item) => void };
 }) {
   const item = items[index];
   // Nur ein anderes Foto (nicht ein neu geladenes Objekt desselben Fotos) setzt Zoom & Bilder zurück
@@ -508,6 +511,11 @@ export default function Viewer({
         <div className="zoom-chip glass">
           {z.s.toFixed(1)}×{fullState === "loading" ? " · lädt Original…" : atMax ? " · volle Auflösung" : ""}
         </div>
+      )}
+      {action && (
+        <button className="btn primary viewer-action" onClick={() => action.run(item)}>
+          <Icon name={action.icon} size={18} /> {action.label}
+        </button>
       )}
       <div className="viewer-info glass">
         <span className="chip-lite">

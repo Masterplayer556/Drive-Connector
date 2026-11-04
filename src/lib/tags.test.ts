@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanTag, countTags, inheritsTag, markerColor } from "./tags";
+import { cleanTag, countTags, inheritsTag, markerColor, tagHits } from "./tags";
 
 describe("Tags", () => {
   it("räumt Eingaben auf", () => {
@@ -31,5 +31,19 @@ describe("Ordner-Tags", () => {
     expect(inheritsTag("Privat/Figuren/Pikachu2/a.jpg", "Pikachu", folders)).toBe(false);
     expect(inheritsTag("Privat/Figuren/a.jpg", "Pikachu", folders)).toBe(false);
     expect(inheritsTag(null, "Pikachu", folders)).toBe(false);
+  });
+});
+
+describe("Tags ohne #", () => {
+  const tags = [
+    { tag: "Ferien", count: 12 },
+    { tag: "Ferien 2024", count: 3 },
+    { tag: "Rot", count: 2 },
+  ];
+  it("findet Tags als ganze Wörter", () => {
+    expect(tagHits("ferien strand", tags)).toEqual([{ tag: "Ferien", count: 12, query: "#Ferien strand" }]);
+    expect(tagHits("Ferien 2024", tags).map((t) => t.query)).toEqual(["#Ferien 2024", '#"Ferien 2024"']);
+    expect(tagHits("Ferienhaus", tags)).toEqual([]);
+    expect(tagHits("#Ferien", tags)).toEqual([]);
   });
 });

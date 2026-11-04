@@ -30,10 +30,9 @@ export default function FolderAiSheet({ folder, accounts, onClose }: { folder: L
   const [text, setText] = useState("");
   const [similar, setSimilar] = useState<{ items: Item[]; learned: number } | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [viewer, setViewer] = useState<number | null>(null);
-  const [moving, setMoving] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [moving, setMoving] = useState<Item | null>(null);
+  const [moved, setMoved] = useState<Set<string>>(new Set());
 
   const loadNames = () =>
     Promise.all([folderNames(folder.path), allNames()])
@@ -53,13 +52,10 @@ export default function FolderAiSheet({ folder, accounts, onClose }: { folder: L
     const priv = privateAccounts(accounts);
     const isPrivate = folder.parts.length > 0 && folder.parts.every((p) => priv.has(p.account_id));
     similarToFolder(folder.path, { exclude: isPrivate ? undefined : priv })
-      .then((r) => {
-        setSimilar(r);
-        setPicked(new Set());
-      })
+      .then(setSimilar)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folder.path, tick]);
+  }, [folder.path]);
 
   const has = (n: string) => (linked ?? []).some((l) => l.toLowerCase() === n.toLowerCase());
   const add = async (name: string) => {
@@ -83,16 +79,9 @@ export default function FolderAiSheet({ folder, accounts, onClose }: { folder: L
     .filter((k) => !has(k.label) && (!typed || k.label.toLowerCase().startsWith(typed)))
     .slice(0, 8);
 
-  const items = similar?.items ?? [];
   const key = (f: Item) => `${f.account_id}|${f.drive_id}`;
-  const toggle = (f: Item) =>
-    setPicked((s) => {
-      const n = new Set(s);
-      if (n.has(key(f))) n.delete(key(f));
-      else n.add(key(f));
-      return n;
-    });
-  const pickedItems = items.filter((f) => picked.has(key(f)));
+  // Verschobene verschwinden aus der Liste (sie liegen jetzt im Ordner)
+  const items = (similar?.items ?? []).filter((f) => !moved.has(key(f)));
 
   return (
     <>
@@ -165,29 +154,13 @@ export default function FolderAiSheet({ folder, accounts, onClose }: { folder: L
           ) : (
             <>
               <p className="faint small ai-understood">
-                Ähnlich wie die {similar.learned.toLocaleString("de-CH")} gelernten Fotos im Ordner. Antippen zum Auswählen, Lupe zum Ansehen.
+                Ähnlich wie die {similar.learned.toLocaleString("de-CH")} gelernten Fotos im Ordner. Antippen zum Ansehen – dort kannst du es
+                hierher verschieben.
               </p>
-              <div className="grid stagger" style={{ padding: "8px 0 90px" }}>
+              <div className="grid stagger" style={{ padding: "8px 0" }}>
                 {items.map((f, i) => (
-                  <button
-                    key={key(f)}
-                    className={`cell ${picked.has(key(f)) ? "selected" : ""}`}
-                    style={{ ["--i" as string]: i }}
-                    onClick={() => toggle(f)}
-                  >
+                  <button key={key(f)} className="cell" style={{ ["--i" as string]: i }} onClick={() => setViewer(i)}>
                     <Thumb item={f} />
-                    <span
-                      className="ai-cell-zoom"
-                      role="button"
-                      aria-label="Ansehen"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setViewer(i);
-                      }}
-                    >
-                      <Icon name="search" size={14} />
-                    </span>
-                    <span className={`check ${picked.has(key(f)) ? "on" : ""}`}>{picked.has(key(f)) && <Icon name="check" size={15} />}</span>
                     <span className="cell-name">{f.path?.split("/").slice(-2, -1)[0] ?? f.name}</span>
                     {f.mime_type?.startsWith("video/") && (
                       <span className="cell-play">
@@ -200,36 +173,41 @@ export default function FolderAiSheet({ folder, accounts, onClose }: { folder: L
             </>
           )}
         </div>
-        {pickedItems.length > 0 && (
-          <div className="ai-folder-bar">
-            <button className="link small" onClick={() => setPicked(picked.size === items.length ? new Set() : new Set(items.map(key)))}>
-              {picked.size === items.length ? "Keine" : "Alle"}
-            </button>
-            <button className="btn primary small" onClick={() => setMoving(true)}>
-              <Icon name="move" size={16} /> {pickedItems.length} in „{folder.name}“ verschieben
-            </button>
-          </div>
-        )}
       </div>
       {viewer !== null && items[viewer] && (
         <div className="ai-similar-viewer">
           <Suspense fallback={null}>
-            <Viewer items={items} index={viewer} accounts={accounts} onIndex={setViewer} onClose={() => setViewer(null)} />
+            <Viewer
+              items={items}
+              index={viewer}
+              accounts={accounts}
+              onIndex={setViewer}
+              onClose={() => setViewer(null)}
+              action={{ label: `In „${folder.name}“ verschieben`, icon: "move", run: (f) => setMoving(f) }}
+            />
           </Suspense>
         </div>
       )}
       {moving && (
-        <Suspense fallback={null}>
-          <MoveSheet
-            items={pickedItems}
-            accounts={accounts}
-            target={crumbsOf(folder.path)}
-            onClose={(changed) => {
-              setMoving(false);
-              if (changed) setTick((t) => t + 1); // Liste neu rechnen (verschobene sind jetzt drin)
-            }}
-          />
-        </Suspense>
+        // Über der Foto-Ansicht
+        <div className="ai-move-layer">
+          <Suspense fallback={null}>
+            <MoveSheet
+              items={[moving]}
+              accounts={accounts}
+              target={crumbsOf(folder.path)}
+              onClose={(changed) => {
+                const k = key(moving);
+                setMoving(null);
+                if (!changed) return;
+                // Aus der Liste nehmen; die Foto-Ansicht zeigt das nächste Foto (oder schliesst, wenn keins mehr da ist)
+                const left = items.filter((f) => key(f) !== k);
+                setMoved((m) => new Set(m).add(k));
+                setViewer((v) => (v === null || !left.length ? null : Math.min(v, left.length - 1)));
+              }}
+            />
+          </Suspense>
+        </div>
       )}
     </>
   );

@@ -263,7 +263,7 @@ export default function MehrView({ session, accounts }: { session: Session; acco
         <span>Suche</span>
       </div>
       <Suspense fallback={null}>
-        <AiSettings />
+        <AiSettings accounts={accounts} />
       </Suspense>
 
       <div className="section-title">
