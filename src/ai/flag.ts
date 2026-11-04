@@ -93,7 +93,7 @@ export interface Tally {
   right: number;
   same: number;
 }
-const pairKey = (a: ModelId, b: ModelId) => `${a}|${b}`;
+const pairKey = (a: string, b: string) => `${a}|${b}`;
 
 function readTallies(): Record<string, Tally> {
   try {
@@ -105,11 +105,11 @@ function readTallies(): Record<string, Tally> {
   return {};
 }
 
-export function compareTally(a: ModelId, b: ModelId): Tally {
+export function compareTally(a: string, b: string): Tally {
   return readTallies()[pairKey(a, b)] ?? { left: 0, right: 0, same: 0 };
 }
 
-export function addToTally(a: ModelId, b: ModelId, winner: keyof Tally): Tally {
+export function addToTally(a: string, b: string, winner: keyof Tally): Tally {
   const all = readTallies();
   const t = all[pairKey(a, b)] ?? { left: 0, right: 0, same: 0 };
   t[winner]++;
@@ -122,7 +122,7 @@ export function addToTally(a: ModelId, b: ModelId, winner: keyof Tally): Tally {
   return t;
 }
 
-export function resetTally(a: ModelId, b: ModelId) {
+export function resetTally(a: string, b: string) {
   const all = readTallies();
   delete all[pairKey(a, b)];
   try {
@@ -164,4 +164,29 @@ export function setLearningDevice(on: boolean) {
 
 export function useLearningDevice(): boolean {
   return useSyncExternalStore(onAiFlag, learningDevice, () => false);
+}
+
+// ---- Kombi: beim Test-Modell zusätzlich das Standard-Modell fragen und zusammenrechnen (Standard: an) ----
+const KOMBI_KEY = "drivepool.ai.kombi";
+
+export function kombi(): boolean {
+  try {
+    return localStorage.getItem(KOMBI_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function setKombi(on: boolean) {
+  try {
+    if (on) localStorage.removeItem(KOMBI_KEY);
+    else localStorage.setItem(KOMBI_KEY, "0");
+  } catch {
+    /* ignorieren */
+  }
+  window.dispatchEvent(new Event("drivepool-ai"));
+}
+
+export function useKombi(): boolean {
+  return useSyncExternalStore(onAiFlag, kombi, () => true);
 }

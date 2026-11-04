@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyFeedback, dot, groupSimilar, rank, relatedness } from "./rank";
+import { applyFeedback, dot, fuse, groupSimilar, rank, relatedness } from "./rank";
 
 const v = (...xs: number[]) => {
   const a = new Float32Array(xs);
@@ -157,5 +157,24 @@ describe("Abziehen (negative)", () => {
     ]);
     expect(rank(q, map, { floor: -1, window: 1 })[0].key).toBe("schrift");
     expect(rank(q, map, { floor: -1, window: 1, negative: neg })[0].key).toBe("echt");
+  });
+});
+
+describe("Kombi (fuse)", () => {
+  it("rechnet Modelle mit verschiedener Skala fair zusammen", () => {
+    // Modell A: tiefe Werte, Modell B: hohe Werte – beide finden "x" am besten
+    const a = new Map<string, number>();
+    const b = new Map<string, number>();
+    for (let i = 0; i < 50; i++) {
+      a.set(`n${i}`, 0.05 + (i % 5) * 0.002);
+      b.set(`n${i}`, 0.2 + (i % 5) * 0.004);
+    }
+    a.set("x", 0.12).set("y", 0.1);
+    b.set("x", 0.3).set("z", 0.29);
+    const hits = fuse([
+      { scores: a, weight: 1 },
+      { scores: b, weight: 1 },
+    ]);
+    expect(hits[0].key).toBe("x");
   });
 });

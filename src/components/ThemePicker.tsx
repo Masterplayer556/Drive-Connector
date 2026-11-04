@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { readPrefs, savePrefs, THEMES, type ThemeId, type ThemePrefs } from "../lib/theme";
+import { readPrefs, resolveTheme, savePrefs, THEMES, type ThemeId, type ThemePrefs } from "../lib/theme";
 import Icon from "./Icon";
 
 /** Design-Auswahl mit Live-Vorschau-Kacheln und „Automatisch hell/dunkel“. */
@@ -9,6 +9,12 @@ export default function ThemePicker() {
   const update = (next: ThemePrefs) => {
     setPrefs(next);
     savePrefs(next);
+  };
+  // Mit „Automatisch hell/dunkel“ würde ein angetipptes Design oft gar nicht erscheinen (iPhone hell → immer
+  // Polar). Darum: Design antippen = genau dieses zeigen, Automatik aus – ausser es passt gerade zur Automatik.
+  const choose = (theme: ThemeId) => {
+    const next = { ...prefs, theme };
+    update(next.auto && resolveTheme(next) !== theme ? { ...next, auto: false } : next);
   };
 
   return (
@@ -21,7 +27,7 @@ export default function ThemePicker() {
               key={t.id}
               className={`theme-card ${on ? "on" : ""}`}
               style={{ ["--i" as string]: i }}
-              onClick={() => update({ ...prefs, theme: t.id as ThemeId })}
+              onClick={() => choose(t.id as ThemeId)}
             >
               <div className="theme-preview" style={{ background: t.preview.bg }}>
                 <i style={{ width: 70, height: 70, left: -14, top: -20, background: t.preview.blobs[0] }} />

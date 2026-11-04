@@ -4,14 +4,14 @@ import type { Item } from "../lib/types";
 import { catalog } from "./catalog";
 import { MODELS, type ModelId } from "./protocol";
 import { syncDown } from "./cloud";
-import { aiModel } from "./flag";
+import { aiModel, kombi } from "./flag";
 import { embedConcepts, embedText } from "./engine";
 import { conceptVocabulary, nameWords, toEnglish } from "./dict";
 import { expandNameKeys, FOLDER_KEY, folderKey, isFolderKey, learnedNames, prototypeOf, rankByName } from "./names";
 import { inFolder, parseQuery } from "./query";
 import { frequentConcepts, pickCards, sample, type Term } from "./train";
 import { allTags, inheritsTag, loadFolderTags, loadTags, markerColor, tagHits, tagKey } from "../lib/tags";
-import { applyFeedback, groupSimilar, rank, spread } from "./rank";
+import { applyFeedback, fuse, groupSimilar, rank, scoreAll, spread, type Adjust, type Hit } from "./rank";
 import { allFeedback, allVectors, deleteFeedback, getMeta, itemKey, putFeedback, putMeta, type Feedback } from "./store";
 
 export interface AiResult {
@@ -45,6 +45,48 @@ async function loadVectors(): Promise<Map<string, Float32Array>> {
     vectors = { at: Date.now(), model: aiModel(), map: await allVectors() };
   }
   return vectors.map;
+}
+
+// Index des Partner-Modells für die Kombi (Standard), ebenfalls höchstens alle 30 s neu lesen
+let partnerVectors: { at: number; model: ModelId; map: Map<string, Float32Array> } | null = null;
+async function vectorsOf(model: ModelId): Promise<Map<string, Float32Array>> {
+  if (model === aiModel()) return loadVectors();
+  if (!partnerVectors || partnerVectors.model !== model || Date.now() - partnerVectors.at > 30_000) {
+    partnerVectors = { at: Date.now(), model, map: await allVectors(model) };
+  }
+  return partnerVectors.map;
+}
+
+/** Kombi aktiv? Dann wird beim Test-Modell zusätzlich Standard gefragt. */
+const kombiPartner = (): ModelId | null => (kombi() && MODELS[aiModel()].cloud ? "clip" : null);
+
+/**
+ * Kombi-Suche: dieselben Fotos auch mit dem Partner-Modell bewerten und beide zusammenrechnen.
+ * null = Partner hat zu wenig gelernt (dann nur das gewählte Modell).
+ */
+async function kombiHits(
+  text: string,
+  partner: ModelId,
+  map: Map<string, Float32Array>,
+  primary: Map<string, number>,
+  { limit, adjust }: { limit: number; adjust?: Adjust },
+): Promise<Hit[] | null> {
+  const pv = await vectorsOf(partner);
+  const pmap = new Map<string, Float32Array>();
+  for (const k of map.keys()) {
+    const v = pv.get(k);
+    if (v) pmap.set(k, v);
+  }
+  if (pmap.size < map.size * 0.5) return null;
+  const e = await embedText(text, partner);
+  const other = scoreAll(e.vec, pmap, { keywords: e.kvecs, negative: e.nvec });
+  return fuse(
+    [
+      { scores: primary, weight: 1 },
+      { scores: other, weight: 1 },
+    ],
+    { limit, adjust },
+  );
 }
 
 /** Rechnet das gewählte Modell mit eigener Skala? (siehe ModelSpec.autoFloor) */
@@ -144,7 +186,10 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
     for (const k of t.keys.slice(0, 300)) fbNow.push({ q: vec, key: k, vote: 1 });
   }
   const { query: q2, adjust } = applyFeedback(vec, fbNow, map);
-  const hits = rank(q2, map, { limit: 30, adjust, keywords: kvecs, auto: autoFloor(), negative: nvec }); // wenige Vorschaubilder = wenig Speicher
+  const partner = kombiPartner();
+  const hits =
+    (partner && (await kombiHits(text, partner, map, scoreAll(q2, map, { keywords: kvecs, negative: nvec }), { limit: 30, adjust }).catch(() => null))) ||
+    rank(q2, map, { limit: 30, adjust, keywords: kvecs, auto: autoFloor(), negative: nvec }); // wenige Vorschaubilder = wenig Speicher
   for (const f of fb) if (f.english.toLowerCase() === english.toLowerCase()) base.votes.set(f.key, f.vote);
   return {
     ...base,
@@ -422,22 +467,44 @@ export interface CompareSide {
   learned: number;
 }
 
+/** Im Vergleich wählbar: ein Modell oder die Kombi (MobileCLIP-B + Standard). */
+export type CompareId = ModelId | "kombi";
+
 export async function compareModels(
   query: string,
-  left: ModelId,
-  right: ModelId,
+  left: CompareId,
+  right: CompareId,
   { exclude }: { exclude?: Set<string> } = {},
 ): Promise<{ english: string; left: CompareSide; right: CompareSide }> {
   const items = await catalog();
-  const side = async (model: ModelId): Promise<CompareSide & { english: string }> => {
+  const learnedOf = async (model: ModelId) => {
     // Was der PC gelernt hat, zuerst holen (auch wenn gerade ein anderes Modell gewählt ist)
     if (MODELS[model].cloud) await syncDown(model).catch(() => 0);
     const all = without(await allVectors(model), exclude);
-    const map = new Map([...all].filter(([k]) => items.has(k)));
+    return new Map([...all].filter(([k]) => items.has(k)));
+  };
+  const toItems = (hits: Hit[]) => hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x);
+  const side = async (id: CompareId): Promise<CompareSide & { english: string }> => {
+    if (id === "kombi") {
+      const map = await learnedOf("mobileclipB");
+      const pmap = await learnedOf("clip");
+      if (!map.size && !pmap.size) return { items: [], learned: 0, english: "" };
+      const a = await embedText(query, "mobileclipB");
+      const b = await embedText(query, "clip");
+      const hits = fuse(
+        [
+          { scores: scoreAll(a.vec, map, { keywords: a.kvecs, negative: a.nvec }), weight: 1 },
+          { scores: scoreAll(b.vec, pmap, { keywords: b.kvecs }), weight: 1 },
+        ],
+        { limit: 12 },
+      );
+      return { items: toItems(hits), learned: Math.max(map.size, pmap.size), english: a.english };
+    }
+    const map = await learnedOf(id);
     if (!map.size) return { items: [], learned: 0, english: "" };
-    const { vec, english, kvecs, nvec } = await embedText(query, model);
-    const hits = rank(vec, map, { limit: 12, keywords: kvecs, auto: !!MODELS[model].autoFloor, negative: nvec });
-    return { items: hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x), learned: map.size, english };
+    const { vec, english, kvecs, nvec } = await embedText(query, id);
+    const hits = rank(vec, map, { limit: 12, keywords: kvecs, auto: !!MODELS[id].autoFloor, negative: nvec });
+    return { items: toItems(hits), learned: map.size, english };
   };
   // Nacheinander, nicht gleichzeitig (Arbeitsspeicher)
   const l = await side(left);
