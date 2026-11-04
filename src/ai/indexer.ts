@@ -240,6 +240,8 @@ async function pass(stopped: () => boolean): Promise<"done" | "wait"> {
       const k = itemKey(it);
       if (have.has(k)) return false;
       const s = skips.get(k);
+      // Geräte, die beim Cloud-Modell nur herunterladen: vom PC als nicht lernbar gemeldet = erledigt
+      if (s && spec.cloud && !learningDevice()) return false;
       return !s || now - s.at > retryAfter(s.n);
     })
     // Neueste zuerst – die sucht man am ehesten
@@ -260,7 +262,7 @@ async function pass(stopped: () => boolean): Promise<"done" | "wait"> {
     return "wait";
   }
   // Am PC Gelerntes laufend hochladen
-  const upload: [string, Float32Array][] = [];
+  const upload: [string, Float32Array | null][] = [];
   const flush = async (force = false) => {
     if (!spec.cloud || !upload.length || (!force && upload.length < 50)) return;
     const part = upload.splice(0, upload.length);
@@ -333,8 +335,8 @@ async function pass(stopped: () => boolean): Promise<"done" | "wait"> {
         }
       }
       await (vec ? putVector(k, vec) : markSkip(k));
-      if (vec && spec.cloud) {
-        upload.push([k, vec]);
+      if (spec.cloud) {
+        upload.push([k, vec]); // auch „nicht lernbar“ melden, sonst warten andere Geräte ewig darauf
         await flush();
       }
       done++;

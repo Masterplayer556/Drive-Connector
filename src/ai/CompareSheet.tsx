@@ -1,6 +1,7 @@
 // KI-SUCHE (Test): Vergleich – dieselbe Suche mit beiden Modellen nebeneinander, nur in den Testordnern.
 // Ohne 👍/👎, Namen und Tags (reiner Modellvergleich). Strichliste: welches Modell war besser?
 import "./ai.css";
+import { createPortal } from "react-dom";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import Thumb from "../components/Thumb";
@@ -76,7 +77,8 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
     </div>
   );
 
-  return (
+  // Direkt an die Seite hängen: im Einstellungs-Kasten (Glas-Effekt) würde das Fenster sonst eingesperrt
+  return createPortal(
     <>
       <div className="sheet-backdrop" onClick={onClose} />
       <div className="sheet search-sheet">
@@ -151,6 +153,7 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
           </Suspense>
         </div>
       )}
-    </>
+    </>,
+    document.body,
   );
 }
