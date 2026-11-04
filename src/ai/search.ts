@@ -38,14 +38,10 @@ function without(map: Map<string, Float32Array>, accounts?: Set<string>): Map<st
 export const privateAccounts = (accounts: { id: string; role: string }[]) =>
   new Set(accounts.filter((a) => a.role === "privat").map((a) => a.id));
 
-export async function aiSearch(
-  query: string,
-  { exclude, useFeedback = true }: { exclude?: Set<string>; useFeedback?: boolean } = {},
-): Promise<AiResult> {
-  const [all, saved] = await Promise.all([loadVectors(), feedback ?? allFeedback().catch(() => [])]);
-  feedback = saved;
-  // Feedback ausgeschaltet → Bewertungen bleiben gespeichert, wirken aber nicht
-  const fb = useFeedback ? saved : [];
+export async function aiSearch(query: string, { exclude }: { exclude?: Set<string> } = {}): Promise<AiResult> {
+  // Bisherige Bewertungen wirken immer – der Schalter in den Einstellungen blendet nur die 👍/👎-Knöpfe aus
+  const [all, fb] = await Promise.all([loadVectors(), feedback ?? allFeedback().catch(() => [])]);
+  feedback = fb;
   const map = without(all, exclude);
   const [{ vec, english }, items] = await Promise.all([embedText(query), catalog()]);
   // Feedback dieser und ähnlicher Suchen einrechnen

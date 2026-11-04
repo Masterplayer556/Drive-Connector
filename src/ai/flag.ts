@@ -54,7 +54,7 @@ export function setFeedbackEnabled(on: boolean) {
   window.dispatchEvent(new Event("drivepool-ai"));
 }
 
-/** React-Hook: 👍/👎 anzeigen und Bewertungen in die Suche einrechnen? */
+/** React-Hook: 👍/👎-Knöpfe anzeigen? (Bisherige Bewertungen wirken immer.) */
 export function useFeedbackEnabled(): boolean {
   return useSyncExternalStore(onAiFlag, feedbackEnabled, () => true);
 }

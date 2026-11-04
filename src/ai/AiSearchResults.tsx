@@ -50,14 +50,14 @@ export default function AiSearchResults({
     setBusy(true);
     // Etwas länger warten als die Namenssuche: erst wenn du kurz nicht mehr tippst
     const t = setTimeout(() => {
-      aiSearch(term, { exclude: includePrivate ? undefined : privateAccounts(accounts), useFeedback: feedbackOn })
+      aiSearch(term, { exclude: includePrivate ? undefined : privateAccounts(accounts) })
         .then((r) => n === seq.current && (setResult(r), setVotes(new Map(r.votes)), setError(null)))
         .catch((e) => n === seq.current && setError(e instanceof Error ? e.message : String(e)))
         .finally(() => n === seq.current && setBusy(false));
     }, 550);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, includePrivate, feedbackOn]);
+  }, [query, includePrivate]);
 
   if (query.trim().length < 3) return null;
 

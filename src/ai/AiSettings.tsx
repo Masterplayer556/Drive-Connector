@@ -154,7 +154,7 @@ export default function AiSettings() {
               <span className="faint">
                 {feedbackOn
                   ? " Bewertungen bei den Treffern – die Suche lernt daraus."
-                  : " Aus – keine Knöpfe, Bewertungen wirken nicht (bleiben aber gespeichert)."}
+                  : " Aus – keine Knöpfe mehr. Bisherige Bewertungen wirken weiter."}
               </span>
             </span>
             <span className="switch">
