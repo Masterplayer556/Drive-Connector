@@ -123,6 +123,6 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.includes("/assets/") || url.pathname.includes("/icons/")) {
     event.respondWith(cacheFirst(req));
   } else if (req.mode === "navigate") {
-    event.respondWith(networkFirst(req, 2500));
+    event.respondWith(networkFirst(req, 1200));
   }
 });

@@ -12,8 +12,21 @@ const folders = new Map<string, Entry>();
 const inflight = new Map<string, Promise<FolderContent>>();
 const PREFETCH_TTL = 60 * 1000;
 
+// Oberste Ebene zusätzlich auf dem Gerät merken → nach dem Öffnen der App sofort sichtbar
+const ROOT_KEY = "drivepool.root";
+
 export function cachedFolder(key: string): Entry | undefined {
-  return folders.get(key);
+  const hit = folders.get(key);
+  if (hit || key !== "") return hit;
+  try {
+    const raw = localStorage.getItem(ROOT_KEY);
+    if (!raw) return undefined;
+    const e = { content: JSON.parse(raw) as FolderContent, at: 0 };
+    folders.set(key, e);
+    return e;
+  } catch {
+    return undefined;
+  }
 }
 
 export function loadFolder(key: string): Promise<FolderContent> {
@@ -22,6 +35,13 @@ export function loadFolder(key: string): Promise<FolderContent> {
   const p = fetchFolder(key)
     .then((content) => {
       folders.set(key, { ...folders.get(key), content, at: Date.now() });
+      if (key === "") {
+        try {
+          localStorage.setItem(ROOT_KEY, JSON.stringify(content));
+        } catch {
+          /* ignorieren */
+        }
+      }
       return content;
     })
     .finally(() => inflight.delete(key));
@@ -74,6 +94,7 @@ export function clearLocalCaches() {
   folders.clear();
   try {
     localStorage.removeItem(ACCOUNTS_KEY);
+    localStorage.removeItem(ROOT_KEY);
   } catch {
     /* ignorieren */
   }

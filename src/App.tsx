@@ -139,6 +139,15 @@ function Shell() {
     if (userId) void start();
   }, [userId, start]);
 
+  // KI-SUCHE: Hintergrund-Index erst nach dem Start – er liest zehntausende Einträge und würde sonst
+  // mit dem Laden der Ordner um Netz und Rechenzeit kämpfen (Start dauerte so mehrere Sekunden)
+  const [aiLater, setAiLater] = useState(false);
+  useEffect(() => {
+    if (phase !== "ready" || aiLater) return;
+    const t = setTimeout(() => setAiLater(true), 8_000);
+    return () => clearTimeout(t);
+  }, [phase, aiLater]);
+
   // Ordnerfarben aus den Fotos: kurz nach dem Start nebenbei nachrechnen (nur Neues/Verändertes)
   useEffect(() => {
     if (phase !== "ready") return;
@@ -188,7 +197,7 @@ function Shell() {
           </button>
         )}
         {/* KI-SUCHE: Hintergrund-Index, nur wenn eingeschaltet und entsperrt */}
-        {ai && (
+        {ai && aiLater && (
           <Suspense fallback={null}>
             <AiIndexer />
           </Suspense>
