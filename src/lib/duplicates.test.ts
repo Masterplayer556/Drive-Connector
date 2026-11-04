@@ -29,11 +29,16 @@ describe("Duplikate", () => {
   it("verschiedene normale Ordner → kein Vorschlag", () => {
     expect(suggestRemoval([it_("1", "Archiv/A/x.jpg"), it_("2", "Archiv/B/x.jpg")]).size).toBe(0);
   });
-  it("Random-Kopie weg, wenn das Foto auch woanders liegt", () => {
+  it("Random-Kopie weg, wenn das Foto auch woanders liegt – nur direkt in Random", () => {
     const g = [it_("1", "Archiv/A/x.jpg"), it_("2", "Archiv/Random/x.jpg"), it_("3", "Archiv/Random/Sub/x.jpg")];
-    expect(keys(suggestRemoval(g))).toEqual([dupKey(g[1]), dupKey(g[2])].sort());
-    expect(inRandom(g[2])).toBe(true);
+    expect(keys(suggestRemoval(g))).toEqual([dupKey(g[1])]);
+    expect(inRandom(g[1])).toBe(true);
+    expect(inRandom(g[2])).toBe(false);
     expect(inRandom(it_("4", "Archiv/Randomly/x.jpg"))).toBe(false);
+  });
+  it("Unterordner von Random zählen wie normale Ordner", () => {
+    const g = [it_("1", "Archiv/A/x.jpg"), it_("2", "Archiv/Random/Favorites /x.jpg")];
+    expect(suggestRemoval(g).size).toBe(0);
   });
   it("nur in Random: gilt die Ordner-Regel", () => {
     const g = [it_("1", "Random/x.jpg"), it_("2", "Random/x (1).jpg")];

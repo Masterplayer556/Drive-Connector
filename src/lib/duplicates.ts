@@ -1,7 +1,8 @@
 // Duplikate: welche Kopien sollen weg? Reine Funktionen (getestet).
 //
 // Fokus: (1) mehrere Kopien im selben Ordner → eine bleibt, die anderen weg;
-// (2) Ausnahme: Kopien im Ordner „Random“, wenn das Foto auch ausserhalb von Random liegt → die Random-Kopie weg.
+// (2) Ausnahme: Kopien direkt im Ordner „Random“ (nicht in Unterordnern davon), wenn das Foto auch anderswo
+//     liegt → die Random-Kopie weg. Unterordner von Random („Random/Favorites“) zählen wie normale Ordner.
 // Kopien in verschiedenen (normalen) Ordnern bleiben – die gehören oft bewusst in mehrere Ordner.
 import type { Item } from "./types";
 
@@ -9,9 +10,10 @@ export const dupKey = (i: Pick<Item, "account_id" | "drive_id">) => `${i.account
 
 const folderOf = (i: Item) => i.parent_key ?? (i.path ?? "").split("/").slice(0, -1).join("/");
 
-/** Liegt im Ordner „Random“ (oder einem Unterordner davon)? */
+/** Liegt direkt im Ordner „Random“ (…/Random/foto.jpg)? Unterordner von Random zählen nicht. */
 export function inRandom(i: Pick<Item, "path">): boolean {
-  return (i.path ?? "").split("/").slice(0, -1).some((s) => s.trim().toLowerCase() === "random");
+  const parts = (i.path ?? "").split("/");
+  return parts.length >= 2 && parts[parts.length - 2].trim().toLowerCase() === "random";
 }
 
 /** Welche Kopie im selben Ordner bleibt: kürzester Name (ohne „ (1)“ o. ä.), dann alphabetisch. */
