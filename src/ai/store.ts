@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Index nur auf diesem Gerät (IndexedDB). Nichts davon geht an Supabase oder Google.
+// KI-SUCHE: Index nur auf diesem Gerät (IndexedDB). Nichts davon geht an Supabase oder Google.
 import { aiModel } from "./flag";
 import { MODELS, type ModelId, type ModelSpec } from "./protocol";
 

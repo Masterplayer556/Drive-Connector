@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Verbindung zu den Workern.
+// KI-SUCHE: Verbindung zu den Workern.
 // Auf dem iPhone teilen sich App und alle Worker denselben Arbeitsspeicher – darum sparsam:
 // ein Bild-Worker (lernt) und ein Such-Worker, nie beide gleichzeitig. Beides läuft auf dem Prozessor.
 // Suchbegriffe gehen auf Englisch unverändert ans Modell.

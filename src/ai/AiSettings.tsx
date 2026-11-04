@@ -284,7 +284,7 @@ function LearnedNames() {
   );
 }
 
-/** Modell wählen: Standard oder MobileCLIP (Test). */
+/** Modell wählen: Standard oder MobileCLIP2-B. */
 function ModelChoice() {
   const model = useAiModel();
   const kombiOn = useKombi();

@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): baut den Index nebenbei auf, solange die App offen ist.
+// KI-SUCHE: baut den Index nebenbei auf, solange die App offen ist.
 // Portionsweise (ein Ordner, max. 30 Fotos). Normal: Pause bei Bedienung. „Schnell lernen“: keine Pausen,
 // Bildschirm bleibt an. Im Hintergrund friert iOS Web-Apps ein – dann geht es beim nächsten Öffnen weiter.
 import type { Item } from "../lib/types";

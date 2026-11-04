@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): läuft in einem eigenen Thread, damit die App beim Rechnen flüssig bleibt.
+// KI-SUCHE: läuft in einem eigenen Thread, damit die App beim Rechnen flüssig bleibt.
 // Alles passiert auf dem Gerät. Übers Netz kommen nur die Modelldateien (einmalig, danach im Gerätespeicher).
 import {
   AutoProcessor,

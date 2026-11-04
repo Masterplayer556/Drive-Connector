@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Filter im Suchtext. Reine Funktionen (getestet).
+// KI-SUCHE: Filter im Suchtext. Reine Funktionen (getestet).
 //   „O: Ferien Strand“ oder „O: "Ferien 2024" Strand“ → nur im Ordner „Ferien“ (inkl. Unterordner)
 //   „Video Strand“, „Videos vom Geburtstag“      → nur Videos
 

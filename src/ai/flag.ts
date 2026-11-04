@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Schalter ein/aus. Bewusst winzig und ohne Abhängigkeiten,
+// KI-SUCHE: Schalter ein/aus. Bewusst winzig und ohne Abhängigkeiten,
 // damit der Rest der App ihn nutzen kann, ohne das KI-Modul zu laden.
 import { useSyncExternalStore } from "react";
 import { isModelId, type ModelId } from "./protocol";

@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Rechnen mit den Fingerabdrücken (Vektoren). Reine Funktionen ohne Abhängigkeiten (getestet).
+// KI-SUCHE: Rechnen mit den Fingerabdrücken (Vektoren). Reine Funktionen ohne Abhängigkeiten (getestet).
 
 export interface Hit {
   key: string;

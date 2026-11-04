@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): „KI trainieren“ – Begriffe, die auf deinen Fotos oft vorkommen (und gelernte Namen),
+// KI-SUCHE: „KI trainieren“ – Begriffe, die auf deinen Fotos oft vorkommen (und gelernte Namen),
 // und je Begriff eine Reihe Fotos zum Wischen (passt / passt nicht). Reine Funktionen (getestet).
 
 export interface Term {

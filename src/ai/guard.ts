@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Absturz-Merker.
+// KI-SUCHE: Absturz-Merker.
 // iOS beendet eine Web-App ohne Vorwarnung, wenn sie zu viel Arbeitsspeicher braucht. Darum wird vor jedem
 // speicherhungrigen Schritt notiert, was gerade läuft. Geht die App normal in den Hintergrund, wird die
 // Notiz gelöscht. Steht sie beim nächsten Start noch da, ist die App bei genau diesem Schritt abgestürzt.

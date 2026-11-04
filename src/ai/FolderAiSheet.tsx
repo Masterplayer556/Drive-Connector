@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): ✨ für einen Ordner – Ordner mit einem Namen verknüpfen (z. B. ein Ordner pro Figur)
+// KI-SUCHE: ✨ für einen Ordner – Ordner mit einem Namen verknüpfen (z. B. ein Ordner pro Figur)
 // und passende Fotos finden, die noch woanders liegen (zum Hineinverschieben).
 import "./ai.css";
 import { lazy, Suspense, useEffect, useState } from "react";
