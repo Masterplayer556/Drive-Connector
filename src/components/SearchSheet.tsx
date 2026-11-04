@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { searchItems } from "../lib/db";
+import { allTags, taggedItems, useTags } from "../lib/tags";
+import { TagDots } from "./TagSheet";
 import { hueOf } from "../lib/folderColors";
 import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
@@ -30,6 +32,10 @@ export default function SearchSheet({
   const [mode, setMode] = useSearchMode(); // KI-SUCHE: mit KI oder nach Namen
   const [includePrivate, setIncludePrivate] = useState(false); // KI-SUCHE: private Konten nur auf Wunsch
   const kiMode = ai && mode === "ki"; // KI-SUCHE
+  useTags();
+  const tags = allTags();
+  // „#Ferien“ in der Namenssuche: alle Fotos mit diesem Tag
+  const tagQuery = !kiMode && q.trim().startsWith("#") ? q.trim().slice(1).replace(/^["“„«]|["”“»]$/g, "").trim() : null;
 
   useEffect(() => {
     setTimeout(() => input.current?.focus(), 150);
@@ -37,7 +43,7 @@ export default function SearchSheet({
 
   useEffect(() => {
     const term = q.trim();
-    if (term.length < 2 || kiMode) {
+    if ((term.length < 2 && !tagQuery) || kiMode || tagQuery === "") {
       setResults(null);
       setBusy(false);
       return;
@@ -45,12 +51,13 @@ export default function SearchSheet({
     const n = ++seq.current;
     setBusy(true);
     const t = setTimeout(() => {
-      searchItems(term)
+      (tagQuery ? taggedItems(tagQuery) : searchItems(term))
         .then((r) => n === seq.current && setResults(r))
         .catch(() => n === seq.current && setResults([]))
         .finally(() => n === seq.current && setBusy(false));
     }, 220);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, kiMode]);
 
   // Ordner aus mehreren Konten zusammenführen
@@ -94,17 +101,23 @@ export default function SearchSheet({
                   {!includePrivate && " Private Fotos sind ausgeblendet."}
                   <br />
                   „O: Ferien Strand“ sucht nur im Ordner „Ferien“, „Video Strand“ nur Videos.
-                  Englisch geht auch („dog in the snow“).
+                  Englisch geht auch („dog in the snow“). Eigene Tags: „#Ferien Strand“.
                 </p>
+              )}
+              {q.trim().length < 3 && tags.length > 0 && (
+                <TagChips tags={tags} onPick={(t) => setQ(`#${t.includes(" ") ? `"${t}"` : t}`)} />
               )}
               <Suspense fallback={null}>
                 <AiSearchResults query={q} accounts={accounts} includePrivate={includePrivate} />
               </Suspense>
             </>
           ) : results === null ? (
-            <p className="muted small" style={{ textAlign: "center", marginTop: 24 }}>
-              Mindestens 2 Zeichen – z. B. „Mathe“, „2024“ oder „IMG_45“.
-            </p>
+            <>
+              <p className="muted small" style={{ textAlign: "center", marginTop: 24 }}>
+                Mindestens 2 Zeichen – z. B. „Mathe“, „2024“ oder „IMG_45“. Eigene Tags mit „#“, z. B. „#Ferien“.
+              </p>
+              {tags.length > 0 && <TagChips tags={tags} onPick={(t) => setQ(`#${t.includes(" ") ? `"${t}"` : t}`)} />}
+            </>
           ) : results.length === 0 ? (
             <div className="empty">
               <div className="empty-icon">
@@ -146,13 +159,14 @@ export default function SearchSheet({
               {files.length > 0 && (
                 <>
                   <div className="section-title" style={{ padding: "4px 0" }}>
-                    <span>Fotos</span>
+                    <span>{tagQuery ? `#${tagQuery}` : "Fotos"}</span>
                     <span>{files.length}</span>
                   </div>
                   <div className="grid stagger">
                     {files.map((f, i) => (
                       <button key={`${f.account_id}|${f.drive_id}`} className="cell" style={{ ["--i" as string]: i }} onClick={() => setViewer(i)}>
                         <Thumb item={f} />
+                        <TagDots item={f} />
                         <span className="cell-name">{f.name}</span>
                           {f.mime_type?.startsWith("video/") && (
                             <span className="cell-play">
@@ -174,5 +188,19 @@ export default function SearchSheet({
         </Suspense>
       )}
     </>
+  );
+}
+
+/** Alle eigenen Tags zum Antippen (Merkzeichen als Farbpunkt). */
+function TagChips({ tags, onPick }: { tags: { tag: string; count: number; color: string | null }[]; onPick: (tag: string) => void }) {
+  return (
+    <div className="tag-chips" style={{ justifyContent: "center", marginTop: 12 }}>
+      {tags.map((t) => (
+        <button key={t.tag} className="tag-chip" onClick={() => onPick(t.tag)}>
+          {t.color ? <i className="tag-chip-dot" style={{ background: t.color }} /> : "#"}
+          {t.tag} <span className="faint">{t.count}</span>
+        </button>
+      ))}
+    </div>
   );
 }

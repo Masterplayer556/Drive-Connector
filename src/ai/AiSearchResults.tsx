@@ -3,6 +3,8 @@ import "./ai.css";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import Thumb from "../components/Thumb";
+import { TagDots } from "../components/TagSheet";
+import { useTags } from "../lib/tags";
 import type { Account, Item } from "../lib/types";
 import { modelProgress, onModelProgress } from "./engine";
 import { indexState, searchClosed, searchOpened } from "./indexer";
@@ -30,6 +32,7 @@ export default function AiSearchResults({
   const [viewer, setViewer] = useState<number | null>(null);
   const [votes, setVotes] = useState<Map<string, 1 | -1>>(new Map());
   const feedbackOn = useFeedbackEnabled();
+  useTags();
   const [, tick] = useState(0);
   const seq = useRef(0);
 
@@ -98,8 +101,13 @@ export default function AiSearchResults({
         </p>
       )}
       {error && <p className="muted small">KI-Suche nicht möglich: {error}</p>}
-      {result && !busy && (result.folder || result.video) && (
+      {result && !busy && (result.folder || result.video || result.tag) && (
         <div className="ai-filters">
+          {result.tag && (
+            <span className="ai-filter">
+              <Icon name="tag" size={12} /> {result.tag}
+            </span>
+          )}
           {result.folder && (
             <span className="ai-filter">
               <Icon name="folder" size={12} /> {result.folder}
@@ -131,18 +139,21 @@ export default function AiSearchResults({
         (result.filterOnly ? (
           <p className="faint small ai-understood">
             {result.indexed.toLocaleString("de-CH")} {result.video ? "Videos" : "Fotos und Videos"}
-            {result.folder && ` in Ordnern mit „${result.folder}“`} · neueste zuerst
+            {result.folder && ` in Ordnern mit „${result.folder}“`}
+            {result.tag && ` mit #${result.tag}`} · neueste zuerst
             {result.indexed > items.length && ` (die ersten ${items.length})`}
           </p>
         ) : (
           <p className="faint small ai-understood">
             Verstanden als „{result.english}“ · {result.indexed.toLocaleString("de-CH")} {result.video ? "Videos" : "Fotos"} durchsucht
-            {!result.folder && !result.video && idx.total > result.indexed && ` (von ${idx.total.toLocaleString("de-CH")})`}
+            {!result.folder && !result.video && !result.tag && idx.total > result.indexed && ` (von ${idx.total.toLocaleString("de-CH")})`}
           </p>
         ))}
       {result && !busy && items.length === 0 && (
         <p className="muted small">
-          {result.indexed === 0 && result.folder
+          {result.indexed === 0 && result.tag
+            ? `Keine Fotos mit #${result.tag}${result.filterOnly ? "" : " gelernt"}.`
+            : result.indexed === 0 && result.folder
             ? `Kein Ordner mit „${result.folder}“ gefunden (oder darin ist noch nichts gelernt).`
             : result.video && result.indexed === 0
               ? "Noch keine Videos gelernt."
@@ -162,6 +173,7 @@ export default function AiSearchResults({
               <div key={`${f.account_id}|${f.drive_id}`} className={`ai-cell ${v === -1 ? "down" : v === 1 ? "up" : ""}`} style={{ ["--i" as string]: i }}>
                 <button className="cell" onClick={() => setViewer(i)}>
                   <Thumb item={f} />
+                  <TagDots item={f} />
                   <span className="cell-name">{f.name}</span>
                   {f.mime_type?.startsWith("video/") && (
                     <span className="cell-play">

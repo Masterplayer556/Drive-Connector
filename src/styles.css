@@ -3679,3 +3679,136 @@ body.drag-moving {
     animation: none;
   }
 }
+
+/* ---------- Tags & Merkzeichen ---------- */
+.tag-sheet .sheet-body {
+  gap: 14px;
+}
+.tag-markers {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.tag-marker {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid var(--c);
+  background: color-mix(in srgb, var(--c) 22%, transparent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s var(--ease), background 0.15s var(--ease);
+}
+.tag-marker.on {
+  background: var(--c);
+  transform: scale(1.06);
+}
+.tag-marker.some {
+  background: linear-gradient(135deg, var(--c) 50%, color-mix(in srgb, var(--c) 22%, transparent) 50%);
+}
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--tint-rgb), 0.14);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tag-chip.on {
+  border-color: transparent;
+  background: rgba(var(--accent-rgb), 0.18);
+}
+.tag-chip.on.some {
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px dashed rgba(var(--accent-rgb), 0.5);
+}
+.tag-chip button {
+  display: inline-flex;
+  padding: 3px;
+  border: 0;
+  background: none;
+  color: inherit;
+  opacity: 0.75;
+}
+.tag-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+.tag-form-hash {
+  position: absolute;
+  left: 12px;
+  color: var(--faint);
+  font-weight: 700;
+  pointer-events: none;
+}
+.tag-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px 9px 26px;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--tint-rgb), 0.14);
+  background: rgba(var(--tint-rgb), 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px; /* kein Hineinzoomen auf dem iPhone */
+}
+.tag-dots {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 5px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+.tag-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+.tag-btn {
+  position: relative;
+}
+.tag-btn.on {
+  color: rgb(var(--accent-rgb));
+}
+.tag-btn-dots {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: flex;
+  gap: 1px;
+}
+.tag-btn-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.tag-chip-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 2px;
+}
