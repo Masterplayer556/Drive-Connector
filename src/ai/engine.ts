@@ -2,7 +2,7 @@
 // Auf dem iPhone teilen sich App und alle Worker denselben Arbeitsspeicher – darum sparsam:
 // ein Bild-Worker (lernt) und ein Such-Worker, nie beide gleichzeitig. Beides läuft auf dem Prozessor.
 // Suchbegriffe übersetzt ein kleines Wörterbuch statt eines Übersetzungsmodells.
-import { toEnglish } from "./dict";
+import { keywordsOf, toEnglish } from "./dict";
 import { setRisk, takeCrash, type Risk } from "./guard";
 import { MODEL_CACHE } from "./store";
 import type { FromWorker, ToWorker } from "./protocol";
@@ -163,7 +163,7 @@ export async function embedImage(blob: Blob): Promise<Float32Array | null> {
 }
 
 /** Text der Suche → Vektor. Lädt das Textmodell beim ersten Mal (im eigenen Such-Worker). */
-export async function embedText(text: string): Promise<{ vec: Float32Array; english: string }> {
+export async function embedText(text: string): Promise<{ vec: Float32Array; english: string; kvecs: Float32Array[] }> {
   if (textTimer) clearTimeout(textTimer);
   // Erst wenn das Bildmodell entladen ist (Lernen pausiert, sobald die Suche offen ist), sonst wären beide im Speicher
   for (let t = 0; t < 100 && workers[VISION]; t++) {
@@ -171,9 +171,9 @@ export async function embedText(text: string): Promise<{ vec: Float32Array; engl
     await new Promise((r) => setTimeout(r, 100));
   }
   const english = toEnglish(text) || text;
-  const m = await send({ type: "text", text: english }, TEXT);
+  const m = await send({ type: "text", text: english, keywords: keywordsOf(text) }, TEXT);
   if (m.type !== "vec") throw new Error("Unerwartete Antwort");
-  return { vec: m.vec, english };
+  return { vec: m.vec, english, kvecs: m.kvecs ?? [] };
 }
 
 /** Alle Worker beenden und Arbeitsspeicher freigeben. */

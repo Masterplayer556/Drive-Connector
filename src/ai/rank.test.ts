@@ -117,3 +117,18 @@ describe("KI-Suche: 👍 verdrängt keine anderen Treffer", () => {
     expect(hits.map((h) => h.key)).toEqual(["c", "a", "b"]);
   });
 });
+
+describe("KI-Suche: Stichwörter", () => {
+  it("Fotos mit ALLEN Stichwörtern kommen vor Fotos, die nur eines stark zeigen", () => {
+    // Achsen: 0 = Hund, 1 = Schnee, 2 = Rest
+    const hund = v(1, 0, 0);
+    const schnee = v(0, 1, 0);
+    const q = v(1, 0.2, 0); // ganze Suche „Hund Schnee“ – das Modell gewichtet „Hund“ stärker
+    const vectors = new Map([
+      ["nurHund", v(1, 0, 0.2)],
+      ["hundImSchnee", v(0.75, 0.75, 0.2)],
+    ]);
+    expect(rank(q, vectors, { floor: 0 })[0].key).toBe("nurHund"); // ohne Stichwörter
+    expect(rank(q, vectors, { floor: 0, keywords: [hund, schnee] })[0].key).toBe("hundImSchnee");
+  });
+});

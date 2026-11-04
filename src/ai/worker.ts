@@ -9,6 +9,7 @@ import {
   RawImage,
 } from "@huggingface/transformers";
 import { CLIP_MODEL, type FromWorker, type ToWorker } from "./protocol";
+import { keywordPrompt, promptsFor } from "./prompts";
 
 env.allowLocalModels = false;
 const onnx = env.backends.onnx as { wasm?: { numThreads?: number; wasmPaths?: unknown } };
@@ -105,12 +106,19 @@ async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[]> {
   return out;
 }
 
-/** Suchtext (schon auf Englisch, siehe dict.ts) → Vektor. */
-async function embedText(english: string): Promise<{ vec: Float32Array; english: string }> {
+/**
+ * Suchtext (schon auf Englisch, siehe dict.ts) → Vektor: Mittel aus mehreren Formulierungen (prompts.ts).
+ * Bei Stichwörtern zusätzlich je ein Vektor pro Stichwort. Alles in einem Durchgang.
+ */
+async function embedText(english: string, keywords: string[] = []): Promise<{ vec: Float32Array; english: string; kvecs: Float32Array[] }> {
   const { tokenizer, model } = await loadText();
-  const inputs = tokenizer([`a photo of ${english}`], { padding: true, truncation: true });
+  const prompts = promptsFor(english);
+  const inputs = tokenizer([...prompts, ...keywords.map(keywordPrompt)], { padding: true, truncation: true });
   const { text_embeds } = await model(inputs);
-  return { vec: normalized(text_embeds.data), english };
+  const all = rows(text_embeds);
+  const mean = new Float32Array(all[0].length);
+  for (const v of all.slice(0, prompts.length)) for (let i = 0; i < mean.length; i++) mean[i] += v[i];
+  return { vec: normalized(mean), english, kvecs: all.slice(prompts.length) };
 }
 
 ctx.onmessage = async (e) => {
@@ -122,8 +130,8 @@ ctx.onmessage = async (e) => {
     } else if (m.type === "images") {
       ctx.postMessage({ type: "vecs", id: m.id, vecs: await embedImages(m.blobs) });
     } else if (m.type === "text") {
-      const { vec, english } = await embedText(m.text);
-      ctx.postMessage({ type: "vec", id: m.id, vec, english });
+      const { vec, english, kvecs } = await embedText(m.text, m.keywords);
+      ctx.postMessage({ type: "vec", id: m.id, vec, english, kvecs });
     }
   } catch (err) {
     ctx.postMessage({ type: "error", id: m.id, message: err instanceof Error ? err.message : String(err) });

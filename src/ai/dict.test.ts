@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { looksEnglish, toEnglish } from "./dict";
+import { keywordsOf, looksEnglish, toEnglish } from "./dict";
 
 describe("KI-Suche: Wörterbuch", () => {
   it("übersetzt typische Suchen", () => {
@@ -65,5 +65,20 @@ describe("KI-Suche: Englisch besser erkennen", () => {
     expect(toEnglish("kind dog")).toBe("kind dog");
     expect(toEnglish("rock concert")).toBe("rock concert");
     expect(toEnglish("birthday gift")).toBe("birthday gift");
+  });
+});
+
+describe("KI-Suche: Stichwörter", () => {
+  it("erkennt Stichwort-Suchen und übersetzt jedes Stichwort", () => {
+    expect(keywordsOf("Hund Schnee")).toEqual(["dog", "snow"]);
+    expect(keywordsOf("dog, snow, mountains")).toEqual(["dog", "snow", "mountains"]);
+    expect(keywordsOf("Glace Strand 2024")).toEqual(["ice cream", "beach"]);
+    expect(keywordsOf("rotes Auto")).toEqual(["red", "car"]);
+  });
+  it("Sätze und einzelne Wörter sind keine Stichwort-Suche", () => {
+    expect(keywordsOf("Hund im Schnee")).toEqual([]);
+    expect(keywordsOf("dog in the snow")).toEqual([]);
+    expect(keywordsOf("Hund")).toEqual([]);
+    expect(keywordsOf("Strand 2024")).toEqual([]);
   });
 });

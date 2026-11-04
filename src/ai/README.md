@@ -17,6 +17,8 @@ Fotos per Beschreibung finden („Hund im Schnee“, „Arbeitsblatt mit Tabelle
 | „Ähnliche Fotos“ (✨ in der Foto-Ansicht; private Fotos nur, wenn das Ausgangsfoto privat ist) | `SimilarSheet.tsx`, `search.ts` (`similarTo`) |
 | „Fast gleiche Fotos“ in den Duplikaten (Serienbilder, bearbeitete Kopien) | `AiSimilarDuplicates.tsx`, `rank.ts` (`groupSimilar`) |
 | Filter im Suchtext: „O: Ferien Strand“ (nur Ordner mit „Ferien“ im Namen, inkl. Unterordner; mit Leerzeichen: `O: "Ferien 2024"`), „Video Strand“ (nur Videos); nur Filter ohne Beschreibung → neueste zuerst | `query.ts`, `search.ts` |
+| Suche ans Modell: mehrere Formulierungen gemittelt („a photo of …“, „a picture of …“ …) statt einer | `prompts.ts`, `worker.ts` |
+| Stichwort-Suche („Hund Schnee Berg“): zusätzlich ein Vektor pro Stichwort – Fotos, auf denen alle zu sehen sind, kommen nach oben | `dict.ts` (`keywordsOf`), `rank.ts` (`keywords`) |
 | Englische Suchen werden erkannt (auch einzelne Wörter wie „dog“) und nicht übersetzt | `dict.ts` (`looksEnglish`) |
 | Videos: gelernt wird das Vorschaubild (ein Standbild) – gesucht wird also, was darauf zu sehen ist | `catalog.ts` |
 | Neue Fotos nach einem Sync/Upload gleich lernen | Ereignis `drivepool-synced` aus `syncAccounts` → `indexer.ts` |

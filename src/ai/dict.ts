@@ -228,22 +228,43 @@ export function looksEnglish(query: string): boolean {
   return en > de;
 }
 
+/** Ein Wort übertragen ("" = Füllwort, fällt weg). */
+function translateWord(word: string, english: boolean): string {
+  const m = /^([^\p{L}\p{N}]*)([\p{L}\p{N}-]+)([^\p{L}\p{N}]*)$/u.exec(word);
+  if (!m) return word;
+  const [, pre, core, post] = m;
+  const low = core.toLowerCase();
+  // In einer englischen Suche bleiben englische Wörter, wie sie sind
+  if (english && (AMBIGUOUS.has(low) || ENGLISH_HINTS.has(low) || ENGLISH_VOCAB.has(low))) return word;
+  const hit = lookup(core);
+  return hit === undefined ? word : hit ? `${pre}${hit}${post}` : "";
+}
+
 /** Suchtext grob ins Englische übertragen (Wort für Wort). In englischen Suchen bleiben mehrdeutige Wörter englisch. */
 export function toEnglish(query: string): string {
   const english = looksEnglish(query);
   return query
     .trim()
     .split(/\s+/)
-    .map((word) => {
-      const m = /^([^\p{L}\p{N}]*)([\p{L}\p{N}-]+)([^\p{L}\p{N}]*)$/u.exec(word);
-      if (!m) return word;
-      const [, pre, core, post] = m;
-      const low = core.toLowerCase();
-      // In einer englischen Suche bleiben englische Wörter, wie sie sind
-      if (english && (AMBIGUOUS.has(low) || ENGLISH_HINTS.has(low) || ENGLISH_VOCAB.has(low))) return word;
-      const hit = lookup(core);
-      return hit === undefined ? word : hit ? `${pre}${hit}${post}` : "";
-    })
+    .map((w) => translateWord(w, english))
     .filter(Boolean)
     .join(" ");
+}
+
+/**
+ * Stichwort-Suche („Hund Schnee Berg“, „dog, snow“): 2–5 Wörter ohne Füllwörter wie „im“, „mit“, „the“.
+ * Liefert die einzelnen Stichwörter auf Englisch – die Suche bevorzugt dann Fotos, auf denen ALLE zu sehen sind.
+ * Bei einem ganzen Satz („Hund im Schnee“) oder einem einzelnen Wort: [].
+ */
+export function keywordsOf(query: string): string[] {
+  const words = query.trim().split(/[\s,;+]+/).filter(Boolean);
+  if (words.length < 2 || words.length > 5) return [];
+  const bare = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}-]/gu, "");
+  if (words.some((w) => GERMAN_HINTS.has(bare(w)) || ENGLISH_HINTS.has(bare(w)))) return [];
+  const english = looksEnglish(query);
+  const out = words
+    .filter((w) => !/^\d+$/.test(bare(w))) // Zahlen (Jahre) helfen dem Bildmodell nicht
+    .map((w) => translateWord(bare(w), english).trim())
+    .filter(Boolean);
+  return out.length >= 2 ? [...new Set(out)] : [];
 }

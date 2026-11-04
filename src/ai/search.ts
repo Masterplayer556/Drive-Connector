@@ -65,10 +65,13 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
     return { ...base, items: list.slice(0, 60), english: "", indexed: list.length, q: new Float32Array(0), filterOnly: true };
   }
 
-  const { vec, english } = await embedText(text);
-  // Feedback dieser und ähnlicher Suchen einrechnen
-  const { query: q2, adjust } = applyFeedback(vec, fb, map);
-  const hits = rank(q2, map, { limit: 30, adjust }); // wenige Vorschaubilder = wenig Speicher
+  const { vec, english, kvecs } = await embedText(text);
+  // Feedback dieser und ähnlicher Suchen einrechnen. Gleiche Suche = immer voll (auch wenn sie früher
+  // anders ans Modell gestellt wurde und der gespeicherte Vektor darum leicht abweicht)
+  const same = english.toLowerCase();
+  const fbNow = fb.map((f) => (f.english.toLowerCase() === same ? { ...f, q: vec } : f));
+  const { query: q2, adjust } = applyFeedback(vec, fbNow, map);
+  const hits = rank(q2, map, { limit: 30, adjust, keywords: kvecs }); // wenige Vorschaubilder = wenig Speicher
   for (const f of fb) if (f.english.toLowerCase() === english.toLowerCase()) base.votes.set(f.key, f.vote);
   return {
     ...base,

@@ -33,14 +33,33 @@ export interface Adjust {
 export function rank(
   query: Float32Array,
   vectors: Map<string, Float32Array>,
-  { limit = 60, floor = 0.2, window = 0.07, adjust, skip }: { limit?: number; floor?: number; window?: number; adjust?: Adjust; skip?: string } = {},
+  {
+    limit = 60,
+    floor = 0.2,
+    window = 0.07,
+    adjust,
+    skip,
+    keywords,
+    keywordWeight = 0.35,
+  }: {
+    limit?: number;
+    floor?: number;
+    window?: number;
+    adjust?: Adjust;
+    skip?: string;
+    /** Stichwort-Suche: je ein Vektor pro Stichwort – Fotos, die ALLE zeigen, kommen nach oben */
+    keywords?: Float32Array[];
+    keywordWeight?: number;
+  } = {},
 ): Hit[] {
+  const kw = keywords && keywords.length >= 2 ? keywords : null;
   // Die Grenze „gut genug“ kommt aus der reinen Ähnlichkeit – ein 👍-Bonus schiebt ein Foto nach oben,
   // soll aber die anderen Treffer nicht verdrängen
   const all: (Hit & { base: number })[] = [];
   for (const [key, v] of vectors) {
     if (key === skip || adjust?.hide.has(key)) continue;
-    const base = dot(query, v);
+    // Stichwörter: das am schlechtesten passende Stichwort zählt mit (alle sollen passen, nicht nur eines)
+    const base = kw ? (1 - keywordWeight) * dot(query, v) + keywordWeight * Math.min(...kw.map((k) => dot(k, v))) : dot(query, v);
     all.push({ key, base, score: base + (adjust?.boost.get(key) ?? 0) });
   }
   const best = all.reduce((m, h) => Math.max(m, h.base), -Infinity);
