@@ -3,11 +3,25 @@
 // Bildschirm bleibt an. Im Hintergrund friert iOS Web-Apps ein – dann geht es beim nächsten Öffnen weiter.
 import type { Item } from "../lib/types";
 import { catalog, thumbsFor } from "./catalog";
-import { aiModel, inTestFolders, testFolders } from "./flag";
+import { aiModel, inTestFolders, learningDevice, testFolders, testOnly } from "./flag";
+import { syncDown, uploadVectors } from "./cloud";
+import { MODELS } from "./protocol";
 import { crashedDuring, embedImage, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive } from "./engine";
 import { itemKey, markSkip, putVector, removeKeys, skipped, vectorKeys } from "./store";
 
-export type Phase = "start" | "model" | "indexing" | "done" | "paused" | "searching" | "held" | "error" | "off";
+export type Phase =
+  | "start"
+  | "model"
+  | "indexing"
+  | "done"
+  | "paused"
+  | "searching"
+  | "held"
+  | "syncing" // holt Fingerabdrücke vom PC
+  | "cloud" // iPhone: wartet, bis der PC lernt
+  | "ready" // PC: neue Fotos da, wartet auf den Knopf
+  | "error"
+  | "off";
 
 export interface IndexState {
   phase: Phase;
@@ -96,6 +110,25 @@ let held = crashedDuring() === "learn";
 /** Nach einem Absturz angehalten? */
 export const learningHeld = () => held;
 
+// Lern-Gerät (PC) bei einem Cloud-Modell: lernt nur nach Knopfdruck
+let cloudRun = false;
+
+/** PC: „Neue Fotos lernen“ – lernt alle noch fehlenden Fotos und lädt die Fingerabdrücke hoch. */
+export function startCloudLearning() {
+  cloudRun = true;
+  held = false;
+  pendingRecheck = true;
+  wakeAll();
+}
+
+/** PC: Lernen anhalten (Gelerntes bleibt). */
+export function stopCloudLearning() {
+  cloudRun = false;
+  wakeAll();
+}
+
+export const cloudLearning = () => cloudRun;
+
 /** Nach einem Absturz bewusst weiterlernen. */
 export function resumeLearning() {
   held = false;
@@ -145,7 +178,8 @@ async function waitForQuiet(stopped: () => boolean) {
       await sleep(2000);
       continue;
     }
-    if (state.turbo) return;
+    if (state.turbo || cloudRun) return;
+    if (MODELS[aiModel()].cloud) return; // PC ohne Knopf / iPhone: der Durchgang bricht danach ab
     const idle = Date.now() - lastInput;
     if (idle >= QUIET_MS) return;
     await sleep(QUIET_MS - idle + 50);
@@ -179,11 +213,22 @@ function rateMeter() {
   };
 }
 
-async function pass(stopped: () => boolean): Promise<void> {
+/** Ein Durchgang. "wait" = es gäbe noch zu lernen, aber nicht hier/jetzt (Cloud-Modell). */
+async function pass(stopped: () => boolean): Promise<"done" | "wait"> {
+  const spec = MODELS[aiModel()];
   const all = await catalog(true);
-  // Test-Modell: nur Fotos in den Testordnern lernen
-  const folders = aiModel() === "mobileclip" ? testFolders() : null;
+  // Test-Modell: auf Wunsch nur Fotos in den Testordnern
+  const folders = aiModel() === "mobileclip" && testOnly() ? testFolders() : null;
   const items = folders ? new Map([...all].filter(([, it]) => inTestFolders(it.path, folders))) : all;
+  // Cloud-Modell: zuerst holen, was der PC schon gelernt hat
+  if (spec.cloud) {
+    set({ phase: "syncing" });
+    try {
+      await syncDown(spec.id);
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+    }
+  }
   const [have, skips] = await Promise.all([vectorKeys(), skipped()]);
 
   // Gelöschte Fotos aus dem Index entfernen
@@ -202,11 +247,34 @@ async function pass(stopped: () => boolean): Promise<void> {
 
   const indexed = [...have].filter((k) => items.has(k)).length;
   set({ total: indexed + todo.length, done: indexed, error: null });
-  if (!todo.length) return;
+  if (!todo.length) {
+    cloudRun = false;
+    return "done";
+  }
+  if (spec.cloud && !learningDevice()) {
+    set({ phase: "cloud", rate: 0 }); // iPhone: lernt das grosse Modell nicht selbst
+    return "wait";
+  }
+  if (spec.cloud && !cloudRun) {
+    set({ phase: "ready", rate: 0 }); // PC: wartet auf „Neue Fotos lernen“
+    return "wait";
+  }
+  // Am PC Gelerntes laufend hochladen
+  const upload: [string, Float32Array][] = [];
+  const flush = async (force = false) => {
+    if (!spec.cloud || !upload.length || (!force && upload.length < 50)) return;
+    const part = upload.splice(0, upload.length);
+    try {
+      await uploadVectors(spec.version, part);
+    } catch (e) {
+      upload.unshift(...part); // später nochmals
+      set({ error: `Hochladen: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  };
 
   // Erst laden, wenn gelernt werden darf (z. B. nicht nach einem Absturz)
   await waitForQuiet(stopped);
-  if (stopped()) return;
+  if (stopped() || (spec.cloud && !cloudRun)) return "wait";
   set({ phase: "model" });
   await prepareVision();
 
@@ -227,7 +295,7 @@ async function pass(stopped: () => boolean): Promise<void> {
   refill();
   while (queue.length && !stopped()) {
     await waitForQuiet(stopped);
-    if (stopped()) break;
+    if (stopped() || (spec.cloud && !cloudRun)) break; // PC: „Anhalten“ gedrückt
     set({ phase: "indexing" });
 
     await prepareVision(); // nach einer Suche wurde das Bildmodell entladen → neu laden
@@ -265,16 +333,28 @@ async function pass(stopped: () => boolean): Promise<void> {
         }
       }
       await (vec ? putVector(k, vec) : markSkip(k));
+      if (vec && spec.cloud) {
+        upload.push([k, vec]);
+        await flush();
+      }
       done++;
       meter.tick();
       set({ done });
       const before = performance.now();
       await waitForQuiet(stopped);
       if (performance.now() - before > 1000) meter.reset(); // Pause verfälscht sonst das Tempo
-      if (stopped()) break;
+      if (stopped() || (spec.cloud && !cloudRun)) break;
       await prepareVision();
     }
   }
+  await flush(true);
+  if (stopped()) return "wait";
+  if (queue.length || todo.length || (spec.cloud && !cloudRun)) {
+    set({ phase: "ready", rate: 0 }); // angehalten, Rest bleibt für später
+    return "wait";
+  }
+  cloudRun = false; // alles gelernt
+  return "done";
 }
 
 /** Startet den Hintergrund-Index (mehrfacher Aufruf ist harmlos). */
@@ -293,8 +373,8 @@ export function startIndexer() {
   void (async () => {
     while (!stopped()) {
       try {
-        await pass(stopped);
-        if (!stopped()) {
+        const result = await pass(stopped);
+        if (!stopped() && result === "done") {
           set({ phase: "done", rate: 0 });
           if (state.turbo) setTurbo(false); // fertig → Bildschirm darf wieder ausgehen
         }

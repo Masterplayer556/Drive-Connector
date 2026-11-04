@@ -4,21 +4,35 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import type { Account } from "../lib/types";
 import Icon from "../components/Icon";
 import { useUI } from "../components/ui";
-import { crashNote, forgetOldSettings, modelProgress, onModelProgress } from "./engine";
+import { crashNote, forgetOldSettings, modelProgress, onModelProgress, visionDevice } from "./engine";
 import {
   inTestFolders,
   setAiEnabled,
   setAiModel,
   setFeedbackEnabled,
+  setLearningDevice,
   setTestFolders,
+  setTestOnly,
   useAiEnabled,
   useAiModel,
   useFeedbackEnabled,
+  useLearningDevice,
   useTestFolders,
+  useTestOnly,
 } from "./flag";
 import { catalog } from "./catalog";
 import { MODELS } from "./protocol";
-import { indexState, onIndexState, resumeLearning, setTurbo, stopIndexer, type IndexState } from "./indexer";
+import {
+  cloudLearning,
+  indexState,
+  onIndexState,
+  resumeLearning,
+  setTurbo,
+  startCloudLearning,
+  stopCloudLearning,
+  stopIndexer,
+  type IndexState,
+} from "./indexer";
 import { allNames, removeName } from "./search";
 import { usedBytes, wipeEverything } from "./store";
 
@@ -53,6 +67,12 @@ function statusText(s: IndexState): string {
       return `Pausiert, solange die Suche offen ist · noch ${left.toLocaleString("de-CH")}`;
     case "paused":
       return `Pausiert, solange die App im Hintergrund ist · noch ${left.toLocaleString("de-CH")}`;
+    case "syncing":
+      return "Holt, was der PC gelernt hat …";
+    case "cloud":
+      return `Wird am PC gelernt · ${s.done.toLocaleString("de-CH")} von ${s.total.toLocaleString("de-CH")} da`;
+    case "ready":
+      return `${left.toLocaleString("de-CH")} neue Fotos – „Neue Fotos lernen“ drücken`;
     case "held":
       return `Angehalten – die App ist beim Lernen abgestürzt · noch ${left.toLocaleString("de-CH")}`;
     case "done":
@@ -68,6 +88,7 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
   const [training, setTraining] = useState(false);
   const ui = useUI();
   const on = useAiEnabled();
+  const model = useAiModel();
   const feedbackOn = useFeedbackEnabled();
   const [s, setS] = useState(indexState);
   const [bytes, setBytes] = useState<number | null>(null);
@@ -135,7 +156,9 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
 
   const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
   const left = Math.max(0, s.total - s.done);
-  const learning = left > 0 && ["start", "model", "indexing", "paused", "searching", "held"].includes(s.phase);
+  const cloud = MODELS[model].cloud;
+  // Beim Cloud-Modell (MobileCLIP) gibt es kein „Schnell lernen“ – gelernt wird am PC per Knopf
+  const learning = !cloud && left > 0 && ["start", "model", "indexing", "paused", "searching", "held"].includes(s.phase);
 
   return (
     <div className="list glass enter">
@@ -198,6 +221,7 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
               </button>
             </>
           )}
+          {cloud && <CloudPanel s={s} left={left} />}
           {learning && (
             <>
               <button className={`btn small ${s.turbo ? "ghost" : "primary"}`} onClick={() => setTurbo(!s.turbo)}>
@@ -309,6 +333,7 @@ function shares4(a: string, b: string): boolean {
 function ModelChoice({ accounts }: { accounts: Account[] }) {
   const model = useAiModel();
   const [comparing, setComparing] = useState(false);
+  const testOnlyOn = useTestOnly();
   const folders = useTestFolders();
   const [counts, setCounts] = useState<Map<string, number> | null>(null);
   const [allDirs, setAllDirs] = useState<string[]>([]);
@@ -367,15 +392,25 @@ function ModelChoice({ accounts }: { accounts: Account[] }) {
             <small className="faint">
               {m === "clip"
                 ? "OpenAI CLIP (2021) – lernt alle Fotos"
-                : "Apple MobileCLIP (2024) – kleiner, laut Apple treffsicherer. Zum Testen: lernt nur Fotos in den Testordnern (einmalig ca. 100 MB laden)"}
+                : "Apple MobileCLIP (2024) – laut Apple treffsicherer, genaue Rechnung. Gelernt wird am PC per Knopf; das iPhone lädt nur die Ergebnisse und sucht damit"}
             </small>
           </span>
         </label>
       ))}
       {model === "mobileclip" && (
         <>
+          <label className="ai-toggle small">
+            <span>
+              <strong>Nur Testordner</strong>
+              <span className="faint">{testOnlyOn ? " An – lernt nur Fotos in diesen Ordnern." : " Aus – lernt alle Fotos."}</span>
+            </span>
+            <span className="switch">
+              <input type="checkbox" checked={testOnlyOn} onChange={(e) => setTestOnly(e.target.checked)} />
+              <span />
+            </span>
+          </label>
           <div className="faint small">
-            Testordner{total !== null && ` · ${total.toLocaleString("de-CH")} Fotos`} – Suche findet mit diesem Modell nur Fotos darin.
+            Testordner{total !== null && ` · ${total.toLocaleString("de-CH")} Fotos`} – der Vergleich sucht nur darin.
           </div>
           <div className="ai-name-chips">
             {folders.map((f) => {
@@ -426,13 +461,61 @@ function ModelChoice({ accounts }: { accounts: Account[] }) {
         <Icon name="search" size={16} /> Modelle vergleichen
       </button>
       <span className="faint small">
-        Gleiche Suche mit beiden Modellen nebeneinander (nur Testordner). MobileCLIP lernt nur, solange es oben gewählt ist.
+        Gleiche Suche mit beiden Modellen nebeneinander (nur Testordner). MobileCLIP lernt am PC per Knopf, solange es oben gewählt ist.
       </span>
       {comparing && (
         <Suspense fallback={null}>
           <CompareSheet accounts={accounts} onClose={() => setComparing(false)} />
         </Suspense>
       )}
+    </div>
+  );
+}
+
+/** MobileCLIP: am PC per Knopf lernen (genaues Modell), auf dem iPhone nur herunterladen. */
+function CloudPanel({ s, left }: { s: IndexState; left: number }) {
+  const learner = useLearningDevice();
+  const running = cloudLearning() && ["model", "indexing", "start", "syncing"].includes(s.phase);
+  const dev = visionDevice();
+  return (
+    <div className="ai-names">
+      <label className="ai-toggle small">
+        <span>
+          <strong>Dieses Gerät lernt für alle</strong>
+          <span className="faint">
+            {learner
+              ? " An – hier wird mit dem genauen Modell gelernt (PC). Die Ergebnisse (nur Zahlen) gehen in deine Datenbank."
+              : " Aus – dieses Gerät lädt nur herunter, was der PC gelernt hat, und sucht damit."}
+          </span>
+        </span>
+        <span className="switch">
+          <input type="checkbox" checked={learner} onChange={(e) => setLearningDevice(e.target.checked)} />
+          <span />
+        </span>
+      </label>
+      {learner &&
+        (running ? (
+          <>
+            <button className="btn small" onClick={stopCloudLearning}>
+              Anhalten
+            </button>
+            <span className="faint small">
+              {s.phase === "model" ? "Modell wird geladen …" : `Lernt … noch ${left.toLocaleString("de-CH")}`}
+              {s.rate > 0 && ` · ${s.rate.toLocaleString("de-CH", { maximumFractionDigits: 1 })} Fotos/s`}
+              {dev && ` · rechnet auf ${dev === "webgpu" ? "der Grafikkarte" : "dem Prozessor"}`}
+            </span>
+          </>
+        ) : (
+          <>
+            <button className="btn small primary" disabled={left === 0} onClick={startCloudLearning}>
+              <Icon name="sparkles" size={16} /> Neue Fotos lernen{left > 0 ? ` (${left.toLocaleString("de-CH")})` : ""}
+            </button>
+            <span className="faint small">
+              {left === 0 ? "Alles gelernt. Neue Fotos lernt es erst, wenn du hier drückst." : "Startet nur auf Knopfdruck. App offen lassen, bis es fertig ist."}
+            </span>
+          </>
+        ))}
+      {s.error && <span className="faint small">Hinweis: {s.error}</span>}
     </div>
   );
 }

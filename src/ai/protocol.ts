@@ -15,6 +15,11 @@ export interface ModelSpec {
   textDtype: "q8" | "fp32";
   /** Text immer auf volle Länge auffüllen (MobileCLIP erwartet das) */
   padMax: boolean;
+  /**
+   * Lernt nur auf einem Lern-Gerät (PC, per Knopf) und teilt die Fingerabdrücke über Supabase.
+   * Andere Geräte (iPhone) laden sie nur herunter – das Bildmodell ist für sie zu gross.
+   */
+  cloud: boolean;
 }
 
 export const MODELS: Record<ModelId, ModelSpec> = {
@@ -28,30 +33,33 @@ export const MODELS: Record<ModelId, ModelSpec> = {
     visionDtype: "q8",
     textDtype: "q8",
     padMax: false,
+    cloud: false,
   },
-  // Apple MobileCLIP-S2 (2024) – kleiner, laut Apple deutlich treffsicherer. Bildteil gerundet (q8):
-  // ungerundet (fp32) stürzte das iPhone beim Lernen nach einer Weile ab (Arbeitsspeicher)
+  // Apple MobileCLIP-S2 (2024) – laut Apple deutlich treffsicherer. Bildteil ungerundet (fp32) = genau;
+  // dafür ist er dem iPhone zu gross → gelernt wird am PC, das iPhone lädt nur die Fingerabdrücke
   mobileclip: {
     id: "mobileclip",
     label: "MobileCLIP-S2 (Test)",
     repo: "Xenova/mobileclip_s2",
     db: "drivepool-ai-mobileclip-s2",
-    version: "Xenova/mobileclip_s2@q8",
-    visionDtype: "q8",
+    version: "Xenova/mobileclip_s2@fp32",
+    visionDtype: "fp32",
     textDtype: "q8",
     padMax: true,
+    cloud: true,
   },
 };
 
 export type ToWorker =
-  | { type: "warm"; id: number; model: ModelId; part: "bild" | "text" }
-  | { type: "images"; id: number; model: ModelId; blobs: Blob[] }
+  /** gpu: Bildmodell auf der Grafikkarte rechnen (WebGPU, nur Lern-Gerät) */
+  | { type: "warm"; id: number; model: ModelId; part: "bild" | "text"; gpu?: boolean }
+  | { type: "images"; id: number; model: ModelId; blobs: Blob[]; gpu?: boolean }
   /** Gruppen von Formulierungen; je Gruppe ein gemittelter Vektor (Gruppe 0 = ganze Suche) */
   | { type: "text"; id: number; model: ModelId; groups: string[][] };
 
 export type FromWorker =
   | { type: "progress"; part: "bild" | "text"; file: string; loaded: number; total: number }
-  | { type: "ok"; id: number }
+  | { type: "ok"; id: number; device?: "webgpu" | "wasm" }
   | { type: "vecs"; id: number; vecs: (Float32Array | null)[] }
   | { type: "vec"; id: number; vecs: Float32Array[] }
   | { type: "error"; id: number; message: string };

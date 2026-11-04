@@ -6,8 +6,8 @@ import { keywordsOf, toEnglish } from "./dict";
 import { keywordPrompts, searchPrompts } from "./prompts";
 import { setRisk, takeCrash, type Risk } from "./guard";
 import { MODEL_CACHE } from "./store";
-import { aiModel } from "./flag";
-import type { FromWorker, ModelId, ToWorker } from "./protocol";
+import { aiModel, learningDevice } from "./flag";
+import { MODELS, type FromWorker, type ModelId, type ToWorker } from "./protocol";
 
 type Part = "bild" | "text";
 type WithoutId<T> = T extends unknown ? Omit<T, "id" | "model"> : never;
@@ -126,10 +126,17 @@ function send(msg: WithoutId<ToWorker>, slot: number, model: ModelId = aiModel()
 }
 
 /** Bildmodell bereitmachen (beim ersten Mal herunterladen, danach aus dem Gerätespeicher). */
+/** Auf dem Lern-Gerät (PC) rechnet ein Cloud-Modell auf der Grafikkarte, wenn möglich. */
+const useGpu = () => MODELS[aiModel()].cloud && learningDevice();
+let device: "webgpu" | "wasm" | null = null;
+/** Worauf das Bildmodell rechnet (null = noch nicht geladen). */
+export const visionDevice = () => device;
+
 export function prepareVision(): Promise<void> {
   if (visionReady) return Promise.resolve();
   preparing ??= (async () => {
-    await send({ type: "warm", part: "bild" }, VISION);
+    const m = await send({ type: "warm", part: "bild", gpu: useGpu() }, VISION);
+    device = m.type === "ok" ? (m.device ?? "wasm") : "wasm";
     visionReady = true;
     updateRisk();
   })().finally(() => (preparing = null));
@@ -163,7 +170,7 @@ export const textAlive = () => !!workers[TEXT];
 /** Ein Bild → Vektor; null = Bild nicht lesbar. */
 export async function embedImage(blob: Blob): Promise<Float32Array | null> {
   if (!visionReady) throw new Error("Bildmodell nicht bereit");
-  const m = await send({ type: "images", blobs: [blob] }, VISION);
+  const m = await send({ type: "images", blobs: [blob], gpu: useGpu() }, VISION);
   if (m.type !== "vecs") throw new Error("Unerwartete Antwort");
   return m.vecs[0] ?? null;
 }
