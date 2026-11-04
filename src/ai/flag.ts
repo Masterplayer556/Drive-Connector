@@ -66,6 +66,7 @@ const MODEL_KEY = "drivepool.ai.model";
 export function aiModel(): ModelId {
   try {
     const v = localStorage.getItem(MODEL_KEY);
+    if (v === "mobileclipB") return "mobileclip2b"; // MobileCLIP-B wurde entfernt – MobileCLIP2-B ist der Nachfolger
     return isModelId(v) ? v : "clip";
   } catch {
     return "clip";

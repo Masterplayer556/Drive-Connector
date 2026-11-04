@@ -161,7 +161,7 @@ export default function AiSearchResults({
           </p>
         ) : (
           <p className="faint small ai-understood">
-            Verstanden als „{result.english}“ · {result.indexed.toLocaleString("de-CH")} {result.video ? "Videos" : "Fotos"} durchsucht
+            {result.indexed.toLocaleString("de-CH")} {result.video ? "Videos" : "Fotos"} durchsucht
             {!result.folder && !result.video && !result.tag && idx.total > result.indexed && ` (von ${idx.total.toLocaleString("de-CH")})`}
           </p>
         ))}

@@ -178,3 +178,19 @@ describe("Kombi (fuse)", () => {
     expect(hits[0].key).toBe("x");
   });
 });
+
+describe("Name + Beschreibung zusammen", () => {
+  it("Foto, das nach der Person aussieht UND zur Beschreibung passt, gewinnt", () => {
+    const described = new Map([["beides", 0.3], ["nurBeschreibung", 0.32], ["nurPerson", 0.18], ["weder", 0.17], ["x", 0.2], ["y", 0.19]]);
+    const person = new Map([["beides", 0.9], ["nurBeschreibung", 0.72], ["nurPerson", 0.93], ["weder", 0.71], ["x", 0.75], ["y", 0.74]]);
+    const hits = fuse(
+      [
+        { scores: described, weight: 1.5 },
+        { scores: person, weight: 1 },
+      ],
+      { limit: 30, zFloor: 0.3, zWindow: 3 },
+    ).map((h) => h.key);
+    expect(hits[0]).toBe("beides");
+    expect(hits).not.toContain("weder");
+  });
+});

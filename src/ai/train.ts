@@ -5,7 +5,7 @@ export interface Term {
   label: string;
   /** Woher der Begriff kommt – für die Anzeige */
   source: "foto" | "name" | "suche";
-  /** Zusatz für die Anzeige, z. B. deutsches Wort und wie oft es vorkommt */
+  /** Zusatz für die Anzeige, z. B. wie oft es vorkommt */
   note?: string;
 }
 

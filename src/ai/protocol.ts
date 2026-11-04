@@ -1,11 +1,11 @@
 // KI-SUCHE (Test): Modelle und Nachrichten zwischen App und Worker.
 
-export type ModelId = "clip" | "mobileclip2b" | "mobileclipB";
+export type ModelId = "clip" | "mobileclip2b";
 
 export interface ModelSpec {
   id: ModelId;
   label: string;
-  /** Modell auf Hugging Face (ONNX für den Browser); daraus kommen auch Wörterbuch und Bild-Vorverarbeitung */
+  /** Modell auf Hugging Face (ONNX für den Browser); daraus kommen auch Tokenizer und Bild-Vorverarbeitung */
   repo: string;
   /** Bildteil liegt anderswo (anderes Repo / Unterordner / Dateiname) */
   vision?: { repo: string; subfolder?: string; file?: string };
@@ -46,7 +46,7 @@ export const MODELS: Record<ModelId, ModelSpec> = {
   },
   // Apple MobileCLIP2-B (2025) – laut Apple genauer als MobileCLIP-B (ImageNet 79,4 % statt 77,2 %), gleich grosser
   // Textteil. Bildteil (fp32, nur PC) von plhery/mobileclip2-onnx; den Textteil haben wir selbst auf 8 Bit verkleinert
-  // (65 MB) und liefern ihn mit der App aus (public/models/mobileclip2-b). Wörterbuch/Vorverarbeitung wie MobileCLIP-B.
+  // (65 MB) und liefern ihn mit der App aus (public/models/mobileclip2-b). Tokenizer/Vorverarbeitung von Xenova/mobileclip_blt.
   mobileclip2b: {
     id: "mobileclip2b",
     label: "MobileCLIP2-B (Test)",
@@ -55,20 +55,6 @@ export const MODELS: Record<ModelId, ModelSpec> = {
     textLocal: "mobileclip2-b",
     db: "drivepool-ai-mobileclip2-b",
     version: "plhery/mobileclip2-onnx/b@fp32",
-    visionDtype: "fp32",
-    textDtype: "q8",
-    padMax: true,
-    cloud: true,
-    autoFloor: true,
-  },
-  // Apple MobileCLIP-B (LT) – grösserer Bildteil (ViT-B/16), laut Apple nochmals treffsicherer. Nur am PC lernbar;
-  // der Textteil ist klein (65 MB), die Suche läuft also auch auf dem iPhone
-  mobileclipB: {
-    id: "mobileclipB",
-    label: "MobileCLIP-B (Test)",
-    repo: "Xenova/mobileclip_blt",
-    db: "drivepool-ai-mobileclip-blt",
-    version: "Xenova/mobileclip_blt@fp32",
     visionDtype: "fp32",
     textDtype: "q8",
     padMax: true,

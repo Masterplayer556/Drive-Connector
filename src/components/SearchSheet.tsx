@@ -111,11 +111,10 @@ export default function SearchSheet({
             <>
               {q.trim().length < 3 && (
                 <p className="muted small" style={{ textAlign: "center", marginTop: 24 }}>
-                  Beschreibe das Foto – z. B. „Hund im Schnee“ oder „Arbeitsblatt mit Tabelle“.
+                  Beschreibe das Foto auf Englisch – z. B. „dog in the snow“ oder „worksheet with a table“.
                   {!includePrivate && " Private Fotos sind ausgeblendet."}
                   <br />
-                  „O: Ferien Strand“ sucht nur im Ordner „Ferien“, „Video Strand“ nur Videos.
-                  Englisch geht auch („dog in the snow“). Eigene Tags: „#Ferien Strand“.
+                  „O: Ferien beach“ sucht nur im Ordner „Ferien“, „Video beach“ nur Videos. Eigene Tags: „#Ferien beach“.
                 </p>
               )}
               {q.trim().length < 3 && tags.length > 0 && (

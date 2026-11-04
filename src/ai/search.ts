@@ -5,7 +5,7 @@ import { catalog } from "./catalog";
 import { MODELS, type ModelId } from "./protocol";
 import { aiModel, kombi } from "./flag";
 import { embedConcepts, embedText } from "./engine";
-import { conceptVocabulary, nameWords, toEnglish } from "./dict";
+import { conceptVocabulary, nameWords } from "./dict";
 import { expandNameKeys, FOLDER_KEY, folderKey, isFolderKey, learnedNames, prototypeOf, rankByName } from "./names";
 import { inFolder, parseQuery } from "./query";
 import { frequentConcepts, pickCards, sample, type Term } from "./train";
@@ -15,7 +15,7 @@ import { allFeedback, allVectors, deleteFeedback, getMeta, itemKey, putFeedback,
 
 export interface AiResult {
   items: Item[];
-  /** So hat die KI die Suche verstanden (nach dem Wörterbuch). */
+  /** Suchtext, wie er ans Modell ging (Leerzeichen bereinigt). */
   english: string;
   indexed: number;
   /** Vektor der Suche – für 👍/👎 */
@@ -154,7 +154,7 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
       .filter((w) => !isName.has(w.toLowerCase().replace(/[^\p{L}'-]/gu, "")))
       .join(" ")
       .trim();
-    const restEnglish = rest ? toEnglish(rest).trim() : "";
+    const restEnglish = rest.replace(/\s+/g, " ").trim();
     const label = known.map((n) => n.label).join(" ");
     const english = restEnglish ? `${label} ${restEnglish}` : text.trim();
     const sameQuery = (f: Feedback) => f.english.toLowerCase() === english.toLowerCase();
@@ -165,10 +165,22 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
     if (!restEnglish) {
       return { ...base, items: byName.map((h) => items.get(h.key)).filter((x): x is Item => !!x), english, indexed: map.size, q: proto, filterOnly: false };
     }
-    // Name + Beschreibung („Luca am Strand“): unter den Fotos des Namens nach der Beschreibung sortieren
-    const { vec, nvec } = await embedText(rest);
+    // Name + Beschreibung („Luca at the beach“): unter den Fotos, die nach der Person aussehen, zählen beide –
+    // wie sehr es die Person ist UND wie gut die Beschreibung passt (je in Standardabweichungen, damit keine Seite
+    // die andere erdrückt). Vorher entschied nur die Beschreibung mit fester Grenze – oft blieb dann fast nichts übrig.
+    const { vec, nvec, kvecs } = await embedText(rest);
     const sub = new Map(byName.map((h) => [h.key, map.get(h.key)!]));
-    let hits = rank(vec, sub, { limit: 30, adjust, auto: autoFloor(), negative: nvec });
+    const person = new Map(byName.map((h) => [h.key, h.score]));
+    const described = scoreAll(vec, sub, { keywords: kvecs, negative: nvec });
+    // 👍 bei genau dieser Suche schiebt nach oben (Skala der Beschreibung)
+    for (const f of fb) if (sameQuery(f) && f.vote > 0) adjust.boost.set(f.key, 0.05);
+    let hits = fuse(
+      [
+        { scores: described, weight: 1.5 },
+        { scores: person, weight: 1 },
+      ],
+      { limit: 30, adjust, zFloor: 0.3, zWindow: 3 },
+    );
     if (!hits.length) hits = byName.slice(0, 30);
     return { ...base, items: hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x), english, indexed: sub.size, q: vec, filterOnly: false };
   }
@@ -377,7 +389,7 @@ export async function trainingTerms(onProgress?: (msg: string) => void): Promise
   const [fb, all] = await Promise.all([allFeedback(), loadVectors()]);
   const names: Term[] = [...learnedNames(fb).values()].map((n) => ({ label: n.label, source: "name", note: "Gelernter Name" }));
 
-  type Ranked = { en: string; de: string; share: number };
+  type Ranked = { en: string; share: number };
   const cached = await getMeta<{ at: number; photos: number; terms: Ranked[] }>(RANK_KEY).catch(() => undefined);
   let ranked: Ranked[] | null =
     cached && Date.now() - cached.at < DAY && Math.abs(cached.photos - all.size) <= all.size * 0.1 ? cached.terms : null;
@@ -396,14 +408,14 @@ export async function trainingTerms(onProgress?: (msg: string) => void): Promise
     onProgress?.("Deine Fotos durchsehen …");
     const photos = sample([...all.values()], 1500);
     const freq = await frequentConcepts(cv.vecs, photos);
-    ranked = freq.slice(0, 40).map((f) => ({ en: vocab[f.index].en, de: vocab[f.index].de, share: f.count / photos.length }));
+    ranked = freq.slice(0, 40).map((f) => ({ en: vocab[f.index].en, share: f.count / photos.length }));
     await putMeta(RANK_KEY, { at: Date.now(), photos: all.size, terms: ranked }).catch(() => undefined);
   }
 
   const concepts: Term[] = (ranked ?? []).map((t) => ({
     label: t.en,
     source: "foto",
-    note: `${t.de} · bei ca. ${Math.max(1, Math.round(t.share * 100))} % deiner Fotos`,
+    note: `bei ca. ${Math.max(1, Math.round(t.share * 100))} % deiner Fotos`,
   }));
   // Häufige Begriffe zuerst, gelernte Namen dazwischen (nach jedem dritten)
   const out: Term[] = [];
