@@ -64,6 +64,9 @@ export const HIGH = 0.92;
 /** … bis es wieder darunter liegt; Ziele werden höchstens bis hierhin gefüllt */
 export const TARGET = 0.85;
 
+/** Verschieben lohnt sich erst, wenn es mehr als so viel Platz frei macht (falsches Gebiet ausgenommen) */
+export const MIN_PLAN = 1 * GB;
+
 export const GROUPS = ["A–M", "N–Z"] as const;
 
 /** A–M oder N–Z nach dem ersten Buchstaben (Umlaute wie Grundbuchstabe, Ziffern/Sonstiges zu A–M). */
@@ -106,6 +109,8 @@ export function planRebalance(input: {
   units: Unit[];
   locks?: Iterable<string>;
   groupFolder?: string | null;
+  /** Mindestens so viel muss ein Vorschlag frei machen (Standard 1 GB) */
+  minBytes?: number;
 }): Plan {
   const locks = [...(input.locks ?? [])];
   const groupFolder = input.groupFolder ?? null;
@@ -221,6 +226,18 @@ export function planRebalance(input: {
     }
   }
   steps.splice(0, steps.length, ...finalSteps.values());
+
+  // Zu wenig Ertrag (≤ 1 GB) → kein Vorschlag; Ordner im falschen Gebiet werden trotzdem eingeordnet
+  if (steps.reduce((s, x) => s + x.bytes, 0) <= (input.minBytes ?? MIN_PLAN)) {
+    const keep = steps.filter((s) => s.reason === "einordnen");
+    steps.splice(0, steps.length, ...keep);
+    usage.clear();
+    for (const [id, u] of Object.entries(before)) usage.set(id, u);
+    for (const s of keep) {
+      usage.set(s.from, (usage.get(s.from) ?? 0) - s.bytes);
+      usage.set(s.to, (usage.get(s.to) ?? 0) + s.bytes);
+    }
+  }
 
   const signature = steps
     .map((s) => `${s.block}:${s.from}>${s.to}`)

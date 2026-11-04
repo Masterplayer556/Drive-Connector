@@ -3850,3 +3850,13 @@ body.drag-moving {
   inset: 0;
   z-index: 70;
 }
+
+/* Duplikate: entfernte Kopie markieren, „Nur 1 entfernen“ */
+.dup-keep.gone {
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+}
+.dup-one {
+  align-self: flex-start;
+  margin: 2px 0 6px;
+}

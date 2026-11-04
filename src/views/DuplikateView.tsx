@@ -11,13 +11,13 @@ import { formatBytes } from "../lib/format";
 import { trashItem } from "../lib/google";
 import { navigate } from "../lib/route";
 import { accountColor } from "../lib/theme";
+import { dupKey as key, inRandom, pickOne, suggestRemoval } from "../lib/duplicates";
 import type { Account, Item } from "../lib/types";
 import { AUTO_ROOT } from "./AutoUploadSheet";
 import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
 
 const AiSimilarDuplicates = lazy(() => import("../ai/AiSimilarDuplicates")); // KI-SUCHE
 
-const key = (i: Item) => `${i.account_id}|${i.drive_id}`;
 const PAGE = 20;
 
 /** Standard: das Foto in einem selbst sortierten Ordner behalten (nicht in der automatischen Ablage). */
@@ -30,10 +30,16 @@ export function defaultKeep(items: Item[]): string {
 export default function DuplikateView({ accounts }: { accounts: Account[] }) {
   const ui = useUI();
   const [all, setAll] = useState<DuplicateGroup[] | null>(null);
-  const groups = useMemo(() => all?.filter((g) => !g.ignored) ?? null, [all]);
+  // Fokus: Kopien im selben Ordner und Random-Kopien – der Rest (verschiedene Ordner) eingeklappt
+  const suggested = useMemo(() => new Map((all ?? []).map((g) => [g.md5, suggestRemoval(g.items)])), [all]);
+  const open = useMemo(() => all?.filter((g) => !g.ignored) ?? null, [all]);
+  const groups = useMemo(() => open?.filter((g) => suggested.get(g.md5)?.size) ?? null, [open, suggested]);
+  const others = useMemo(() => open?.filter((g) => !suggested.get(g.md5)?.size) ?? [], [open, suggested]);
+  const [showOthers, setShowOthers] = useState(false);
   const ignored = useMemo(() => all?.filter((g) => g.ignored) ?? [], [all]);
   const [showIgnored, setShowIgnored] = useState(false);
-  const [keep, setKeep] = useState<Record<string, string>>({});
+  /** Pro Gruppe: diese Kopien kommen weg (der Rest bleibt) */
+  const [remove, setRemove] = useState<Record<string, string[]>>({});
   const [shown, setShown] = useState(PAGE);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +49,15 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
     fetchDuplicates()
       .then((g) => {
         setAll(g);
-        setKeep(Object.fromEntries(g.map((x) => [x.md5, defaultKeep(x.items)])));
+        setRemove(
+          Object.fromEntries(
+            g.map((x) => {
+              const s = suggestRemoval(x.items);
+              const k = defaultKeep(x.items);
+              return [x.md5, s.size ? [...s] : x.items.map(key).filter((i) => i !== k)];
+            }),
+          ),
+        );
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
 
@@ -51,10 +65,19 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
     void load();
   }, []);
 
+  const removing = (g: DuplicateGroup) => g.items.filter((i) => (remove[g.md5] ?? []).includes(key(i)));
   const wasted = useMemo(
-    () => (groups ?? []).reduce((s, g) => s + (g.items[0]?.size ?? 0) * (g.total - 1), 0),
-    [groups],
+    () => (groups ?? []).reduce((s, g) => s + (g.items[0]?.size ?? 0) * (remove[g.md5]?.length ?? 0), 0),
+    [groups, remove],
   );
+  /** Antippen: Kopie behalten ↔ entfernen (mindestens eine bleibt immer) */
+  const toggle = (g: DuplicateGroup, k: string) =>
+    setRemove((r) => {
+      const cur = r[g.md5] ?? [];
+      if (cur.includes(k)) return { ...r, [g.md5]: cur.filter((x) => x !== k) };
+      if (cur.length >= g.items.length - 1) return r;
+      return { ...r, [g.md5]: [...cur, k] };
+    });
 
   const removeItems = async (items: Item[]) => {
     setProgress({ done: 0, total: items.length });
@@ -81,16 +104,17 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
   };
 
   const cleanGroup = async (g: DuplicateGroup) => {
-    const k = keep[g.md5];
-    await removeItems(g.items.filter((i) => key(i) !== k));
+    const items = removing(g);
+    if (items.length) await removeItems(items);
   };
 
   const cleanAll = async () => {
     if (!groups) return;
-    const items = groups.flatMap((g) => g.items.filter((i) => key(i) !== keep[g.md5]));
+    const items = groups.flatMap(removing);
+    if (!items.length) return;
     const ok = await ui.confirm({
       title: `${items.length} Duplikate entfernen?`,
-      message: `Pro Gruppe bleibt das markierte Foto erhalten. Die anderen landen im Papierkorb (${formatBytes(wasted)}).`,
+      message: `Pro Gruppe bleiben die markierten Fotos erhalten. Die anderen landen im Papierkorb (${formatBytes(wasted)}).`,
       confirmLabel: "Aufräumen",
       danger: true,
     });
@@ -121,6 +145,66 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
   };
   const folderOf = (it: Item) => (it.path ?? "").split("/").slice(0, -1).join("/") || "Drive";
   const distinctFolders = (g: DuplicateGroup) => new Set(g.items.map((i) => i.parent_key)).size > 1;
+
+  const groupCard = (g: DuplicateGroup, gi: number) => {
+    const rm = remove[g.md5] ?? [];
+    const one = g.total >= 3 && rm.length !== 1;
+    return (
+      <section key={g.md5} className="card glass dup-group" style={{ ["--i" as string]: gi }}>
+        <div className="row between small">
+          <span className="muted">
+            {g.total}× · {formatBytes(g.items[0]?.size)}
+            {g.items.some(inRandom) && " · Random"}
+          </span>
+          <span className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+            {distinctFolders(g) && (
+              <button className="btn small ghost" onClick={() => keepAll(g)} title="Gehört thematisch in mehrere Ordner">
+                <Icon name="check" size={15} /> {g.total === 2 ? "Beide behalten" : "Alle behalten"}
+              </button>
+            )}
+            <button className="btn small" disabled={!rm.length} onClick={() => cleanGroup(g)}>
+              <Icon name="trash" size={15} /> {rm.length} entfernen
+            </button>
+          </span>
+        </div>
+        {one && (
+          <button className="link small dup-one" onClick={() => setRemove((r) => ({ ...r, [g.md5]: [pickOne(g.items)] }))}>
+            Nur 1 entfernen, {g.total - 1} behalten
+          </button>
+        )}
+        <div className="dup-row">
+          {g.items.map((it) => {
+            const on = !rm.includes(key(it));
+            const ai = accIndex(it.account_id);
+            return (
+              <button key={key(it)} className={`dup-item ${on ? "keep" : ""}`} onClick={() => toggle(g, key(it))}>
+                <Thumb item={it} />
+                <span className={`dup-keep ${on ? "" : "gone"}`}>{on ? "Behalten" : "Entfernen"}</span>
+                <span className="dup-path">
+                  <span className="dot" style={{ background: accountColor(ai), color: accountColor(ai) }} />
+                  {it.path}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
+
+  // Gleiche Fotos in verschiedenen Ordnern: nicht im Fokus, nur auf Wunsch
+  const OthersList = () =>
+    others.length === 0 ? null : (
+      <>
+        <div className="section-title">
+          <span>In verschiedenen Ordnern</span>
+          <button className="link small" onClick={() => setShowOthers((v) => !v)}>
+            {showOthers ? "Ausblenden" : `Anzeigen (${others.length})`}
+          </button>
+        </div>
+        {showOthers && <div className="stagger">{others.map((g, gi) => groupCard(g, gi))}</div>}
+      </>
+    );
 
   // Bewusst behaltene Gruppen: eingeklappt, mit „Wieder vorschlagen“
   const IgnoredList = () =>
@@ -190,63 +274,30 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
             <div className="empty-icon">
               <Icon name="checkCircle" size={34} />
             </div>
-            <strong>Keine Duplikate</strong>
-            <span>{ignored.length ? "Übrig sind nur bewusst behaltene Fotos." : "Jedes Foto ist nur einmal im Pool."}</span>
+            <strong>Keine Duplikate im selben Ordner</strong>
+            <span>
+              {others.length
+                ? "Übrig sind nur Fotos, die in verschiedenen Ordnern liegen."
+                : ignored.length
+                  ? "Übrig sind nur bewusst behaltene Fotos."
+                  : "Jedes Foto ist nur einmal im Pool."}
+            </span>
           </div>
+          <OthersList />
           <IgnoredList />
         </>
       ) : (
         <>
           <p className="muted small pad">
-            Gleiche Fotos werden über ihre Prüfsumme erkannt. Tippe das Foto an, das bleiben soll – die anderen
-            landen im Papierkorb. Gehört ein Foto in mehrere Ordner, tippe auf „Beide behalten“.
+            Hier sind gleiche Fotos im selben Ordner und Kopien im Ordner „Random“, die es schon woanders gibt.
+            Antippen = behalten oder entfernen. Bei 3 oder mehr Kopien kannst du auch nur eine entfernen.
           </p>
           <div className="stack pad" style={{ marginTop: 10 }}>
             <button className="btn primary block" onClick={cleanAll}>
               <Icon name="sparkles" size={19} /> Alle aufräumen ({formatBytes(wasted)})
             </button>
           </div>
-          <div className="stagger">
-            {groups.slice(0, shown).map((g, gi) => (
-              <section key={g.md5} className="card glass dup-group" style={{ ["--i" as string]: gi }}>
-                <div className="row between small">
-                  <span className="muted">
-                    {g.total}× · {formatBytes(g.items[0]?.size)}
-                  </span>
-                  <span className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
-                    {distinctFolders(g) && (
-                      <button className="btn small ghost" onClick={() => keepAll(g)} title="Gehört thematisch in mehrere Ordner">
-                        <Icon name="check" size={15} /> {g.total === 2 ? "Beide behalten" : "Alle behalten"}
-                      </button>
-                    )}
-                    <button className="btn small" onClick={() => cleanGroup(g)}>
-                      <Icon name="trash" size={15} /> {g.total - 1} entfernen
-                    </button>
-                  </span>
-                </div>
-                <div className="dup-row">
-                  {g.items.map((it) => {
-                    const on = keep[g.md5] === key(it);
-                    const ai = accIndex(it.account_id);
-                    return (
-                      <button
-                        key={key(it)}
-                        className={`dup-item ${on ? "keep" : ""}`}
-                        onClick={() => setKeep((k) => ({ ...k, [g.md5]: key(it) }))}
-                      >
-                        <Thumb item={it} />
-                        {on && <span className="dup-keep">Behalten</span>}
-                        <span className="dup-path">
-                          <span className="dot" style={{ background: accountColor(ai), color: accountColor(ai) }} />
-                          {it.path}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
+          <div className="stagger">{groups.slice(0, shown).map((g, gi) => groupCard(g, gi))}</div>
           {shown < groups.length && (
             <div className="stack pad">
               <button className="btn block" onClick={() => setShown((s) => s + PAGE)}>
@@ -254,6 +305,7 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
               </button>
             </div>
           )}
+          <OthersList />
           <IgnoredList />
         </>
       )}

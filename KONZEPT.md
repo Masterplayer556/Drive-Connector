@@ -84,6 +84,7 @@ Jede Gruppe ist eine Einheit und liegt möglichst komplett in einem Konto. Neue 
 - Nie über die Grenze von Privat: Privat-Ordner nur zwischen Privat-Konten, alles andere nur zwischen Archiv-Konten (auch der Server prüft das beim Ausführen).
 - Liegt ein Ordner im falschen Gebiet (z. B. `Privat/…` in einem Archiv-Konto), schlägt die App vor, ihn ins richtige Gebiet zu holen („Ins richtige Gebiet“).
 - Ziel: möglichst viele Einheiten ganz in einem Konto, möglichst grosse freie Blöcke.
+- Ein Vorschlag kommt erst, wenn er **mehr als 1 GB** frei macht (Ausnahme: Ordner im falschen Gebiet).
 - Ablauf beim Verschieben (ohne dass eine Datei geöffnet wird):
   1. Konto A gibt den Ordner intern für Konto B frei.
   2. Konto B erstellt eine **serverseitige Kopie** bei Google (Daten laufen nicht über Backend oder Handy).
@@ -110,7 +111,9 @@ Ordner können gesperrt werden. Gesperrte Ordner werden **nie** verschoben oder 
 ### Regel 9 – Duplikate
 - Erkennung über **MD5-Prüfsumme + Grösse** (von Google geliefert, keine Datei wird geöffnet).
 - **Vor jedem Upload** wird geprüft, ob das Foto schon im Pool ist → wird übersprungen.
-- Duplikat-Liste mit Vorschaubildern nebeneinander (einzige „Ansehen“-Ausnahme), ich entscheide, welche Kopie bleibt.
+- Duplikat-Liste mit Vorschaubildern nebeneinander (einzige „Ansehen“-Ausnahme), ich entscheide, welche Kopien bleiben (antippen = behalten/entfernen, mindestens eine bleibt).
+- Fokus: gleiche Fotos **im selben Ordner** (eine bleibt) und – als Ausnahme – Kopien im Ordner **„Random“**, wenn das Foto auch woanders liegt (die Random-Kopie kommt weg). Kopien in verschiedenen normalen Ordnern sind eingeklappt („In verschiedenen Ordnern“).
+- Ab 3 gleichen Fotos: „Nur 1 entfernen“ (zuerst die Random-Kopie bzw. die doppelte im selben Ordner).
 
 ### Regel 10 – Speicher und Warnungen
 - Jedes Konto wird bis **100 %** gefüllt. Gmail und Google Fotos müssen nicht funktionieren.

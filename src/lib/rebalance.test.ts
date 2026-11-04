@@ -46,11 +46,22 @@ describe("planRebalance", () => {
   it("führt einen verteilten Ordner ins Konto mit dem grössten Teil zusammen", () => {
     const p = planRebalance({
       accounts: [acc("a", 10), acc("b", 6)],
-      units: [unit("a", "Archiv/Reisen", 4), unit("b", "Archiv/Reisen", 1), unit("b", "Archiv/Y", 5)],
+      units: [unit("a", "Archiv/Reisen", 3.5), unit("b", "Archiv/Reisen", 1.5), unit("b", "Archiv/Y", 4.5)],
     });
     expect(p.steps).toHaveLength(1);
     expect(p.steps[0]).toMatchObject({ block: "archiv/reisen", from: "b", to: "a", reason: "zusammenführen" });
-    expect(p.after.a).toBeCloseTo(11 * GB);
+    expect(p.after.a).toBeCloseTo(11.5 * GB);
+  });
+
+  it("schlägt nichts vor, was höchstens 1 GB frei macht", () => {
+    const p = planRebalance({
+      accounts: [acc("a", 10), acc("b", 6)],
+      units: [unit("a", "Archiv/Reisen", 4), unit("b", "Archiv/Reisen", 1), unit("b", "Archiv/Y", 5)],
+    });
+    expect(p.steps).toHaveLength(0);
+    expect(p.after.a).toBeCloseTo(10 * GB);
+    // mit tieferer Grenze käme der Vorschlag
+    expect(planRebalance({ accounts: [acc("a", 10), acc("b", 6)], units: [unit("a", "Archiv/Reisen", 4), unit("b", "Archiv/Reisen", 1)], minBytes: 0 }).steps).toHaveLength(1);
   });
 
   it("entlastet ein volles Konto ins leere neue Konto – lieber ein grosser Block als viele kleine", () => {
