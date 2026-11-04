@@ -6,12 +6,21 @@ import Thumb from "../components/Thumb";
 import type { Account, Item } from "../lib/types";
 import { modelProgress, onModelProgress } from "./engine";
 import { indexState, searchClosed, searchOpened } from "./indexer";
-import { aiSearch, vote, type AiResult } from "./search";
+import { aiSearch, privateAccounts, vote, type AiResult } from "./search";
 import { itemKey } from "./store";
 
 const Viewer = lazy(() => import("../components/Viewer"));
 
-export default function AiSearchResults({ query, accounts }: { query: string; accounts: Account[] }) {
+export default function AiSearchResults({
+  query,
+  accounts,
+  includePrivate = false,
+}: {
+  query: string;
+  accounts: Account[];
+  /** Fotos aus privaten Konten zeigen? (Standard: nein) */
+  includePrivate?: boolean;
+}) {
   const [result, setResult] = useState<AiResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,13 +48,14 @@ export default function AiSearchResults({ query, accounts }: { query: string; ac
     setBusy(true);
     // Etwas länger warten als die Namenssuche: erst wenn du kurz nicht mehr tippst
     const t = setTimeout(() => {
-      aiSearch(term)
+      aiSearch(term, { exclude: includePrivate ? undefined : privateAccounts(accounts) })
         .then((r) => n === seq.current && (setResult(r), setVotes(new Map(r.votes)), setError(null)))
         .catch((e) => n === seq.current && setError(e instanceof Error ? e.message : String(e)))
         .finally(() => n === seq.current && setBusy(false));
     }, 550);
     return () => clearTimeout(t);
-  }, [query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, includePrivate]);
 
   if (query.trim().length < 3) return null;
 

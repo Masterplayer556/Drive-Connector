@@ -110,3 +110,87 @@
   inset: 0;
   z-index: 60;
 }
+/* Suchart-Menü im Suchfenster – das Suchfeld darf schmaler werden, damit „Fertig“ Platz hat */
+.search-bar .search-field {
+  min-width: 0;
+}
+.search-bar .search-field input {
+  min-width: 0;
+}
+.ai-mode {
+  position: relative;
+  flex-shrink: 0;
+}
+.ai-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  background: rgba(var(--tint-rgb), 0.1);
+}
+.ai-mode-btn.ki {
+  color: #fff;
+  background: linear-gradient(135deg, #f472b6, #8b5cf6);
+}
+.ai-mode-chev {
+  transform: rotate(90deg);
+  opacity: 0.8;
+}
+.ai-mode-priv {
+  font-weight: 500;
+  opacity: 0.9;
+}
+.ai-mode-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 5;
+  background: rgb(var(--surface-rgb));
+  border: 1px solid rgba(var(--tint-rgb), 0.12);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  width: min(290px, 80vw);
+  padding: 10px;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: fadeIn 0.15s ease both;
+}
+.ai-mode-head {
+  padding: 2px 6px 4px;
+}
+.ai-mode-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.ai-mode-opt input {
+  margin-top: 3px;
+  accent-color: #8b5cf6;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.ai-mode-opt span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ai-mode-check {
+  margin-top: 4px;
+  border-top: 1px solid rgba(var(--tint-rgb), 0.1);
+  border-radius: 0 0 12px 12px;
+}
+.ai-mode-check.off {
+  opacity: 0.45;
+}

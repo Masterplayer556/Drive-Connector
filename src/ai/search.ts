@@ -28,8 +28,19 @@ async function loadVectors(): Promise<Map<string, Float32Array>> {
 
 const feedbackId = (english: string, key: string) => `${english.toLowerCase()}|${key}`;
 
-export async function aiSearch(query: string): Promise<AiResult> {
-  const [map, fb] = await Promise.all([loadVectors(), feedback ?? allFeedback().catch(() => [])]);
+/** Index ohne die Fotos bestimmter Konten (z. B. private). Schlüssel = "konto/datei". */
+function without(map: Map<string, Float32Array>, accounts?: Set<string>): Map<string, Float32Array> {
+  if (!accounts?.size) return map;
+  return new Map([...map].filter(([k]) => !accounts.has(k.slice(0, k.indexOf("/")))));
+}
+
+/** Konten mit der Rolle „Privat“. */
+export const privateAccounts = (accounts: { id: string; role: string }[]) =>
+  new Set(accounts.filter((a) => a.role === "privat").map((a) => a.id));
+
+export async function aiSearch(query: string, { exclude }: { exclude?: Set<string> } = {}): Promise<AiResult> {
+  const [all, fb] = await Promise.all([loadVectors(), feedback ?? allFeedback().catch(() => [])]);
+  const map = without(all, exclude);
   feedback = fb;
   const [{ vec, english }, items] = await Promise.all([embedText(query), catalog()]);
   // Feedback dieser und ähnlicher Suchen einrechnen
@@ -56,9 +67,10 @@ export async function vote(result: Pick<AiResult, "q" | "english">, item: Item, 
 }
 
 /** Fotos, die diesem am ähnlichsten sehen. null = Foto ist noch nicht gelernt. */
-export async function similarTo(item: Item): Promise<Item[] | null> {
-  const [map, items] = await Promise.all([loadVectors(), catalog()]);
-  const v = map.get(itemKey(item));
+export async function similarTo(item: Item, { exclude }: { exclude?: Set<string> } = {}): Promise<Item[] | null> {
+  const [all, items] = await Promise.all([loadVectors(), catalog()]);
+  const v = all.get(itemKey(item));
+  const map = without(all, exclude);
   if (!v) return null;
   // Bild-zu-Bild: sehr ähnlich ≈ 0.9+, gleiche Art Szene ≈ 0.8, Unpassendes ≈ 0.5–0.7
   const hits = rank(v, map, { limit: 40, floor: 0.72, window: 0.25, skip: itemKey(item) });

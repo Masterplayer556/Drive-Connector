@@ -5,6 +5,7 @@ import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
 import Thumb from "./Thumb";
 import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
+import SearchModeMenu, { useSearchMode } from "../ai/SearchModeMenu"; // KI-SUCHE
 
 const Viewer = lazy(() => import("./Viewer"));
 const AiSearchResults = lazy(() => import("../ai/AiSearchResults")); // KI-SUCHE
@@ -26,6 +27,9 @@ export default function SearchSheet({
   const input = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
   const ai = useAiEnabled(); // KI-SUCHE
+  const [mode, setMode] = useSearchMode(); // KI-SUCHE: mit KI oder nach Namen
+  const [includePrivate, setIncludePrivate] = useState(false); // KI-SUCHE: private Konten nur auf Wunsch
+  const kiMode = ai && mode === "ki"; // KI-SUCHE
 
   useEffect(() => {
     setTimeout(() => input.current?.focus(), 150);
@@ -33,8 +37,9 @@ export default function SearchSheet({
 
   useEffect(() => {
     const term = q.trim();
-    if (term.length < 2) {
+    if (term.length < 2 || kiMode) {
       setResults(null);
+      setBusy(false);
       return;
     }
     const n = ++seq.current;
@@ -46,7 +51,7 @@ export default function SearchSheet({
         .finally(() => n === seq.current && setBusy(false));
     }, 220);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, kiMode]);
 
   // Ordner aus mehreren Konten zusammenführen
   const folders = [...new Map((results ?? []).filter((r) => r.is_folder).map((r) => [(r.path ?? "").toLowerCase(), r])).values()];
@@ -64,23 +69,40 @@ export default function SearchSheet({
               ref={input}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder={ai ? "Suchen oder Foto beschreiben" : "Fotos und Ordner suchen"} // KI-SUCHE
+              placeholder={kiMode ? "Foto beschreiben" : "Fotos und Ordner suchen"} // KI-SUCHE
               enterKeyHint="search"
               autoCapitalize="off"
               autoCorrect="off"
             />
             {busy && <span className="spinner" style={{ width: 16, height: 16 }} />}
           </div>
+          {/* KI-SUCHE */}
+          {ai && (
+            <SearchModeMenu mode={mode} onMode={setMode} includePrivate={includePrivate} onIncludePrivate={setIncludePrivate} />
+          )}
           <button className="btn ghost small" onClick={onClose}>
             Fertig
           </button>
         </div>
         <div className="sheet-body">
-          {results === null ? (
+          {/* KI-SUCHE: im KI-Modus nur die KI-Treffer */}
+          {kiMode ? (
+            <>
+              {q.trim().length < 3 && (
+                <p className="muted small" style={{ textAlign: "center", marginTop: 24 }}>
+                  Beschreibe das Foto – z. B. „Hund im Schnee“ oder „Arbeitsblatt mit Tabelle“.
+                  {!includePrivate && " Private Fotos sind ausgeblendet."}
+                </p>
+              )}
+              <Suspense fallback={null}>
+                <AiSearchResults query={q} accounts={accounts} includePrivate={includePrivate} />
+              </Suspense>
+            </>
+          ) : results === null ? (
             <p className="muted small" style={{ textAlign: "center", marginTop: 24 }}>
-              {/* KI-SUCHE */ ai ? "Name oder Beschreibung – z. B. „Mathe“, „2024“ oder „Hund im Schnee“." : "Mindestens 2 Zeichen – z. B. „Mathe“, „2024“ oder „IMG_45“."}
+              Mindestens 2 Zeichen – z. B. „Mathe“, „2024“ oder „IMG_45“.
             </p>
-          ) : results.length === 0 && ai ? null /* KI-SUCHE: „Nichts gefunden“ zeigt dann der KI-Abschnitt */ : results.length === 0 ? (
+          ) : results.length === 0 ? (
             <div className="empty">
               <div className="empty-icon">
                 <Icon name="search" size={30} />
@@ -140,12 +162,6 @@ export default function SearchSheet({
                 </>
               )}
             </>
-          )}
-          {/* KI-SUCHE */}
-          {ai && (
-            <Suspense fallback={null}>
-              <AiSearchResults query={q} accounts={accounts} />
-            </Suspense>
           )}
         </div>
       </div>

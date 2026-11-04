@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import Icon from "../components/Icon";
 import Thumb from "../components/Thumb";
 import type { Account, Item } from "../lib/types";
-import { similarTo } from "./search";
+import { privateAccounts, similarTo } from "./search";
 
 const Viewer = lazy(() => import("../components/Viewer"));
 
@@ -14,9 +14,12 @@ export default function SimilarSheet({ item, accounts, onClose }: { item: Item; 
   const [viewer, setViewer] = useState<number | null>(null);
 
   useEffect(() => {
-    similarTo(item)
+    // Private Fotos nur, wenn das Ausgangsfoto selbst privat ist
+    const priv = privateAccounts(accounts);
+    similarTo(item, { exclude: priv.has(item.account_id) ? undefined : priv })
       .then(setItems)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
 
   return (
