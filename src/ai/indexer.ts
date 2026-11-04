@@ -4,7 +4,7 @@
 import type { Item } from "../lib/types";
 import { catalog, thumbsFor } from "./catalog";
 import { aiModel, learningDevice } from "./flag";
-import { syncDown, uploadVectors } from "./cloud";
+import { fetchKeys, syncDown, uploadVectors } from "./cloud";
 import { MODELS } from "./protocol";
 import { crashedDuring, embedImage, embedImages, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive } from "./engine";
 import { itemKey, markSkip, putVector, putVectors, removeKeys, skipped, vectorKeys } from "./store";
@@ -234,7 +234,19 @@ async function pass(stopped: () => boolean): Promise<"done" | "wait"> {
       set({ error: e instanceof Error ? e.message : String(e) });
     }
   }
-  const [have, skips] = await Promise.all([vectorKeys(), skipped()]);
+  let [have, skips] = await Promise.all([vectorKeys(), skipped()]);
+
+  // iPhone: fehlt trotz Abgleich noch etwas, gezielt genau diese Fotos holen (falls der PC sie schon hat)
+  if (spec.cloud && !learningDevice()) {
+    const missing = [...items.keys()].filter((k) => !have.has(k) && !skips.has(k));
+    if (missing.length && missing.length <= 3000) {
+      try {
+        if (await fetchKeys(spec.id, missing)) [have, skips] = await Promise.all([vectorKeys(), skipped()]);
+      } catch (e) {
+        set({ error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+  }
 
   // Gelöschte Fotos aus dem Index entfernen
   await removeKeys([...have, ...skips.keys()].filter((k) => !items.has(k)));

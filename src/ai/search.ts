@@ -11,7 +11,7 @@ import { expandNameKeys, FOLDER_KEY, folderKey, isFolderKey, learnedNames, proto
 import { inFolder, parseQuery } from "./query";
 import { frequentConcepts, pickCards, sample, type Term } from "./train";
 import { allTags, inheritsTag, loadFolderTags, loadTags, markerColor, tagHits, tagKey } from "../lib/tags";
-import { applyFeedback, groupSimilar, rank } from "./rank";
+import { applyFeedback, dot, groupSimilar, rank, spread } from "./rank";
 import { allFeedback, allVectors, deleteFeedback, getMeta, itemKey, putFeedback, putMeta, type Feedback } from "./store";
 
 export interface AiResult {
@@ -46,6 +46,9 @@ async function loadVectors(): Promise<Map<string, Float32Array>> {
   }
   return vectors.map;
 }
+
+/** Rechnet das gewählte Modell mit eigener Skala? (siehe ModelSpec.autoFloor) */
+const autoFloor = () => !!MODELS[aiModel()].autoFloor;
 
 const feedbackId = (english: string, key: string) => `${english.toLowerCase()}|${key}`;
 
@@ -124,7 +127,7 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
     // Name + Beschreibung („Luca am Strand“): unter den Fotos des Namens nach der Beschreibung sortieren
     const { vec } = await embedText(rest);
     const sub = new Map(byName.map((h) => [h.key, map.get(h.key)!]));
-    let hits = rank(vec, sub, { limit: 30, adjust });
+    let hits = rank(vec, sub, { limit: 30, adjust, auto: autoFloor() });
     if (!hits.length) hits = byName.slice(0, 30);
     return { ...base, items: hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x), english, indexed: sub.size, q: vec, filterOnly: false };
   }
@@ -141,7 +144,7 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
     for (const k of t.keys.slice(0, 300)) fbNow.push({ q: vec, key: k, vote: 1 });
   }
   const { query: q2, adjust } = applyFeedback(vec, fbNow, map);
-  const hits = rank(q2, map, { limit: 30, adjust, keywords: kvecs }); // wenige Vorschaubilder = wenig Speicher
+  const hits = rank(q2, map, { limit: 30, adjust, keywords: kvecs, auto: autoFloor() }); // wenige Vorschaubilder = wenig Speicher
   for (const f of fb) if (f.english.toLowerCase() === english.toLowerCase()) base.votes.set(f.key, f.vote);
   return {
     ...base,
@@ -372,7 +375,12 @@ export async function trainingBatch(
     q = e.vec;
     english = e.english;
     const hits = rank(q, map, { limit: 600, floor: 0, window: 1, keywords: e.kvecs });
-    if (!hits.length || hits[0].score < 0.2) return null; // passt zu nichts in deiner Ablage
+    // Passt zu nichts in deiner Ablage? (bei Modellen mit eigener Skala: bester Treffer kaum über dem Durchschnitt)
+    if (!hits.length) return null;
+    if (autoFloor()) {
+      const { mean, sd } = spread([...map.values()].map((v) => dot(q, v)));
+      if (hits[0].score < mean + 2 * sd) return null;
+    } else if (hits[0].score < 0.2) return null;
     ranked = hits.map((h) => h.key);
   }
   // Schon bewertet oder in dieser Runde schon gezeigt (auch „weiss nicht“) → nicht nochmals
@@ -427,7 +435,7 @@ export async function compareModels(
     const map = new Map([...all].filter(([k]) => items.has(k)));
     if (!map.size) return { items: [], learned: 0, english: "" };
     const { vec, english, kvecs } = await embedText(query, model);
-    const hits = rank(vec, map, { limit: 12, keywords: kvecs });
+    const hits = rank(vec, map, { limit: 12, keywords: kvecs, auto: !!MODELS[model].autoFloor });
     return { items: hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x), learned: map.size, english };
   };
   // Nacheinander, nicht gleichzeitig (Arbeitsspeicher)

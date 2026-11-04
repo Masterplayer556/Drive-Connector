@@ -132,3 +132,17 @@ describe("KI-Suche: Stichwörter", () => {
     expect(rank(q, vectors, { floor: 0, keywords: [hund, schnee] })[0].key).toBe("hundImSchnee");
   });
 });
+
+describe("Grenze relativ zur Verteilung (auto)", () => {
+  it("findet passende Fotos auch bei insgesamt tiefen Werten", () => {
+    const unit = (x: number) => new Float32Array([x, Math.sqrt(1 - x * x)]);
+    const q = new Float32Array([1, 0]);
+    const map = new Map<string, Float32Array>();
+    // 100 unpassende um 0.05, zwei passende bei 0.15 (alles unter der festen Grenze 0.2)
+    for (let i = 0; i < 100; i++) map.set(`n${i}`, unit(0.04 + (i % 5) * 0.005));
+    map.set("a", unit(0.15));
+    map.set("b", unit(0.14));
+    expect(rank(q, map)).toEqual([]);
+    expect(rank(q, map, { auto: true }).map((h) => h.key)).toEqual(["a", "b"]);
+  });
+});
