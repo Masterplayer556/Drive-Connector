@@ -185,6 +185,8 @@ export function isAppleMobile(): boolean {
 }
 
 export function learningDevice(): boolean {
+  // iPhone/iPad lernen die PC-Modelle nie (zu wenig Arbeitsspeicher) – nur das Standardmodell scannt dort
+  if (isAppleMobile()) return false;
   try {
     const v = localStorage.getItem(LEARNER_KEY);
     if (v === "1") return true;
