@@ -15,6 +15,12 @@ export interface ModelSpec {
   textDtype: "q8" | "fp32";
   /** Text immer auf volle Länge auffüllen (MobileCLIP erwartet das) */
   padMax: boolean;
+  /**
+   * Braucht viel Arbeitsspeicher: beim normalen Lernen (nicht „Schnell lernen“) wird das Bildmodell
+   * entladen, sobald du die App bedienst, und erst nach einer längeren Pause wieder geladen –
+   * sonst wird es dem iPhone zusammen mit der App zu viel.
+   */
+  heavy: boolean;
 }
 
 export const MODELS: Record<ModelId, ModelSpec> = {
@@ -28,6 +34,7 @@ export const MODELS: Record<ModelId, ModelSpec> = {
     visionDtype: "q8",
     textDtype: "q8",
     padMax: false,
+    heavy: false,
   },
   // Apple MobileCLIP-S2 (2024) – kleiner, laut Apple deutlich treffsicherer. Bildteil ungerundet (fp32),
   // weil die gerundete Fassung bei MobileCLIP ungenauer sein kann
@@ -40,6 +47,7 @@ export const MODELS: Record<ModelId, ModelSpec> = {
     visionDtype: "fp32",
     textDtype: "q8",
     padMax: true,
+    heavy: true,
   },
 };
 

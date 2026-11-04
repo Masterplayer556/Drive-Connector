@@ -53,6 +53,8 @@ function statusText(s: IndexState): string {
       return `Pausiert, solange die Suche offen ist · noch ${left.toLocaleString("de-CH")}`;
     case "paused":
       return `Pausiert, solange die App im Hintergrund ist · noch ${left.toLocaleString("de-CH")}`;
+    case "waiting":
+      return `Wartet, bis du die App kurz nicht bedienst (spart Speicher) · noch ${left.toLocaleString("de-CH")}`;
     case "done":
       return "Alle Fotos bereit";
     case "error":
@@ -133,7 +135,7 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
 
   const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
   const left = Math.max(0, s.total - s.done);
-  const learning = left > 0 && ["start", "model", "indexing", "paused", "searching"].includes(s.phase);
+  const learning = left > 0 && ["start", "model", "indexing", "paused", "searching", "waiting"].includes(s.phase);
 
   return (
     <div className="list glass enter">
