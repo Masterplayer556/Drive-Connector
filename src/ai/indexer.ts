@@ -3,6 +3,7 @@
 // Bildschirm bleibt an. Im Hintergrund friert iOS Web-Apps ein – dann geht es beim nächsten Öffnen weiter.
 import type { Item } from "../lib/types";
 import { catalog, thumbsFor } from "./catalog";
+import { aiModel, inTestFolders, testFolders } from "./flag";
 import { embedImage, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive } from "./engine";
 import { itemKey, markSkip, putVector, removeKeys, skipped, vectorKeys } from "./store";
 
@@ -160,7 +161,10 @@ function rateMeter() {
 }
 
 async function pass(stopped: () => boolean): Promise<void> {
-  const items = await catalog(true);
+  const all = await catalog(true);
+  // Test-Modell: nur Fotos in den Testordnern lernen
+  const folders = aiModel() === "mobileclip" ? testFolders() : null;
+  const items = folders ? new Map([...all].filter(([, it]) => inTestFolders(it.path, folders))) : all;
   const [have, skips] = await Promise.all([vectorKeys(), skipped()]);
 
   // Gelöschte Fotos aus dem Index entfernen

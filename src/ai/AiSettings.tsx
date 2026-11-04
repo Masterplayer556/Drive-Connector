@@ -5,7 +5,19 @@ import type { Account } from "../lib/types";
 import Icon from "../components/Icon";
 import { useUI } from "../components/ui";
 import { crashNote, forgetOldSettings, modelProgress, onModelProgress } from "./engine";
-import { setAiEnabled, setFeedbackEnabled, useAiEnabled, useFeedbackEnabled } from "./flag";
+import {
+  inTestFolders,
+  setAiEnabled,
+  setAiModel,
+  setFeedbackEnabled,
+  setTestFolders,
+  useAiEnabled,
+  useAiModel,
+  useFeedbackEnabled,
+  useTestFolders,
+} from "./flag";
+import { catalog } from "./catalog";
+import { MODELS } from "./protocol";
 import { indexState, onIndexState, setTurbo, stopIndexer, type IndexState } from "./indexer";
 import { allNames, removeName } from "./search";
 import { usedBytes, wipeEverything } from "./store";
@@ -202,13 +214,14 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
             <Icon name="sparkles" size={16} /> KI trainieren
           </button>
           <p className="faint small" style={{ margin: 0 }}>
-            Begriffe aus deinen Ordnern, Tags und Suchen – Foto nach rechts wischen = passt, nach links = passt nicht.
+            Begriffe, die oft auf deinen Fotos vorkommen – Foto nach rechts wischen = passt, nach links = passt nicht.
           </p>
           {training && (
             <Suspense fallback={null}>
               <TrainSheet accounts={accounts} onClose={() => setTraining(false)} />
             </Suspense>
           )}
+          <ModelChoice />
           <LearnedNames />
           <button className="link small ai-wipe" onClick={() => void wipe()} disabled={busy}>
             KI-Daten von diesem Gerät löschen
@@ -259,6 +272,141 @@ function LearnedNames() {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Abstand zweier Wörter (Tippfehler-Vorschläge für Testordner). */
+function distance(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+
+/** Haben zwei Wörter 4 Buchstaben am Stück gemeinsam? */
+function shares4(a: string, b: string): boolean {
+  for (let i = 0; i + 4 <= a.length; i++) if (b.includes(a.slice(i, i + 4))) return true;
+  return false;
+}
+
+/** Modell wählen: Standard oder MobileCLIP (Test, nur in Testordnern). */
+function ModelChoice() {
+  const model = useAiModel();
+  const folders = useTestFolders();
+  const [counts, setCounts] = useState<Map<string, number> | null>(null);
+  const [allDirs, setAllDirs] = useState<string[]>([]);
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    if (model !== "mobileclip") return;
+    let alive = true;
+    catalog()
+      .then((items) => {
+        if (!alive) return;
+        const c = new Map<string, number>();
+        const dirs = new Set<string>();
+        for (const it of items.values()) {
+          for (const d of (it.path ?? "").split("/").slice(0, -1)) dirs.add(d);
+          for (const f of folders) if (inTestFolders(it.path, [f])) c.set(f, (c.get(f) ?? 0) + 1);
+        }
+        setCounts(c);
+        setAllDirs([...dirs]);
+      })
+      .catch(() => setCounts(new Map()));
+    return () => {
+      alive = false;
+    };
+  }, [model, folders]);
+
+  const suggest = (f: string) => {
+    const low = f.toLowerCase();
+    return allDirs
+      .map((d) => ({ d, n: distance(low, d.toLowerCase()) }))
+      // Ähnlich geschrieben, oder 4 Buchstaben am Stück gleich („Underrune“ → „Deltarune“, „Undertale“)
+      .filter((x) => x.n <= Math.max(2, Math.floor(low.length / 3)) || shares4(low, x.d.toLowerCase()))
+      .sort((a, b) => a.n - b.n)
+      .slice(0, 4)
+      .map((x) => x.d);
+  };
+  const add = (name: string) => {
+    const n = name.trim();
+    setText("");
+    if (n && !folders.some((f) => f.toLowerCase() === n.toLowerCase())) setTestFolders([...folders, n]);
+  };
+  const replace = (from: string, to: string) => setTestFolders(folders.map((f) => (f === from ? to : f)));
+  const total = counts ? [...counts.values()].reduce((a, b) => a + b, 0) : null;
+
+  return (
+    <div className="ai-names">
+      <div className="ai-names-head">
+        <strong className="small">Modell</strong>
+        <span className="faint small">Jedes Modell hat seinen eigenen Index – Umschalten löscht nichts.</span>
+      </div>
+      {(["clip", "mobileclip"] as const).map((m) => (
+        <label key={m} className="ai-mode-opt">
+          <input type="radio" name="ai-model" checked={model === m} onChange={() => setAiModel(m)} />
+          <span>
+            <strong>{MODELS[m].label}</strong>
+            <small className="faint">
+              {m === "clip"
+                ? "OpenAI CLIP (2021) – lernt alle Fotos"
+                : "Apple MobileCLIP (2024) – kleiner, laut Apple treffsicherer. Zum Testen: lernt nur Fotos in den Testordnern (einmalig ca. 200 MB laden)"}
+            </small>
+          </span>
+        </label>
+      ))}
+      {model === "mobileclip" && (
+        <>
+          <div className="faint small">
+            Testordner{total !== null && ` · ${total.toLocaleString("de-CH")} Fotos`} – Suche findet mit diesem Modell nur Fotos darin.
+          </div>
+          <div className="ai-name-chips">
+            {folders.map((f) => {
+              const n = counts?.get(f) ?? 0;
+              const tips = counts && n === 0 ? suggest(f) : [];
+              return (
+                <span key={f} className="ai-folder-chip">
+                  <span className={`ai-name-chip on ${counts && !n ? "missing" : ""}`}>
+                    <Icon name="folder" size={12} /> {f} <span className="faint">{counts ? n : "…"}</span>
+                    <button onClick={() => setTestFolders(folders.filter((x) => x !== f))} aria-label={`${f} entfernen`}>
+                      <Icon name="x" size={12} />
+                    </button>
+                  </span>
+                  {counts && !n && (
+                    <span className="faint small">
+                      Nicht gefunden
+                      {tips.length > 0 && " – meintest du "}
+                      {tips.map((t, i) => (
+                        <span key={t}>
+                          {i > 0 && ", "}
+                          <button className="link small" onClick={() => replace(f, t)}>
+                            {t}
+                          </button>
+                        </span>
+                      ))}
+                      {tips.length > 0 && "?"}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+          <form
+            className="ai-name-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              add(text);
+            }}
+          >
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ordnername hinzufügen" enterKeyHint="done" autoCorrect="off" />
+            <button className="btn small primary" disabled={!text.trim()}>
+              Hinzufügen
+            </button>
+          </form>
+        </>
+      )}
     </div>
   );
 }

@@ -58,3 +58,72 @@ export function setFeedbackEnabled(on: boolean) {
 export function useFeedbackEnabled(): boolean {
   return useSyncExternalStore(onAiFlag, feedbackEnabled, () => true);
 }
+
+// ---- Modell (Standard oder MobileCLIP zum Testen) ----
+const MODEL_KEY = "drivepool.ai.model";
+
+export function aiModel(): "clip" | "mobileclip" {
+  try {
+    return localStorage.getItem(MODEL_KEY) === "mobileclip" ? "mobileclip" : "clip";
+  } catch {
+    return "clip";
+  }
+}
+
+export function setAiModel(m: "clip" | "mobileclip") {
+  try {
+    if (m === "clip") localStorage.removeItem(MODEL_KEY);
+    else localStorage.setItem(MODEL_KEY, m);
+  } catch {
+    /* ignorieren */
+  }
+  window.dispatchEvent(new Event("drivepool-ai"));
+}
+
+export function useAiModel(): "clip" | "mobileclip" {
+  return useSyncExternalStore(onAiFlag, aiModel, () => "clip" as const);
+}
+
+// ---- Testordner: das Test-Modell lernt nur Fotos in diesen Ordnern (Name irgendwo im Pfad) ----
+const TEST_KEY = "drivepool.ai.testFolders";
+export const DEFAULT_TEST_FOLDERS = ["HH", "TLOZ", "Super Mario", "Underrune"];
+
+let testCache: { raw: string | null; list: string[] } | null = null;
+export function testFolders(): string[] {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(TEST_KEY);
+  } catch {
+    /* ignorieren */
+  }
+  if (testCache?.raw === raw) return testCache.list; // gleiche Liste → gleiches Objekt (für React)
+  let list = DEFAULT_TEST_FOLDERS;
+  try {
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed)) list = parsed.filter((x) => typeof x === "string");
+  } catch {
+    /* ignorieren */
+  }
+  testCache = { raw, list };
+  return list;
+}
+
+export function setTestFolders(list: string[]) {
+  try {
+    localStorage.setItem(TEST_KEY, JSON.stringify(list));
+  } catch {
+    /* ignorieren */
+  }
+  window.dispatchEvent(new Event("drivepool-ai"));
+}
+
+export function useTestFolders(): string[] {
+  return useSyncExternalStore(onAiFlag, testFolders, () => DEFAULT_TEST_FOLDERS);
+}
+
+/** Liegt die Datei in einem der Ordner? (Ordnername exakt, Gross/klein egal, irgendwo im Pfad) */
+export function inTestFolders(path: string | null, folders: string[]): boolean {
+  if (!path || !folders.length) return false;
+  const dirs = path.toLowerCase().split("/").slice(0, -1);
+  return folders.some((f) => dirs.includes(f.trim().toLowerCase()));
+}

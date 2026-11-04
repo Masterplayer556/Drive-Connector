@@ -6,10 +6,11 @@ import { keywordsOf, toEnglish } from "./dict";
 import { keywordPrompts, searchPrompts } from "./prompts";
 import { setRisk, takeCrash, type Risk } from "./guard";
 import { MODEL_CACHE } from "./store";
+import { aiModel } from "./flag";
 import type { FromWorker, ToWorker } from "./protocol";
 
 type Part = "bild" | "text";
-type WithoutId<T> = T extends unknown ? Omit<T, "id"> : never;
+type WithoutId<T> = T extends unknown ? Omit<T, "id" | "model"> : never;
 type Pending = { resolve: (m: FromWorker) => void; reject: (e: Error) => void; slot: number };
 
 const VISION = 0; // Bild-Worker (lernt)
@@ -116,7 +117,8 @@ function send(msg: WithoutId<ToWorker>, slot: number): Promise<FromWorker> {
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject, slot });
     busy[slot]++;
-    getWorker(slot).postMessage({ ...msg, id } as ToWorker);
+    // Gewähltes Modell (Standard oder Test) – beim Umschalten werden die Worker neu gestartet
+    getWorker(slot).postMessage({ ...msg, id, model: aiModel() } as ToWorker);
   });
 }
 
