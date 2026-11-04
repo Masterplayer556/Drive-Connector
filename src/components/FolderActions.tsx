@@ -147,7 +147,7 @@ export default function FolderActions({
         </div>
         <div className="sheet-body stack">
           <div className="swatches" role="radiogroup" aria-label="Ordnerfarbe">
-            <button className={`swatch auto ${current === null ? "on" : ""}`} onClick={() => color(null)} aria-label="Automatisch" title="Automatisch">
+            <button className={`swatch auto ${current === null ? "on" : ""}`} onClick={() => color(null)} aria-label="Automatisch (aus den Fotos)" title="Automatisch: Farbe aus den Fotos im Ordner, sonst aus dem Namen">
               A
             </button>
             {FOLDER_HUES.map((h) => (
