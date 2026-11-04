@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Vergleich – dieselbe Suche mit beiden Modellen nebeneinander, nur in den Testordnern.
+// KI-SUCHE (Test): Vergleich – dieselbe Suche mit beiden Modellen nebeneinander, über alle Fotos.
 // Ohne 👍/👎, Namen und Tags (reiner Modellvergleich). Strichliste: welches Modell war besser?
 import "./ai.css";
 import { createPortal } from "react-dom";
@@ -6,7 +6,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import Thumb from "../components/Thumb";
 import type { Account, Item } from "../lib/types";
-import { addToTally, compareTally, resetTally, useTestFolders, type Tally } from "./flag";
+import { addToTally, compareTally, resetTally, type Tally } from "./flag";
 import { searchClosed, searchOpened } from "./indexer";
 import { isModelId, MODEL_IDS, MODELS, type ModelId } from "./protocol";
 import { compareModels, type CompareSide } from "./search";
@@ -27,7 +27,6 @@ function loadPair(): [ModelId, ModelId] {
 }
 
 export default function CompareSheet({ accounts, onClose }: { accounts: Account[]; onClose: () => void }) {
-  const folders = useTestFolders();
   const [q, setQ] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
@@ -131,7 +130,7 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
             ))}
           </div>
           <p className="faint small" style={{ margin: 0 }}>
-            Nur in den Testordnern ({folders.join(", ")}) · ohne 👍/👎, Namen und Tags – reiner Modellvergleich.
+            Alle Fotos, die das jeweilige Modell gelernt hat · ohne 👍/👎, Namen und Tags – reiner Modellvergleich.
             {total > 0 && (
               <>
                 <br />

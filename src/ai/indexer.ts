@@ -3,7 +3,7 @@
 // Bildschirm bleibt an. Im Hintergrund friert iOS Web-Apps ein – dann geht es beim nächsten Öffnen weiter.
 import type { Item } from "../lib/types";
 import { catalog, thumbsFor } from "./catalog";
-import { aiModel, inTestFolders, learningDevice, testFolders, testOnly } from "./flag";
+import { aiModel, learningDevice } from "./flag";
 import { syncDown, uploadVectors } from "./cloud";
 import { MODELS } from "./protocol";
 import { crashedDuring, embedImage, embedImages, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive } from "./engine";
@@ -224,10 +224,7 @@ const BATCH = 16;
 /** Ein Durchgang. "wait" = es gäbe noch zu lernen, aber nicht hier/jetzt (Cloud-Modell). */
 async function pass(stopped: () => boolean): Promise<"done" | "wait"> {
   const spec = MODELS[aiModel()];
-  const all = await catalog(true);
-  // Test-Modell: auf Wunsch nur Fotos in den Testordnern
-  const folders = spec.cloud && testOnly() ? testFolders() : null;
-  const items = folders ? new Map([...all].filter(([, it]) => inTestFolders(it.path, folders))) : all;
+  const items = await catalog(true);
   // Cloud-Modell: zuerst holen, was der PC schon gelernt hat
   if (spec.cloud) {
     set({ phase: "syncing" });
