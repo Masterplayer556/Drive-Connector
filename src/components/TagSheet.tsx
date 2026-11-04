@@ -1,15 +1,21 @@
 // Tags und Merkzeichen geben – für ein Foto (Foto-Ansicht) oder mehrere (Auswahl).
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
+import { useAiEnabled } from "../ai/flag";
 import { addTag, allTags, cleanTag, MARKERS, markerColor, removeTag, tagsOf, useTags } from "../lib/tags";
 import type { Item } from "../lib/types";
 import Icon from "./Icon";
 import { useUI } from "./ui";
+
+// KI-Namen („Wer ist das?“) – nur laden, wenn die KI-Suche an ist
+const NameTags = lazy(() => import("../ai/NameTags"));
 
 export default function TagSheet({ items, title, onClose }: { items: Item[]; title?: string; onClose: () => void }) {
   useTags();
   const ui = useUI();
   const [text, setText] = useState("");
   const n = items.length;
+  const ai = useAiEnabled();
+  const photos = items.filter((i) => !i.is_folder);
 
   // Wie viele der Fotos haben den Tag? (alle = an, einige = teilweise)
   const countOf = (tag: string) => items.filter((i) => tagsOf(i).some((t) => t.toLowerCase() === tag.toLowerCase())).length;
@@ -35,7 +41,7 @@ export default function TagSheet({ items, title, onClose }: { items: Item[]; tit
         <div className="sheet-head">
           <div style={{ minWidth: 0 }}>
             <div className="muted small ellipsis">{title ?? (n === 1 ? items[0].name : `${n} Fotos`)}</div>
-            <h2>Tags & Merkzeichen</h2>
+            <h2>{ai && photos.length ? "Tags, Merkzeichen & Namen" : "Tags & Merkzeichen"}</h2>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Fertig">
             <Icon name="x" />
@@ -114,6 +120,11 @@ export default function TagSheet({ items, title, onClose }: { items: Item[]; tit
                 ))}
               </div>
             </>
+          )}
+          {ai && photos.length > 0 && (
+            <Suspense fallback={null}>
+              <NameTags items={photos} />
+            </Suspense>
           )}
           {items.some((i) => i.is_folder) && (
             <p className="faint small" style={{ margin: 0 }}>

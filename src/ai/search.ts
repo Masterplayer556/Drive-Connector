@@ -312,6 +312,44 @@ export async function giveName(item: Item, name: string): Promise<boolean> {
   return true;
 }
 
+/** Namen mehrerer Fotos auf einmal: Schlüssel → Namen. */
+export async function namesOfMany(items: Item[]): Promise<Map<string, string[]>> {
+  const keys = new Set(items.map(itemKey));
+  const fb = (await allFeedback()).filter((f) => keys.has(f.key));
+  const out = new Map<string, string[]>();
+  for (const k of keys) out.set(k, [...learnedNames(fb.filter((f) => f.key === k)).values()].map((n) => n.label));
+  return out;
+}
+
+/** Mehreren Fotos denselben Namen geben. Ergebnis: wie viele ihn bekommen haben (der Rest ist noch nicht gelernt). */
+export async function giveNameMany(items: Item[], name: string): Promise<{ ok: number; unlearned: number }> {
+  const label = name.trim().replace(/\s+/g, " ");
+  if (!label) return { ok: 0, unlearned: 0 };
+  const now = await loadVectors();
+  let fresh: Map<string, Float32Array> | null = null; // nur nachlesen, wenn ein Foto fehlt (Index wächst nebenbei)
+  let ok = 0;
+  for (const item of items) {
+    const key = itemKey(item);
+    let v = now.get(key);
+    if (!v) v = (fresh ??= await allVectors()).get(key);
+    if (!v) continue;
+    await putFeedback({ id: feedbackId(label, key), q: v, english: label, key, vote: 1, at: Date.now() });
+    ok++;
+  }
+  feedback = null;
+  return { ok, unlearned: items.length - ok };
+}
+
+/** Namen von mehreren Fotos entfernen. */
+export async function removeNameMany(items: Item[], name: string) {
+  const n = name.toLowerCase().trim().replace(/\s+/g, " ");
+  const keys = new Set(items.map(itemKey));
+  for (const f of await allFeedback()) {
+    if (keys.has(f.key) && nameWords(f.english).includes(n)) await deleteFeedback(f.id);
+  }
+  feedback = null;
+}
+
 /** Namen von einem Foto entfernen (oder mit item = null: Namen ganz vergessen). */
 export async function removeName(item: Item | null, name: string) {
   const n = name.toLowerCase();
