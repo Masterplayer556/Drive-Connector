@@ -146,3 +146,16 @@ describe("Grenze relativ zur Verteilung (auto)", () => {
     expect(rank(q, map, { auto: true }).map((h) => h.key)).toEqual(["a", "b"]);
   });
 });
+
+describe("Abziehen (negative)", () => {
+  it("Bild mit dem Wort als Text rutscht hinter das echte Foto", () => {
+    const q = new Float32Array([1, 0, 0]);
+    const neg = new Float32Array([0.6, 0.8, 0]); // „das Wort als Text“
+    const map = new Map<string, Float32Array>([
+      ["echt", new Float32Array([0.3, 0, Math.sqrt(1 - 0.09)])],
+      ["schrift", new Float32Array([0.32, 0.9, Math.sqrt(1 - 0.32 ** 2 - 0.81)])],
+    ]);
+    expect(rank(q, map, { floor: -1, window: 1 })[0].key).toBe("schrift");
+    expect(rank(q, map, { floor: -1, window: 1, negative: neg })[0].key).toBe("echt");
+  });
+});

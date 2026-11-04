@@ -3,7 +3,7 @@
 // ein Bild-Worker (lernt) und ein Such-Worker, nie beide gleichzeitig. Beides läuft auf dem Prozessor.
 // Suchbegriffe übersetzt ein kleines Wörterbuch statt eines Übersetzungsmodells.
 import { keywordsOf, toEnglish } from "./dict";
-import { keywordPrompts, searchPrompts } from "./prompts";
+import { keywordPrompts, searchPrompts, typographicPrompts } from "./prompts";
 import { setRisk, takeCrash, type Risk } from "./guard";
 import { MODEL_CACHE } from "./store";
 import { aiModel, learningDevice } from "./flag";
@@ -223,14 +223,22 @@ export async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[
 }
 
 /** Text der Suche → Vektor. Lädt das Textmodell beim ersten Mal (im eigenen Such-Worker). */
-export async function embedText(text: string, model?: ModelId): Promise<{ vec: Float32Array; english: string; kvecs: Float32Array[] }> {
+export async function embedText(
+  text: string,
+  model?: ModelId,
+): Promise<{ vec: Float32Array; english: string; kvecs: Float32Array[]; nvec?: Float32Array }> {
   await readyForText();
   const english = toEnglish(text) || text;
   const keywords = keywordsOf(text);
-  const m = await send({ type: "text", groups: [searchPrompts(english), ...keywords.map(keywordPrompts)] }, TEXT, model);
+  // Modelle mit eigener Skala (MobileCLIP-B): zusätzlich „das Wort als Text“ – wird später abgezogen
+  const typo = MODELS[model ?? aiModel()].autoFloor ? typographicPrompts(english) : [];
+  const groups = [searchPrompts(english), ...keywords.map(keywordPrompts), ...(typo.length ? [typo] : [])];
+  const m = await send({ type: "text", groups }, TEXT, model);
   if (m.type !== "vec") throw new Error("Unerwartete Antwort");
-  const [vec, ...kvecs] = m.vecs;
-  return { vec, english, kvecs };
+  const vecs = [...m.vecs];
+  const nvec = typo.length ? vecs.pop() : undefined;
+  const [vec, ...kvecs] = vecs;
+  return { vec, english, kvecs, nvec };
 }
 
 /** Alle Worker beenden und Arbeitsspeicher freigeben. */
