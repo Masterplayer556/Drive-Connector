@@ -1,6 +1,6 @@
 // KI-SUCHE (Test): Modelle und Nachrichten zwischen App und Worker.
 
-export type ModelId = "clip" | "mobileclip";
+export type ModelId = "clip" | "mobileclip" | "mobileclipB";
 
 export interface ModelSpec {
   id: ModelId;
@@ -48,7 +48,23 @@ export const MODELS: Record<ModelId, ModelSpec> = {
     padMax: true,
     cloud: true,
   },
+  // Apple MobileCLIP-B (LT) – grösserer Bildteil (ViT-B/16), laut Apple nochmals treffsicherer. Nur am PC lernbar;
+  // der Textteil ist gleich gross wie bei S2, die Suche läuft also auch auf dem iPhone
+  mobileclipB: {
+    id: "mobileclipB",
+    label: "MobileCLIP-B (Test)",
+    repo: "Xenova/mobileclip_blt",
+    db: "drivepool-ai-mobileclip-blt",
+    version: "Xenova/mobileclip_blt@fp32",
+    visionDtype: "fp32",
+    textDtype: "q8",
+    padMax: true,
+    cloud: true,
+  },
 };
+
+export const MODEL_IDS = Object.keys(MODELS) as ModelId[];
+export const isModelId = (x: unknown): x is ModelId => typeof x === "string" && x in MODELS;
 
 export type ToWorker =
   /** gpu: Bildmodell auf der Grafikkarte rechnen (WebGPU, nur Lern-Gerät) */

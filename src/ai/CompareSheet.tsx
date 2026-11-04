@@ -8,12 +8,23 @@ import Thumb from "../components/Thumb";
 import type { Account, Item } from "../lib/types";
 import { addToTally, compareTally, resetTally, useTestFolders, type Tally } from "./flag";
 import { searchClosed, searchOpened } from "./indexer";
-import { MODELS } from "./protocol";
+import { isModelId, MODEL_IDS, MODELS, type ModelId } from "./protocol";
 import { compareModels, type CompareSide } from "./search";
 
 const Viewer = lazy(() => import("../components/Viewer"));
 
-type Result = { query: string; english: string; clip: CompareSide; mobileclip: CompareSide };
+type Result = { query: string; pair: string; english: string; left: CompareSide; right: CompareSide };
+
+const PAIR_KEY = "drivepool.ai.comparePair";
+function loadPair(): [ModelId, ModelId] {
+  try {
+    const [a, b] = JSON.parse(localStorage.getItem(PAIR_KEY) ?? "[]");
+    if (isModelId(a) && isModelId(b) && a !== b) return [a, b];
+  } catch {
+    /* ignorieren */
+  }
+  return ["clip", "mobileclip"];
+}
 
 export default function CompareSheet({ accounts, onClose }: { accounts: Account[]; onClose: () => void }) {
   const folders = useTestFolders();
@@ -21,7 +32,19 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tally, setTally] = useState<Tally>(compareTally);
+  const [[left, right], setPair] = useState<[ModelId, ModelId]>(loadPair);
+  const pair = `${left}|${right}`;
+  const [tally, setTally] = useState<Tally>(() => compareTally(left, right));
+  useEffect(() => {
+    setTally(compareTally(left, right));
+    try {
+      localStorage.setItem(PAIR_KEY, JSON.stringify([left, right]));
+    } catch {
+      /* ignorieren */
+    }
+  }, [left, right]);
+  const choose = (side: 0 | 1, m: ModelId) =>
+    setPair(([a, b]) => (side === 0 ? (m === b ? [m, a] : [m, b]) : m === a ? [b, m] : [a, m]));
   const [voted, setVoted] = useState<Set<string>>(new Set());
   const [viewer, setViewer] = useState<{ items: Item[]; index: number } | null>(null);
   const seq = useRef(0);
@@ -38,21 +61,23 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
     const n = ++seq.current;
     setBusy(true);
     const t = setTimeout(() => {
-      compareModels(term)
-        .then((r) => n === seq.current && (setResult({ query: term, ...r }), setError(null)))
+      compareModels(term, left, right)
+        .then((r) => n === seq.current && (setResult({ query: term, pair, ...r }), setError(null)))
         .catch((e) => n === seq.current && setError(e instanceof Error ? e.message : String(e)))
         .finally(() => n === seq.current && setBusy(false));
     }, 650);
     return () => clearTimeout(t);
-  }, [q]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, pair]);
 
+  const voteKey = result ? `${result.pair}|${result.query.toLowerCase()}` : "";
   const vote = (w: keyof Tally) => {
-    if (!result || voted.has(result.query.toLowerCase())) return;
-    setTally(addToTally(w));
-    setVoted((v) => new Set(v).add(result.query.toLowerCase()));
+    if (!result || result.pair !== pair || voted.has(voteKey)) return;
+    setTally(addToTally(left, right, w));
+    setVoted((v) => new Set(v).add(voteKey));
   };
-  const total = tally.clip + tally.mobileclip + tally.same;
-  const hasVoted = !!result && voted.has(result.query.toLowerCase());
+  const total = tally.left + tally.right + tally.same;
+  const hasVoted = !!result && voted.has(voteKey);
 
   const column = (side: CompareSide, label: string) => (
     <div className="cmp-col">
@@ -94,13 +119,25 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
           </button>
         </div>
         <div className="sheet-body">
+          <div className="cmp-pick">
+            {([0, 1] as const).map((side) => (
+              <select key={side} value={side === 0 ? left : right} onChange={(e) => choose(side, e.target.value as ModelId)} aria-label={side === 0 ? "Links" : "Rechts"}>
+                {MODEL_IDS.map((m) => (
+                  <option key={m} value={m}>
+                    {MODELS[m].label}
+                  </option>
+                ))}
+              </select>
+            ))}
+          </div>
           <p className="faint small" style={{ margin: 0 }}>
             Nur in den Testordnern ({folders.join(", ")}) · ohne 👍/👎, Namen und Tags – reiner Modellvergleich.
             {total > 0 && (
               <>
                 <br />
-                Bisher besser: <b>MobileCLIP {tally.mobileclip}</b> · Standard {tally.clip} · gleich {tally.same}{" "}
-                <button className="link small" onClick={() => (resetTally(), setTally(compareTally()))}>
+                Bisher besser: {MODELS[left].label} <b>{tally.left}</b> · {MODELS[right].label} <b>{tally.right}</b> · gleich{" "}
+                {tally.same}{" "}
+                <button className="link small" onClick={() => (resetTally(left, right), setTally(compareTally(left, right)))}>
                   zurücksetzen
                 </button>
               </>
@@ -116,21 +153,21 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
             <>
               <p className="faint small ai-understood">Verstanden als „{result.english}“</p>
               <div className="cmp-cols">
-                {column(result.clip, MODELS.clip.label)}
-                {column(result.mobileclip, MODELS.mobileclip.label)}
+                {column(result.left, MODELS[left].label)}
+                {column(result.right, MODELS[right].label)}
               </div>
               <div className="cmp-vote">
                 {hasVoted ? (
                   <span className="muted small">Danke – notiert. Nächste Suche eingeben.</span>
                 ) : (
                   <>
-                    <button className="btn small" onClick={() => vote("clip")}>
+                    <button className="btn small" onClick={() => vote("left")}>
                       ◀ Links besser
                     </button>
                     <button className="btn small ghost" onClick={() => vote("same")}>
                       Gleich
                     </button>
-                    <button className="btn small" onClick={() => vote("mobileclip")}>
+                    <button className="btn small" onClick={() => vote("right")}>
                       Rechts besser ▶
                     </button>
                   </>

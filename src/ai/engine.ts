@@ -198,6 +198,14 @@ export async function embedConcepts(labels: string[], onProgress?: (done: number
   return out;
 }
 
+/** Mehrere Bilder auf einmal (Paket) → Vektoren; null = Bild nicht lesbar. Am PC deutlich schneller. */
+export async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[]> {
+  if (!visionReady) throw new Error("Bildmodell nicht bereit");
+  const m = await send({ type: "images", blobs, gpu: useGpu() }, VISION);
+  if (m.type !== "vecs") throw new Error("Unerwartete Antwort");
+  return m.vecs;
+}
+
 /** Text der Suche → Vektor. Lädt das Textmodell beim ersten Mal (im eigenen Such-Worker). */
 export async function embedText(text: string, model?: ModelId): Promise<{ vec: Float32Array; english: string; kvecs: Float32Array[] }> {
   await readyForText();
