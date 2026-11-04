@@ -10,7 +10,28 @@ const CACHE_NAME = "drivepool-thumbs-v1";
 const BATCH = 30;
 const PARALLEL = 3;
 
-const mem = new Map<string, string>(); // Schlüssel → Object-URL
+const mem = new Map<string, { url: string; bytes: number }>(); // Schlüssel → Object-URL (zuletzt benutzte zuletzt)
+let memBytes = 0;
+/** Höchstens so viel an Vorschaubildern im Arbeitsspeicher – ältere bleiben im Gerätespeicher (Cache) und kommen von dort zurück */
+const MEM_MAX_BYTES = 40 * 1024 * 1024;
+
+function remember(key: string, url: string, bytes?: number) {
+  const old = mem.get(key);
+  if (old) {
+    mem.delete(key);
+    memBytes -= old.bytes;
+  }
+  const size = bytes ?? old?.bytes ?? 0;
+  mem.set(key, { url, bytes: size });
+  memBytes += size;
+  while (memBytes > MEM_MAX_BYTES && mem.size > 1) {
+    const [oldKey, e] = mem.entries().next().value as [string, { url: string; bytes: number }];
+    mem.delete(oldKey);
+    memBytes -= e.bytes;
+    // Freigeben erst etwas später: ein gerade angezeigtes Bild hat seine Daten dann längst geladen
+    setTimeout(() => URL.revokeObjectURL(e.url), 10_000);
+  }
+}
 const inflight = new Map<string, Promise<string>>();
 
 interface Pending {
@@ -36,13 +57,19 @@ function deviceCache(): Promise<Cache | null> {
 
 /** Sofort verfügbar (ohne Warten)? */
 export function peekThumb(item: Item, size = GRID_SIZE): string | null {
-  return mem.get(keyOf(item, size)) ?? null;
+  const key = keyOf(item, size);
+  const hit = mem.get(key);
+  if (hit) remember(key, hit.url); // als „frisch benutzt“ markieren
+  return hit?.url ?? null;
 }
 
 export function getThumb(item: Item, size = GRID_SIZE): Promise<string> {
   const key = keyOf(item, size);
   const hit = mem.get(key);
-  if (hit) return Promise.resolve(hit);
+  if (hit) {
+    remember(key, hit.url);
+    return Promise.resolve(hit.url);
+  }
   const waiting = inflight.get(key);
   if (waiting) return waiting;
 
@@ -50,8 +77,9 @@ export function getThumb(item: Item, size = GRID_SIZE): Promise<string> {
     const cache = await deviceCache();
     const cached = await cache?.match(cacheUrl(key)).catch(() => undefined);
     if (cached) {
-      const url = URL.createObjectURL(await cached.blob());
-      mem.set(key, url);
+      const blob = await cached.blob();
+      const url = URL.createObjectURL(blob);
+      remember(key, url, blob.size);
       return url;
     }
     return new Promise<string>((resolve, reject) => {
@@ -117,8 +145,8 @@ async function runBatch(batch: Pending[]) {
       }
       const blob = dataUrlToBlob(data);
       const key = keyOf(b.item, size);
-      const url = mem.get(key) ?? URL.createObjectURL(blob);
-      mem.set(key, url);
+      const url = mem.get(key)?.url ?? URL.createObjectURL(blob);
+      remember(key, url, blob.size);
       void cache?.put(cacheUrl(key), new Response(blob, { headers: { "Content-Type": blob.type } })).catch(() => undefined);
       b.resolve(url);
     }

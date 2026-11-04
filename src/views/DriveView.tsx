@@ -38,6 +38,8 @@ const Viewer = lazy(() => import("../components/Viewer"));
 
 const ROOT: Crumb = { name: "Drive", path: "", key: "" };
 const STACK_KEY = "drivepool.stack";
+/** So viele Fotos auf einmal aufbauen (weitere beim Scrollen) */
+const FILE_PAGE = 120;
 
 function loadStack(): Crumb[] {
   try {
@@ -245,6 +247,20 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   };
 
   const files = useMemo(() => content?.files ?? [], [content]);
+  // Grosse Ordner (z. B. 3000 Fotos) nicht auf einmal aufbauen – das sprengt auf dem iPhone den Arbeitsspeicher.
+  // Erst eine Portion, weitere beim Herunterscrollen.
+  const [shown, setShown] = useState(FILE_PAGE);
+  useEffect(() => setShown(FILE_PAGE), [current.key]);
+  const moreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = moreRef.current;
+    if (!el || shown >= files.length) return;
+    const io = new IntersectionObserver((e) => e.some((x) => x.isIntersecting) && setShown((n) => n + FILE_PAGE), {
+      rootMargin: "1200px 0px",
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [shown, files.length]);
   const selectedItems = files.filter((f) => selected.has(itemKey(f)));
   const selectableFolders = useMemo(() => (content?.folders ?? []).filter((f) => f.parts.length > 0), [content]);
   const selectedFolderList = selectableFolders.filter((f) => selectedFolders.has(f.key));
@@ -611,7 +627,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
                       </div>
                     )}
                     <div className="grid stagger">
-                      {files.map((f, i) => (
+                      {files.slice(0, Math.max(shown, viewer !== null ? viewer + 1 : 0)).map((f, i) => (
                         <button
                           key={itemKey(f)}
                           className={`cell ${selected.has(itemKey(f)) ? "selected" : ""} ${
@@ -638,6 +654,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
                         </button>
                       ))}
                     </div>
+                    {shown < files.length && <div ref={moreRef} className="grid-more" aria-hidden />}
                   </>
                 )}
                 {content.folders.length === 0 && files.length === 0 && (
