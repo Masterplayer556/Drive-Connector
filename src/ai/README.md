@@ -28,6 +28,8 @@ Fotos per Beschreibung finden („Hund im Schnee“, „Arbeitsblatt mit Tabelle
 | „Modelle vergleichen“: gleiche Suche mit beiden Modellen nebeneinander, über alle gelernten Fotos, ohne 👍/👎/Namen/Tags; Strichliste „links/rechts besser“ (localStorage) | `CompareSheet.tsx`, `search.ts` (`compareModels`) |
 | MobileCLIP (genau, fp32) lernt nur auf einem Lern-Gerät (PC, Standard: alles ausser iPhone/iPad) und nur per Knopf „Neue Fotos lernen“ – auf dem PC wenn möglich mit der Grafikkarte (WebGPU). Fingerabdrücke (nur Zahlen, 8 Bit + Skalierung, Base64) gehen in Supabase `ai_vectors`; das iPhone lädt sie herunter und sucht nur mit dem Textteil | `cloud.ts`, `indexer.ts` (`startCloudLearning`), `AiSettings.tsx` (`CloudPanel`) |
 | Drittes Modell MobileCLIP-B (LT) (`Xenova/mobileclip_blt`, fp32): nur am PC lernbar, Textteil wie S2 → Suche auch auf dem iPhone. Am PC in Paketen à 16 Fotos (WebGPU). Hängt ein Paket (Zeitlimit 45 s + 5 s pro Foto, beim ersten nach dem Laden +2 min) oder ein Vorschaubild (45 s), wird der Worker neu gestartet und das Paket einzeln versucht; ein Foto, das auch allein nicht geht, wird übersprungen und später nochmals versucht Vergleich: Modell links/rechts frei wählbar, Strichliste je Paarung | `protocol.ts`, `indexer.ts` (`BATCH`), `CompareSheet.tsx` |
+| MobileCLIP-B rechnet mit tieferen Ähnlichkeiten: Treffer-Grenze dort relativ zur Verteilung der Suche (Mittelwert + 2 Standardabweichungen, Fenster 3 Standardabweichungen) statt fix 0.2 | `protocol.ts` (`autoFloor`), `rank.ts` (`auto`), `search.ts` |
+| iPhone-Abgleich mit 15 min Überlappung (PC lädt Pakete mit gleicher Zeit in mehreren Teilen hoch); fehlt danach noch etwas, werden genau diese Fotos gezielt geholt | `cloud.ts` (`syncDown`, `fetchKeys`), `indexer.ts` |
 | Englische Suchen werden erkannt (auch einzelne Wörter wie „dog“) und nicht übersetzt | `dict.ts` (`looksEnglish`) |
 | Videos: gelernt wird das Vorschaubild (ein Standbild) – gesucht wird also, was darauf zu sehen ist | `catalog.ts` |
 | Neue Fotos nach einem Sync/Upload gleich lernen | Ereignis `drivepool-synced` aus `syncAccounts` → `indexer.ts` |
@@ -48,5 +50,3 @@ Im Hintergrund (App verlassen, Bildschirm aus) friert iOS Web-Apps ein – geler
      `src/components/Viewer.tsx`, `src/views/MehrView.tsx`, `src/views/DuplikateView.tsx`, `src/lib/db.ts`,
      `vite.config.ts` (`worker: { format: "es" }`)
    - `npm uninstall @huggingface/transformers`
-| MobileCLIP-B rechnet mit tieferen Ähnlichkeiten: Treffer-Grenze dort relativ zur Verteilung der Suche (Mittelwert + 2 Standardabweichungen, Fenster 3 Standardabweichungen) statt fix 0.2 | `protocol.ts` (`autoFloor`), `rank.ts` (`auto`), `search.ts` |
-| iPhone-Abgleich mit 15 min Überlappung (PC lädt Pakete mit gleicher Zeit in mehreren Teilen hoch); fehlt danach noch etwas, werden genau diese Fotos gezielt geholt | `cloud.ts` (`syncDown`, `fetchKeys`), `indexer.ts` |
