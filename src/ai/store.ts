@@ -182,12 +182,24 @@ export async function usedBytes(): Promise<number | null> {
 }
 
 /** Kleiner Zwischenspeicher (z. B. Begriffe zum Trainieren) – gilt nur für das aktuelle Modell. */
-export async function getMeta<T>(key: string): Promise<T | undefined> {
-  const db = await open();
-  return (await req(db.transaction("meta").objectStore("meta").get(`${MODELS[aiModel()].version}|${key}`))) as T | undefined;
+export async function getMeta<T>(key: string, model: ModelId = aiModel()): Promise<T | undefined> {
+  const db = await openDb(MODELS[model]);
+  return (await req(db.transaction("meta").objectStore("meta").get(`${MODELS[model].version}|${key}`))) as T | undefined;
 }
 
-export async function putMeta(key: string, value: unknown) {
-  const db = await open();
-  await req(db.transaction("meta", "readwrite").objectStore("meta").put(value, `${MODELS[aiModel()].version}|${key}`));
+export async function putMeta(key: string, value: unknown, model: ModelId = aiModel()) {
+  const db = await openDb(MODELS[model]);
+  await req(db.transaction("meta", "readwrite").objectStore("meta").put(value, `${MODELS[model].version}|${key}`));
+}
+
+/** Viele Fingerabdrücke auf einmal speichern (z. B. vom PC heruntergeladen). */
+export async function putVectors(entries: [string, Float32Array][], model: ModelId = aiModel()) {
+  if (!entries.length) return;
+  const db = await openDb(MODELS[model]);
+  const tx = db.transaction("vectors", "readwrite");
+  for (const [k, v] of entries) tx.objectStore("vectors").put(v, k);
+  await new Promise((res, rej) => {
+    tx.oncomplete = res;
+    tx.onerror = () => rej(tx.error);
+  });
 }

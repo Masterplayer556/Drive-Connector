@@ -164,3 +164,60 @@ export function resetTally() {
     /* ignorieren */
   }
 }
+
+// ---- Lern-Gerät: lernt das genaue Modell für alle Geräte (PC). Standard: alles ausser iPhone/iPad ----
+const LEARNER_KEY = "drivepool.ai.learner";
+
+export function isAppleMobile(): boolean {
+  const nav = navigator as Navigator & { maxTouchPoints?: number };
+  return /iPhone|iPad|iPod/.test(nav.userAgent) || (nav.platform === "MacIntel" && (nav.maxTouchPoints ?? 0) > 1);
+}
+
+export function learningDevice(): boolean {
+  try {
+    const v = localStorage.getItem(LEARNER_KEY);
+    if (v === "1") return true;
+    if (v === "0") return false;
+  } catch {
+    /* ignorieren */
+  }
+  return !isAppleMobile();
+}
+
+export function setLearningDevice(on: boolean) {
+  try {
+    localStorage.setItem(LEARNER_KEY, on ? "1" : "0");
+  } catch {
+    /* ignorieren */
+  }
+  window.dispatchEvent(new Event("drivepool-ai"));
+}
+
+export function useLearningDevice(): boolean {
+  return useSyncExternalStore(onAiFlag, learningDevice, () => false);
+}
+
+// ---- Nur Testordner lernen (Standard: ja) ----
+const TEST_ONLY_KEY = "drivepool.ai.testOnly";
+
+export function testOnly(): boolean {
+  try {
+    return localStorage.getItem(TEST_ONLY_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function setTestOnly(on: boolean) {
+  try {
+    if (on) localStorage.removeItem(TEST_ONLY_KEY);
+    else localStorage.setItem(TEST_ONLY_KEY, "0");
+  } catch {
+    /* ignorieren */
+  }
+  window.dispatchEvent(new Event("drivepool-ai"));
+}
+
+export function useTestOnly(): boolean {
+  return useSyncExternalStore(onAiFlag, testOnly, () => true);
+}

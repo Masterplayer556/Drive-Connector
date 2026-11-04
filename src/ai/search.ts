@@ -2,6 +2,7 @@
 // Dazu: Feedback (👍/👎), „Ähnliche Fotos“ und Gruppen fast gleicher Fotos – alles nur mit dem Index, ohne Modell.
 import type { Item } from "../lib/types";
 import { catalog } from "./catalog";
+import { syncDown } from "./cloud";
 import { aiModel, inTestFolders, testFolders } from "./flag";
 import { embedConcepts, embedText } from "./engine";
 import { conceptVocabulary, nameWords, toEnglish } from "./dict";
@@ -418,6 +419,8 @@ export async function compareModels(query: string, { exclude }: { exclude?: Set<
     const hits = rank(vec, map, { limit: 12, keywords: kvecs });
     return { items: hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x), learned: map.size, english };
   };
+  // Was der PC mit MobileCLIP gelernt hat, zuerst holen (auch wenn gerade das Standardmodell gewählt ist)
+  await syncDown("mobileclip").catch(() => 0);
   // Nacheinander, nicht gleichzeitig (Arbeitsspeicher)
   const clip = await side("clip");
   const mobileclip = await side("mobileclip");

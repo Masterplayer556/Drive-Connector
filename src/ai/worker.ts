@@ -38,7 +38,7 @@ const progress = (part: "bild" | "text") => (p: { status: string; file?: string;
 const LEAN = { enableCpuMemArena: false, enableMemPattern: false };
 
 // Pro Worker immer nur ein Modell; beim Umschalten beendet die App die Worker
-let vision: Promise<{ processor: Fn; model: Fn }> | null = null;
+let vision: Promise<{ processor: Fn; model: Fn; device: "webgpu" | "wasm" }> | null = null;
 // Textmodelle je Modell (im Vergleichsmodus werden beide gebraucht)
 const texts = new Map<string, Promise<{ tokenizer: (t: string[], o: object) => unknown; model: Fn; spec: ModelSpec }>>();
 
@@ -59,18 +59,28 @@ function rows(t: { data: Float32Array; dims: number[] }): Float32Array[] {
   return out;
 }
 
-function loadVision(spec: ModelSpec) {
+const loadVisionModel = (spec: ModelSpec, device: "webgpu" | "wasm") =>
+  CLIPVisionModelWithProjection.from_pretrained(spec.repo, {
+    device,
+    dtype: spec.visionDtype,
+    progress_callback: progress("bild"),
+    ...(device === "wasm" ? { session_options: LEAN } : {}),
+  });
+
+/** Bildmodell laden – auf dem Lern-Gerät (PC) wenn möglich auf der Grafikkarte, sonst auf dem Prozessor. */
+function loadVision(spec: ModelSpec, gpu = false) {
   vision ??= (async () => {
-    const [processor, model] = await Promise.all([
-      AutoProcessor.from_pretrained(spec.repo, { progress_callback: progress("bild") }),
-      CLIPVisionModelWithProjection.from_pretrained(spec.repo, {
-        device: "wasm",
-        dtype: spec.visionDtype,
-        progress_callback: progress("bild"),
-        session_options: LEAN,
-      }),
-    ]);
-    return { processor: processor as unknown as Fn, model: model as unknown as Fn };
+    const processor = await AutoProcessor.from_pretrained(spec.repo, { progress_callback: progress("bild") });
+    let device: "webgpu" | "wasm" = gpu && "gpu" in navigator ? "webgpu" : "wasm";
+    let model;
+    try {
+      model = await loadVisionModel(spec, device);
+    } catch (e) {
+      if (device === "wasm") throw e;
+      device = "wasm"; // Grafikkarte geht nicht → Prozessor
+      model = await loadVisionModel(spec, device);
+    }
+    return { processor: processor as unknown as Fn, model: model as unknown as Fn, device };
   })().catch((e) => {
     vision = null;
     throw e;
@@ -138,10 +148,15 @@ ctx.onmessage = async (e) => {
   try {
     const spec = MODELS[m.model as ModelId] ?? MODELS.clip;
     if (m.type === "warm") {
-      await (m.part === "bild" ? loadVision(spec) : loadText(spec));
-      ctx.postMessage({ type: "ok", id: m.id });
+      if (m.part === "bild") {
+        const { device } = await loadVision(spec, m.gpu);
+        ctx.postMessage({ type: "ok", id: m.id, device });
+      } else {
+        await loadText(spec);
+        ctx.postMessage({ type: "ok", id: m.id });
+      }
     } else if (m.type === "images") {
-      await loadVision(spec);
+      await loadVision(spec, m.gpu);
       ctx.postMessage({ type: "vecs", id: m.id, vecs: await embedImages(m.blobs) });
     } else if (m.type === "text") {
       ctx.postMessage({ type: "vec", id: m.id, vecs: await embedGroups(spec, m.groups) });
