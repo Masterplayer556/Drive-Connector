@@ -4,7 +4,7 @@ import Segmented from "../components/Segmented";
 import { LineSkeleton } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
-import { purgePlanOriginals, runRebalance, saveGroupFolder, savePlan, setLock, type PlanRow } from "../lib/db";
+import { purgePlanOriginals, runRebalance, saveGroupFolder, saveMinPlanGb, savePlan, setLock, type PlanRow } from "../lib/db";
 import { formatBytes, formatDateTime } from "../lib/format";
 import { blockOf, isLocked, type Unit } from "../lib/rebalance";
 import { loadRebalance, toCaps, type RebalanceState } from "../lib/rebalanceData";
@@ -24,6 +24,9 @@ interface Segment {
 
 const MAX_SEGMENTS = 7;
 const unitId = (u: { account_id: string; folder_id: string }) => `${u.account_id}|${u.folder_id}`;
+
+/** Auswahl für „Vorschlag erst ab“ (GB) */
+const MIN_PLAN_CHOICES = [0, 0.5, 1, 2, 5, 10];
 
 /** Regal-Ansicht (#4): jedes Konto ein Regalbrett, Ordner als Blöcke; Vorschläge mit Ausführen/Ablehnen. */
 export default function RegalView({ accounts }: { accounts: Account[] }) {
@@ -124,6 +127,15 @@ export default function RegalView({ accounts }: { accounts: Account[] }) {
     } finally {
       setProgress(null);
       void load();
+    }
+  };
+
+  const chooseMinPlan = async (gb: number) => {
+    try {
+      await saveMinPlanGb(gb === 1 ? null : gb);
+      await load();
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
     }
   };
 
@@ -360,6 +372,22 @@ export default function RegalView({ accounts }: { accounts: Account[] }) {
           </div>
 
           {/* Einstellungen */}
+          <div className="section-title">
+            <span>Vorschlag erst ab</span>
+          </div>
+          <section className="card glass">
+            <p className="faint small" style={{ marginTop: 0 }}>
+              Ein Vorschlag kommt erst, wenn er mehr als so viel Platz frei macht. Ordner im falschen Gebiet (Privat/Archiv) werden immer vorgeschlagen.
+            </p>
+            <div className="chips" style={{ padding: 0 }}>
+              {MIN_PLAN_CHOICES.map((gb) => (
+                <button key={gb} className={`chip ${state.minPlanGb === gb ? "on" : ""}`} onClick={() => chooseMinPlan(gb)}>
+                  {gb === 0 ? "Immer" : `${String(gb).replace(".", ",")} GB`}
+                </button>
+              ))}
+            </div>
+          </section>
+
           <div className="section-title">
             <span>Gruppenregel A–M / N–Z</span>
           </div>
