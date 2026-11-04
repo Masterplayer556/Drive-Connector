@@ -3,6 +3,8 @@
 import type { Item } from "../lib/types";
 import { catalog } from "./catalog";
 import { embedText } from "./engine";
+import { nameWords, toEnglish } from "./dict";
+import { learnedNames, prototypeOf, rankByName } from "./names";
 import { inFolder, parseQuery } from "./query";
 import { applyFeedback, groupSimilar, rank } from "./rank";
 import { allFeedback, allVectors, deleteFeedback, itemKey, putFeedback, type Feedback } from "./store";
@@ -21,6 +23,8 @@ export interface AiResult {
   video: boolean;
   /** Nur gefiltert, ohne Beschreibung → neueste zuerst, keine 👍/👎 */
   filterOnly: boolean;
+  /** Gelernte Namen, die in dieser Suche vorkamen (mit Anzahl gelobter Fotos) */
+  names: { label: string; count: number }[];
 }
 
 let vectors: { at: number; map: Map<string, Float32Array> } | null = null;
@@ -54,7 +58,7 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
   const allowed = (it: Item) => (!folder || inFolder(it.path, folder)) && (!video || !!it.mime_type?.startsWith("video/"));
   let map = without(all, exclude);
   if (folder || video) map = new Map([...map].filter(([k]) => { const it = items.get(k); return !!it && allowed(it); }));
-  const base = { folder, video, votes: new Map<string, 1 | -1>() };
+  const base = { folder, video, votes: new Map<string, 1 | -1>(), names: [] as AiResult["names"] };
 
   // Nur Filter, keine Beschreibung → alle passenden Fotos/Videos, neueste zuerst (auch noch nicht gelernte)
   if (!text) {
@@ -63,6 +67,40 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
       .filter((it) => allowed(it) && !hidden.has(it.account_id))
       .sort((a, b) => (b.taken_at ?? "").localeCompare(a.taken_at ?? ""));
     return { ...base, items: list.slice(0, 60), english: "", indexed: list.length, q: new Float32Array(0), filterOnly: true };
+  }
+
+  // Gelernte Namen („Luca“, „Pikachu“): Fotos, die wie die gelobten aussehen
+  const learned = learnedNames(fb);
+  const known = nameWords(text)
+    .map((n) => learned.get(n))
+    .filter((n): n is NonNullable<typeof n> => !!n && n.keys.some((k) => all.has(k)));
+  if (known.length) {
+    const keys = [...new Set(known.flatMap((n) => n.keys))];
+    const proto = prototypeOf(keys, all)!;
+    base.names = known.map((n) => ({ label: n.label, count: n.keys.filter((k) => all.has(k)).length }));
+    const isName = new Set(known.flatMap((n) => n.name.split(" ")));
+    const rest = text
+      .split(/\s+/)
+      .filter((w) => !isName.has(w.toLowerCase().replace(/[^\p{L}'-]/gu, "")))
+      .join(" ")
+      .trim();
+    const restEnglish = rest ? toEnglish(rest).trim() : "";
+    const label = known.map((n) => n.label).join(" ");
+    const english = restEnglish ? `${label} ${restEnglish}` : text.trim();
+    const sameQuery = (f: Feedback) => f.english.toLowerCase() === english.toLowerCase();
+    for (const f of fb) if (sameQuery(f)) base.votes.set(f.key, f.vote);
+    const adjust = { boost: new Map<string, number>(), hide: new Set(fb.filter((f) => sameQuery(f) && f.vote < 0).map((f) => f.key)) };
+    const byName = rankByName(proto, keys.filter((k) => map.has(k)), map, { limit: restEnglish ? 400 : 30, adjust });
+
+    if (!restEnglish) {
+      return { ...base, items: byName.map((h) => items.get(h.key)).filter((x): x is Item => !!x), english, indexed: map.size, q: proto, filterOnly: false };
+    }
+    // Name + Beschreibung („Luca am Strand“): unter den Fotos des Namens nach der Beschreibung sortieren
+    const { vec } = await embedText(rest);
+    const sub = new Map(byName.map((h) => [h.key, map.get(h.key)!]));
+    let hits = rank(vec, sub, { limit: 30, adjust });
+    if (!hits.length) hits = byName.slice(0, 30);
+    return { ...base, items: hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x), english, indexed: sub.size, q: vec, filterOnly: false };
   }
 
   const { vec, english, kvecs } = await embedText(text);
@@ -115,4 +153,44 @@ export async function similarGroups(): Promise<Item[][]> {
   return groups
     .map((g) => g.map((k) => items.get(k)).filter((x): x is Item => !!x))
     .filter((g) => g.length > 1 && new Set(g.map((i) => i.md5 ?? i.drive_id)).size > 1);
+}
+
+// ---- Namen von der Foto-Ansicht aus ----
+
+/** Namen, die diesem Foto gegeben wurden (👍 bei einer Suche mit dem Namen). */
+export async function namesOf(item: Item): Promise<string[]> {
+  const key = itemKey(item);
+  const fb = await allFeedback();
+  const names = learnedNames(fb.filter((f) => f.key === key));
+  return [...names.values()].map((n) => n.label);
+}
+
+/** Alle gelernten Namen mit Anzahl Fotos (neueste zuletzt). */
+export async function allNames(): Promise<{ name: string; label: string; count: number }[]> {
+  const names = learnedNames(await allFeedback());
+  return [...names.values()].map((n) => ({ name: n.name, label: n.label, count: n.keys.length }));
+}
+
+/** Diesem Foto einen Namen geben. false = Foto ist noch nicht gelernt. */
+export async function giveName(item: Item, name: string): Promise<boolean> {
+  const label = name.trim().replace(/\s+/g, " ");
+  if (!label) return false;
+  const key = itemKey(item);
+  const v = (await loadVectors()).get(key) ?? (await allVectors()).get(key);
+  if (!v) return false;
+  await putFeedback({ id: feedbackId(label, key), q: v, english: label, key, vote: 1, at: Date.now() });
+  feedback = null;
+  return true;
+}
+
+/** Namen von einem Foto entfernen (oder mit item = null: Namen ganz vergessen). */
+export async function removeName(item: Item | null, name: string) {
+  const n = name.toLowerCase();
+  const key = item ? itemKey(item) : null;
+  const fb = await allFeedback();
+  for (const f of fb) {
+    if (key && f.key !== key) continue;
+    if (nameWords(f.english).includes(n.trim().replace(/\s+/g, " "))) await deleteFeedback(f.id);
+  }
+  feedback = null;
 }

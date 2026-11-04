@@ -19,6 +19,7 @@ Fotos per Beschreibung finden („Hund im Schnee“, „Arbeitsblatt mit Tabelle
 | Filter im Suchtext: „O: Ferien Strand“ (nur Ordner mit „Ferien“ im Namen, inkl. Unterordner; mit Leerzeichen: `O: "Ferien 2024"`), „Video Strand“ (nur Videos); nur Filter ohne Beschreibung → neueste zuerst | `query.ts`, `search.ts` |
 | Suche ans Modell: mehrere Formulierungen gemittelt („a photo of …“, „a picture of …“ …) statt einer | `prompts.ts`, `worker.ts` |
 | Stichwort-Suche („Hund Schnee Berg“): zusätzlich ein Vektor pro Stichwort – Fotos, auf denen alle zu sehen sind, kommen nach oben | `dict.ts` (`keywordsOf`), `rank.ts` (`keywords`) |
+| Namen lernen („Luca“, „Pikachu“, eigene Figuren): aus 👍 bei Suchen mit dem Namen oder ✨ → „Wer ist das?“ in der Foto-Ansicht. Suche nach dem Namen = Fotos, die wie die gelobten aussehen; „Name + Beschreibung“ sortiert diese nach der Beschreibung. Am besten bei Figuren mit festem Aussehen – keine echte Gesichtserkennung. Liste/Vergessen in den KI-Einstellungen | `names.ts`, `NameTags.tsx`, `search.ts` (`giveName`, `removeName`, `allNames`), `dict.ts` (`nameRuns`) |
 | Englische Suchen werden erkannt (auch einzelne Wörter wie „dog“) und nicht übersetzt | `dict.ts` (`looksEnglish`) |
 | Videos: gelernt wird das Vorschaubild (ein Standbild) – gesucht wird also, was darauf zu sehen ist | `catalog.ts` |
 | Neue Fotos nach einem Sync/Upload gleich lernen | Ereignis `drivepool-synced` aus `syncAccounts` → `indexer.ts` |
