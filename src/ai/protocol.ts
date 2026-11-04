@@ -16,9 +16,8 @@ export interface ModelSpec {
   /** Text immer auf volle Länge auffüllen (MobileCLIP erwartet das) */
   padMax: boolean;
   /**
-   * Braucht viel Arbeitsspeicher: beim normalen Lernen (nicht „Schnell lernen“) wird das Bildmodell
-   * entladen, sobald du die App bedienst, und erst nach einer längeren Pause wieder geladen –
-   * sonst wird es dem iPhone zusammen mit der App zu viel.
+   * Braucht viel Arbeitsspeicher: lernt nur bei „Schnell lernen“ (dann bedient man die App nicht).
+   * Neben der bedienten App – und beim Neuladen nach einer Pause – stürzte das iPhone ab.
    */
   heavy: boolean;
 }

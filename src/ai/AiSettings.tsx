@@ -54,7 +54,7 @@ function statusText(s: IndexState): string {
     case "paused":
       return `Pausiert, solange die App im Hintergrund ist · noch ${left.toLocaleString("de-CH")}`;
     case "waiting":
-      return `Wartet, bis du die App kurz nicht bedienst (spart Speicher) · noch ${left.toLocaleString("de-CH")}`;
+      return `Lernt mit diesem Modell nur bei „Schnell lernen“ · noch ${left.toLocaleString("de-CH")}`;
     case "done":
       return "Alle Fotos bereit";
     case "error":
