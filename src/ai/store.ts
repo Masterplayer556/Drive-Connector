@@ -1,14 +1,16 @@
 // KI-SUCHE (Test): Index nur auf diesem Gerät (IndexedDB). Nichts davon geht an Supabase oder Google.
-import { INDEX_VERSION } from "./protocol";
+import { aiModel } from "./flag";
+import { MODELS, type ModelSpec } from "./protocol";
 
-const DB_NAME = "drivepool-ai";
 /** Cache, in dem transformers.js die Modelldateien ablegt. */
 export const MODEL_CACHE = "transformers-cache";
 
 /** Schlüssel eines Fotos: Konto + Drive-ID. */
 export const itemKey = (it: { account_id: string; drive_id: string }) => `${it.account_id}/${it.drive_id}`;
 
-let dbPromise: Promise<IDBDatabase> | null = null;
+// Pro Modell eine eigene Datenbank (Fingerabdrücke verschiedener Modelle passen nicht zusammen).
+// 👍/👎 und Namen liegen immer in der Datenbank des Standardmodells – sie gelten für jedes Modell.
+const dbs = new Map<string, Promise<IDBDatabase>>();
 
 function req<T>(r: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -17,9 +19,11 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
   });
 }
 
-function open(): Promise<IDBDatabase> {
-  dbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const r = indexedDB.open(DB_NAME, 2);
+function openDb(spec: ModelSpec): Promise<IDBDatabase> {
+  let p = dbs.get(spec.db);
+  if (p) return p;
+  p = new Promise<IDBDatabase>((resolve, reject) => {
+    const r = indexedDB.open(spec.db, 2);
     r.onupgradeneeded = () => {
       const db = r.result;
       const has = (n: string) => db.objectStoreNames.contains(n);
@@ -31,20 +35,26 @@ function open(): Promise<IDBDatabase> {
     r.onsuccess = () => resolve(r.result);
     r.onerror = () => reject(r.error ?? new Error("IndexedDB nicht verfügbar"));
   }).then(async (db) => {
-    // Anderes Modell → alter Index passt nicht mehr
+    // Andere Modellversion → alter Index passt nicht mehr
     const version = await req(db.transaction("meta").objectStore("meta").get("version"));
-    if (version !== INDEX_VERSION) {
+    if (version !== spec.version) {
       const tx = db.transaction(["vectors", "skip", "meta"], "readwrite");
       tx.objectStore("vectors").clear();
       tx.objectStore("skip").clear();
-      tx.objectStore("meta").put(INDEX_VERSION, "version");
+      tx.objectStore("meta").put(spec.version, "version");
       await new Promise((res) => (tx.oncomplete = res));
     }
     return db;
   });
-  dbPromise.catch(() => (dbPromise = null));
-  return dbPromise;
+  p.catch(() => dbs.delete(spec.db));
+  dbs.set(spec.db, p);
+  return p;
 }
+
+/** Datenbank des gewählten Modells (Index, Zwischenspeicher). */
+const open = () => openDb(MODELS[aiModel()]);
+/** Datenbank für 👍/👎 und Namen (immer die des Standardmodells). */
+const openShared = () => openDb(MODELS.clip);
 
 export async function putVector(key: string, vec: Float32Array) {
   const db = await open();
@@ -99,17 +109,17 @@ export interface Feedback {
 }
 
 export async function allFeedback(): Promise<Feedback[]> {
-  const db = await open();
+  const db = await openShared();
   return (await req(db.transaction("feedback").objectStore("feedback").getAll())) as Feedback[];
 }
 
 export async function putFeedback(f: Feedback) {
-  const db = await open();
+  const db = await openShared();
   await req(db.transaction("feedback", "readwrite").objectStore("feedback").put(f));
 }
 
 export async function deleteFeedback(id: string) {
-  const db = await open();
+  const db = await openShared();
   await req(db.transaction("feedback", "readwrite").objectStore("feedback").delete(id));
 }
 
@@ -134,13 +144,15 @@ export async function wipeEverything(): Promise<void> {
   } catch {
     /* ignorieren */
   }
-  const db = await dbPromise?.catch(() => null);
-  db?.close();
-  dbPromise = null;
-  await new Promise<void>((resolve) => {
-    const r = indexedDB.deleteDatabase(DB_NAME);
-    r.onsuccess = r.onerror = r.onblocked = () => resolve();
-  });
+  for (const spec of Object.values(MODELS)) {
+    const db = await dbs.get(spec.db)?.catch(() => null);
+    db?.close();
+    dbs.delete(spec.db);
+    await new Promise<void>((resolve) => {
+      const r = indexedDB.deleteDatabase(spec.db);
+      r.onsuccess = r.onerror = r.onblocked = () => resolve();
+    });
+  }
   if (!("caches" in window)) return;
   await caches.delete(MODEL_CACHE).catch(() => false);
   // KI-Laufzeit (ort-wasm…) aus dem App-Cache des Service Workers entfernen
@@ -172,10 +184,10 @@ export async function usedBytes(): Promise<number | null> {
 /** Kleiner Zwischenspeicher (z. B. Begriffe zum Trainieren) – gilt nur für das aktuelle Modell. */
 export async function getMeta<T>(key: string): Promise<T | undefined> {
   const db = await open();
-  return (await req(db.transaction("meta").objectStore("meta").get(`${INDEX_VERSION}|${key}`))) as T | undefined;
+  return (await req(db.transaction("meta").objectStore("meta").get(`${MODELS[aiModel()].version}|${key}`))) as T | undefined;
 }
 
 export async function putMeta(key: string, value: unknown) {
   const db = await open();
-  await req(db.transaction("meta", "readwrite").objectStore("meta").put(value, `${INDEX_VERSION}|${key}`));
+  await req(db.transaction("meta", "readwrite").objectStore("meta").put(value, `${MODELS[aiModel()].version}|${key}`));
 }

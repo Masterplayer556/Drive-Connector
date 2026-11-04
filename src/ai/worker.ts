@@ -8,7 +8,7 @@ import {
   env,
   RawImage,
 } from "@huggingface/transformers";
-import { CLIP_MODEL, type FromWorker, type ToWorker } from "./protocol";
+import { MODELS, type FromWorker, type ModelId, type ModelSpec, type ToWorker } from "./protocol";
 
 env.allowLocalModels = false;
 const onnx = env.backends.onnx as { wasm?: { numThreads?: number; wasmPaths?: unknown } };
@@ -37,8 +37,9 @@ const progress = (part: "bild" | "text") => (p: { status: string; file?: string;
 // (etwas langsamer, aber auf dem iPhone teilen sich App und alle Worker denselben Speicher)
 const LEAN = { enableCpuMemArena: false, enableMemPattern: false };
 
+// Pro Worker immer nur ein Modell; beim Umschalten beendet die App die Worker
 let vision: Promise<{ processor: Fn; model: Fn }> | null = null;
-let text: Promise<{ tokenizer: (t: string[], o: object) => unknown; model: Fn }> | null = null;
+let text: Promise<{ tokenizer: (t: string[], o: object) => unknown; model: Fn; spec: ModelSpec }> | null = null;
 
 function normalized(v: Float32Array): Float32Array {
   let s = 0;
@@ -57,13 +58,13 @@ function rows(t: { data: Float32Array; dims: number[] }): Float32Array[] {
   return out;
 }
 
-function loadVision() {
+function loadVision(spec: ModelSpec) {
   vision ??= (async () => {
     const [processor, model] = await Promise.all([
-      AutoProcessor.from_pretrained(CLIP_MODEL, { progress_callback: progress("bild") }),
-      CLIPVisionModelWithProjection.from_pretrained(CLIP_MODEL, {
+      AutoProcessor.from_pretrained(spec.repo, { progress_callback: progress("bild") }),
+      CLIPVisionModelWithProjection.from_pretrained(spec.repo, {
         device: "wasm",
-        dtype: "q8",
+        dtype: spec.visionDtype,
         progress_callback: progress("bild"),
         session_options: LEAN,
       }),
@@ -76,15 +77,18 @@ function loadVision() {
   return vision;
 }
 
-const textOpts = () => ({ device: "wasm" as const, dtype: "q8" as const, progress_callback: progress("text"), session_options: LEAN });
-
-function loadText() {
+function loadText(spec: ModelSpec) {
   text ??= (async () => {
     const [tokenizer, model] = await Promise.all([
-      AutoTokenizer.from_pretrained(CLIP_MODEL, { progress_callback: progress("text") }),
-      CLIPTextModelWithProjection.from_pretrained(CLIP_MODEL, textOpts()),
+      AutoTokenizer.from_pretrained(spec.repo, { progress_callback: progress("text") }),
+      CLIPTextModelWithProjection.from_pretrained(spec.repo, {
+        device: "wasm",
+        dtype: spec.textDtype,
+        progress_callback: progress("text"),
+        session_options: LEAN,
+      }),
     ]);
-    return { tokenizer: tokenizer as unknown as (t: string[], o: object) => unknown, model: model as unknown as Fn };
+    return { tokenizer: tokenizer as unknown as (t: string[], o: object) => unknown, model: model as unknown as Fn, spec };
   })().catch((e) => {
     text = null;
     throw e;
@@ -109,10 +113,10 @@ async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[]> {
  * Gruppen von Formulierungen (prompts.ts) → je Gruppe ein Vektor: Mittel aller Formulierungen.
  * Alles in einem Durchgang durchs Textmodell.
  */
-async function embedGroups(groups: string[][]): Promise<Float32Array[]> {
-  const { tokenizer, model } = await loadText();
+async function embedGroups(spec: ModelSpec, groups: string[][]): Promise<Float32Array[]> {
+  const { tokenizer, model } = await loadText(spec);
   const flat = groups.flat();
-  const { text_embeds } = await model(tokenizer(flat, { padding: true, truncation: true }));
+  const { text_embeds } = await model(tokenizer(flat, { padding: spec.padMax ? "max_length" : true, truncation: true }));
   const all = rows(text_embeds);
   const out: Float32Array[] = [];
   let i = 0;
@@ -128,13 +132,15 @@ async function embedGroups(groups: string[][]): Promise<Float32Array[]> {
 ctx.onmessage = async (e) => {
   const m = e.data;
   try {
+    const spec = MODELS[m.model as ModelId] ?? MODELS.clip;
     if (m.type === "warm") {
-      await (m.part === "bild" ? loadVision() : loadText());
+      await (m.part === "bild" ? loadVision(spec) : loadText(spec));
       ctx.postMessage({ type: "ok", id: m.id });
     } else if (m.type === "images") {
+      await loadVision(spec);
       ctx.postMessage({ type: "vecs", id: m.id, vecs: await embedImages(m.blobs) });
     } else if (m.type === "text") {
-      ctx.postMessage({ type: "vec", id: m.id, vecs: await embedGroups(m.groups) });
+      ctx.postMessage({ type: "vec", id: m.id, vecs: await embedGroups(spec, m.groups) });
     }
   } catch (err) {
     ctx.postMessage({ type: "error", id: m.id, message: err instanceof Error ? err.message : String(err) });

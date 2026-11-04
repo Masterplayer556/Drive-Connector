@@ -1,15 +1,53 @@
 // KI-SUCHE (Test): Modelle und Nachrichten zwischen App und Worker.
 
-/** Bild-Text-Modell (OpenAI CLIP ViT-B/32, als ONNX für den Browser). */
-export const CLIP_MODEL = "Xenova/clip-vit-base-patch32";
-/** Ändert sich das Modell, muss der Index neu aufgebaut werden. */
-export const INDEX_VERSION = `${CLIP_MODEL}@q8`;
+export type ModelId = "clip" | "mobileclip";
+
+export interface ModelSpec {
+  id: ModelId;
+  label: string;
+  /** Modell auf Hugging Face (ONNX für den Browser) */
+  repo: string;
+  /** Eigene Datenbank pro Modell – die Fingerabdrücke verschiedener Modelle passen nicht zusammen */
+  db: string;
+  /** Ändert sich das, muss der Index neu aufgebaut werden */
+  version: string;
+  visionDtype: "q8" | "fp32";
+  textDtype: "q8" | "fp32";
+  /** Text immer auf volle Länge auffüllen (MobileCLIP erwartet das) */
+  padMax: boolean;
+}
+
+export const MODELS: Record<ModelId, ModelSpec> = {
+  // OpenAI CLIP ViT-B/32 (2021)
+  clip: {
+    id: "clip",
+    label: "Standard (CLIP)",
+    repo: "Xenova/clip-vit-base-patch32",
+    db: "drivepool-ai",
+    version: "Xenova/clip-vit-base-patch32@q8",
+    visionDtype: "q8",
+    textDtype: "q8",
+    padMax: false,
+  },
+  // Apple MobileCLIP-S2 (2024) – kleiner, laut Apple deutlich treffsicherer. Bildteil ungerundet (fp32),
+  // weil die gerundete Fassung bei MobileCLIP ungenauer sein kann
+  mobileclip: {
+    id: "mobileclip",
+    label: "MobileCLIP-S2 (Test)",
+    repo: "Xenova/mobileclip_s2",
+    db: "drivepool-ai-mobileclip-s2",
+    version: "Xenova/mobileclip_s2@fp32",
+    visionDtype: "fp32",
+    textDtype: "q8",
+    padMax: true,
+  },
+};
 
 export type ToWorker =
-  | { type: "warm"; id: number; part: "bild" | "text" }
-  | { type: "images"; id: number; blobs: Blob[] }
+  | { type: "warm"; id: number; model: ModelId; part: "bild" | "text" }
+  | { type: "images"; id: number; model: ModelId; blobs: Blob[] }
   /** Gruppen von Formulierungen; je Gruppe ein gemittelter Vektor (Gruppe 0 = ganze Suche) */
-  | { type: "text"; id: number; groups: string[][] };
+  | { type: "text"; id: number; model: ModelId; groups: string[][] };
 
 export type FromWorker =
   | { type: "progress"; part: "bild" | "text"; file: string; loaded: number; total: number }

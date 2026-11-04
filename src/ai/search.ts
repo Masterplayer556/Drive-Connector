@@ -2,6 +2,7 @@
 // Dazu: Feedback (👍/👎), „Ähnliche Fotos“ und Gruppen fast gleicher Fotos – alles nur mit dem Index, ohne Modell.
 import type { Item } from "../lib/types";
 import { catalog } from "./catalog";
+import { aiModel } from "./flag";
 import { embedConcepts, embedText } from "./engine";
 import { conceptVocabulary, nameWords, toEnglish } from "./dict";
 import { expandNameKeys, FOLDER_KEY, folderKey, isFolderKey, learnedNames, prototypeOf, rankByName } from "./names";
@@ -32,12 +33,15 @@ export interface AiResult {
   tagHelp: { label: string; count: number }[];
 }
 
-let vectors: { at: number; map: Map<string, Float32Array> } | null = null;
+let vectors: { at: number; model: string; map: Map<string, Float32Array> } | null = null;
 let feedback: Feedback[] | null = null;
 
 /** Index höchstens alle 30 s neu lesen (er wächst nebenbei). */
 async function loadVectors(): Promise<Map<string, Float32Array>> {
-  if (!vectors || Date.now() - vectors.at > 30_000) vectors = { at: Date.now(), map: await allVectors() };
+  // Neu lesen, wenn älter als 30 s oder das Modell gewechselt hat
+  if (!vectors || vectors.model !== aiModel() || Date.now() - vectors.at > 30_000) {
+    vectors = { at: Date.now(), model: aiModel(), map: await allVectors() };
+  }
   return vectors.map;
 }
 
