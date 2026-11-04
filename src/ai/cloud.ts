@@ -52,12 +52,46 @@ export async function uploadVectors(model: string, entries: [string, Float32Arra
 }
 
 let syncing: Promise<number> | null = null;
+const OVERLAP_MS = 15 * 60_000;
+
+/**
+ * Bestimmte Fotos gezielt holen (Selbstheilung): fehlen dem iPhone Fotos, die der PC schon gelernt hat,
+ * werden genau diese nachgeladen. Ergebnis: Anzahl gefundene.
+ */
+export async function fetchKeys(id: ModelId, keys: string[]): Promise<number> {
+  const model = MODELS[id].version;
+  const byAccount = new Map<string, string[]>();
+  for (const k of keys) {
+    const { account_id, drive_id } = split(k);
+    byAccount.set(account_id, [...(byAccount.get(account_id) ?? []), drive_id]);
+  }
+  let found = 0;
+  for (const [account_id, ids] of byAccount) {
+    for (let i = 0; i < ids.length; i += 150) {
+      const { data, error } = await supabase
+        .from("ai_vectors")
+        .select("account_id,drive_id,v")
+        .eq("model", model)
+        .eq("account_id", account_id)
+        .in("drive_id", ids.slice(i, i + 150));
+      if (error) throw new Error(error.message);
+      const rows = data ?? [];
+      await putVectors(rows.filter((r) => r.v).map((r) => [`${r.account_id}/${r.drive_id}`, decodeVec(r.v)] as [string, Float32Array]), id);
+      await putSkips(rows.filter((r) => !r.v).map((r) => `${r.account_id}/${r.drive_id}`), id);
+      found += rows.length;
+    }
+  }
+  return found;
+}
 
 /** Neue Fingerabdrücke vom PC holen (nur, was seit dem letzten Mal dazukam). Ergebnis: Anzahl neue. */
 export function syncDown(id: ModelId, onProgress?: (n: number) => void): Promise<number> {
   const model = MODELS[id].version;
   syncing ??= (async () => {
     const last = (await getMeta<string>("cloud-sync", id).catch(() => undefined)) ?? "1970-01-01T00:00:00Z";
+    // Mit Überlappung abfragen: der PC lädt Pakete mit gleicher Zeit in mehreren Teilen hoch – sonst
+    // könnte ein Teil, der erst nach dem letzten Abgleich ankam, für immer fehlen (doppelt holen schadet nicht)
+    const since = new Date(Math.max(0, Date.parse(last) - OVERLAP_MS)).toISOString();
     let newest = last;
     let count = 0;
     for (let from = 0; ; from += 1000) {
@@ -65,7 +99,7 @@ export function syncDown(id: ModelId, onProgress?: (n: number) => void): Promise
         .from("ai_vectors")
         .select("account_id,drive_id,v,updated_at")
         .eq("model", model)
-        .gt("updated_at", last)
+        .gt("updated_at", since)
         .order("updated_at")
         .order("account_id")
         .order("drive_id")
@@ -75,7 +109,7 @@ export function syncDown(id: ModelId, onProgress?: (n: number) => void): Promise
       // Leerer Eintrag = der PC konnte das Foto nicht lernen (kein Vorschaubild) → hier als erledigt merken
       await putVectors(rows.filter((r) => r.v).map((r) => [`${r.account_id}/${r.drive_id}`, decodeVec(r.v)] as [string, Float32Array]), id);
       await putSkips(rows.filter((r) => !r.v).map((r) => `${r.account_id}/${r.drive_id}`), id);
-      for (const r of rows) if (r.updated_at > newest) newest = r.updated_at;
+      for (const r of rows) if (Date.parse(r.updated_at) > Date.parse(newest)) newest = new Date(r.updated_at).toISOString();
       count += rows.length;
       onProgress?.(count);
       if (rows.length < 1000) break;

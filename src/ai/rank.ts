@@ -41,6 +41,7 @@ export function rank(
     skip,
     keywords,
     keywordWeight = 0.35,
+    auto = false,
   }: {
     limit?: number;
     floor?: number;
@@ -50,6 +51,11 @@ export function rank(
     /** Stichwort-Suche: je ein Vektor pro Stichwort – Fotos, die ALLE zeigen, kommen nach oben */
     keywords?: Float32Array[];
     keywordWeight?: number;
+    /**
+     * Grenzen relativ zur Verteilung dieser Suche: „gut genug“ = Mittelwert + 2 Standardabweichungen,
+     * Fenster = 3 Standardabweichungen (bei CLIP entspricht das etwa 0.07). Für Modelle mit anderer Skala.
+     */
+    auto?: boolean;
   } = {},
 ): Hit[] {
   const kw = keywords && keywords.length >= 2 ? keywords : null;
@@ -63,12 +69,27 @@ export function rank(
     all.push({ key, base, score: base + (adjust?.boost.get(key) ?? 0) });
   }
   const best = all.reduce((m, h) => Math.max(m, h.base), -Infinity);
-  const min = Math.max(floor, best - window);
+  let lo = floor;
+  let win = window;
+  if (auto && all.length >= 20) {
+    const { mean, sd } = spread(all.map((h) => h.base));
+    lo = mean + 2 * sd;
+    win = 3 * sd;
+  }
+  const min = Math.max(lo, best - win);
   return all
-    .filter((h) => h.base >= min || h.score >= min + window)
+    .filter((h) => h.base >= min || h.score >= min + win)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map(({ key, score }) => ({ key, score }));
+}
+
+/** Mittelwert und Standardabweichung. */
+export function spread(xs: number[]): { mean: number; sd: number } {
+  if (!xs.length) return { mean: 0, sd: 0 };
+  const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+  const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length);
+  return { mean, sd };
 }
 
 /** Wie stark eine frühere Suche zur jetzigen passt: gleiche Suche = 1, deutlich andere = 0. */

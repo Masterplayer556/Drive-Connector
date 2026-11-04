@@ -48,3 +48,5 @@ Im Hintergrund (App verlassen, Bildschirm aus) friert iOS Web-Apps ein – geler
      `src/components/Viewer.tsx`, `src/views/MehrView.tsx`, `src/views/DuplikateView.tsx`, `src/lib/db.ts`,
      `vite.config.ts` (`worker: { format: "es" }`)
    - `npm uninstall @huggingface/transformers`
+| MobileCLIP-B rechnet mit tieferen Ähnlichkeiten: Treffer-Grenze dort relativ zur Verteilung der Suche (Mittelwert + 2 Standardabweichungen, Fenster 3 Standardabweichungen) statt fix 0.2 | `protocol.ts` (`autoFloor`), `rank.ts` (`auto`), `search.ts` |
+| iPhone-Abgleich mit 15 min Überlappung (PC lädt Pakete mit gleicher Zeit in mehreren Teilen hoch); fehlt danach noch etwas, werden genau diese Fotos gezielt geholt | `cloud.ts` (`syncDown`, `fetchKeys`), `indexer.ts` |

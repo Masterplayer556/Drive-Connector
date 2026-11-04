@@ -20,6 +20,11 @@ export interface ModelSpec {
    * Andere Geräte (iPhone) laden sie nur herunter – das Bildmodell ist für sie zu gross.
    */
   cloud: boolean;
+  /**
+   * Treffer-Grenze aus der Verteilung der Ähnlichkeiten berechnen statt fix (0.2). Nötig, wenn das Modell
+   * insgesamt tiefere Werte liefert (MobileCLIP-B: sonst bleiben viele Suchen leer, obwohl es passende Fotos gibt).
+   */
+  autoFloor?: boolean;
 }
 
 export const MODELS: Record<ModelId, ModelSpec> = {
@@ -60,6 +65,7 @@ export const MODELS: Record<ModelId, ModelSpec> = {
     textDtype: "q8",
     padMax: true,
     cloud: true,
+    autoFloor: true,
   },
 };
 
