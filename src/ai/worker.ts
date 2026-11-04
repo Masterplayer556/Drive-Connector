@@ -39,7 +39,7 @@ const LEAN = { enableCpuMemArena: false, enableMemPattern: false };
 
 // Pro Worker immer nur ein Modell; beim Umschalten beendet die App die Worker
 let vision: Promise<{ processor: Fn; model: Fn; device: "webgpu" | "wasm" }> | null = null;
-// Textmodelle je Modell (im Vergleichsmodus werden beide gebraucht)
+// Textmodelle je Modell (bei der Kombi werden zwei gebraucht)
 const texts = new Map<string, Promise<{ tokenizer: (t: string[], o: object) => unknown; model: Fn; spec: ModelSpec }>>();
 
 function normalized(v: Float32Array): Float32Array {

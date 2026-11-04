@@ -86,52 +86,6 @@ export function useAiModel(): ModelId {
   return useSyncExternalStore(onAiFlag, aiModel, () => "clip" as const);
 }
 
-// ---- Vergleich: Strichliste je Paarung (links gegen rechts), welches Modell besser war ----
-const TALLY_KEY = "drivepool.ai.compare2";
-export interface Tally {
-  left: number;
-  right: number;
-  same: number;
-}
-const pairKey = (a: string, b: string) => `${a}|${b}`;
-
-function readTallies(): Record<string, Tally> {
-  try {
-    const t = JSON.parse(localStorage.getItem(TALLY_KEY) ?? "null");
-    if (t && typeof t === "object") return t as Record<string, Tally>;
-  } catch {
-    /* ignorieren */
-  }
-  return {};
-}
-
-export function compareTally(a: string, b: string): Tally {
-  return readTallies()[pairKey(a, b)] ?? { left: 0, right: 0, same: 0 };
-}
-
-export function addToTally(a: string, b: string, winner: keyof Tally): Tally {
-  const all = readTallies();
-  const t = all[pairKey(a, b)] ?? { left: 0, right: 0, same: 0 };
-  t[winner]++;
-  all[pairKey(a, b)] = t;
-  try {
-    localStorage.setItem(TALLY_KEY, JSON.stringify(all));
-  } catch {
-    /* ignorieren */
-  }
-  return t;
-}
-
-export function resetTally(a: string, b: string) {
-  const all = readTallies();
-  delete all[pairKey(a, b)];
-  try {
-    localStorage.setItem(TALLY_KEY, JSON.stringify(all));
-  } catch {
-    /* ignorieren */
-  }
-}
-
 // ---- Lern-Gerät: lernt das genaue Modell für alle Geräte (PC). Standard: alles ausser iPhone/iPad ----
 const LEARNER_KEY = "drivepool.ai.learner";
 

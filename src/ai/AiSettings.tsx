@@ -42,7 +42,6 @@ import { allNames, removeName } from "./search";
 import { usedBytes, wipeEverything } from "./store";
 
 const TrainSheet = lazy(() => import("./TrainSheet"));
-const CompareSheet = lazy(() => import("./CompareSheet"));
 
 const mb = (b: number) => `${Math.round(b / 1e6).toLocaleString("de-CH")} MB`;
 
@@ -264,7 +263,7 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
               <TrainSheet accounts={accounts} onClose={() => setTraining(false)} />
             </Suspense>
           )}
-          <ModelChoice accounts={accounts} />
+          <ModelChoice />
           <LearnedNames />
           <button className="link small ai-wipe" onClick={() => void wipe()} disabled={busy}>
             KI-Daten von diesem Gerät löschen
@@ -320,10 +319,9 @@ function LearnedNames() {
 }
 
 /** Modell wählen: Standard oder MobileCLIP (Test). */
-function ModelChoice({ accounts }: { accounts: Account[] }) {
+function ModelChoice() {
   const model = useAiModel();
   const kombiOn = useKombi();
-  const [comparing, setComparing] = useState(false);
   return (
     <div className="ai-names">
       <div className="ai-names-head">
@@ -356,17 +354,6 @@ function ModelChoice({ accounts }: { accounts: Account[] }) {
             <span />
           </span>
         </label>
-      )}
-      <button className="btn small" onClick={() => setComparing(true)}>
-        <Icon name="search" size={16} /> Modelle vergleichen
-      </button>
-      <span className="faint small">
-        Gleiche Suche mit zwei Modellen nebeneinander, über alle gelernten Fotos. MobileCLIP lernt am PC per Knopf, solange es oben gewählt ist.
-      </span>
-      {comparing && (
-        <Suspense fallback={null}>
-          <CompareSheet accounts={accounts} onClose={() => setComparing(false)} />
-        </Suspense>
       )}
     </div>
   );
