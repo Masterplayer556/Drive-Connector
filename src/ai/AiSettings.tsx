@@ -7,6 +7,7 @@ import { useUI } from "../components/ui";
 import { crashNote, forgetOldSettings, modelProgress, onModelProgress, visionDevice } from "./engine";
 import {
   inTestFolders,
+  isAppleMobile,
   setAiEnabled,
   setAiModel,
   setFeedbackEnabled,
@@ -481,24 +482,32 @@ function ModelChoice({ accounts }: { accounts: Account[] }) {
 /** MobileCLIP: am PC per Knopf lernen (genaues Modell), auf dem iPhone nur herunterladen. */
 function CloudPanel({ s, left }: { s: IndexState; left: number }) {
   const learner = useLearningDevice();
+  const phone = isAppleMobile();
   const running = cloudLearning() && ["model", "indexing", "start", "syncing"].includes(s.phase);
   const dev = visionDevice();
   return (
     <div className="ai-names">
-      <label className="ai-toggle small">
-        <span>
-          <strong>Dieses Gerät lernt für alle</strong>
-          <span className="faint">
-            {learner
-              ? " An – hier wird mit dem genauen Modell gelernt (PC). Die Ergebnisse (nur Zahlen) gehen in deine Datenbank."
-              : " Aus – dieses Gerät lädt nur herunter, was der PC gelernt hat, und sucht damit."}
+      {phone ? (
+        <span className="faint small">
+          Dieses Modell lernt nur am PC (dort „Neue Fotos lernen“ drücken). Das iPhone holt die Ergebnisse beim Öffnen und sucht
+          damit. Fotos selbst scannen geht hier nur mit dem Standardmodell.
+        </span>
+      ) : (
+        <label className="ai-toggle small">
+          <span>
+            <strong>Dieses Gerät lernt für alle</strong>
+            <span className="faint">
+              {learner
+                ? " An – hier wird mit dem genauen Modell gelernt (PC). Die Ergebnisse (nur Zahlen) gehen in deine Datenbank."
+                : " Aus – dieses Gerät lädt nur herunter, was der PC gelernt hat, und sucht damit."}
+            </span>
           </span>
-        </span>
-        <span className="switch">
-          <input type="checkbox" checked={learner} onChange={(e) => setLearningDevice(e.target.checked)} />
-          <span />
-        </span>
-      </label>
+          <span className="switch">
+            <input type="checkbox" checked={learner} onChange={(e) => setLearningDevice(e.target.checked)} />
+            <span />
+          </span>
+        </label>
+      )}
       {learner &&
         (running ? (
           <>
