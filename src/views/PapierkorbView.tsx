@@ -103,6 +103,24 @@ export default function PapierkorbView({ accounts }: { accounts: Account[] }) {
     await load();
   };
 
+  /** Alles im Papierkorb (alle Konten) zurückholen – an den ursprünglichen Ort */
+  const restoreAll = async () => {
+    const list = entries ?? [];
+    if (!list.length) return;
+    const yes = await ui.confirm({
+      title: `Alle ${list.length} Einträge wiederherstellen?`,
+      message: "Alles im Papierkorb aller Konten kommt an seinen ursprünglichen Ort zurück.",
+      confirmLabel: "Alles wiederherstellen",
+    });
+    if (!yes) return;
+    const ok = await run(list, "wiederhergestellt", (e) => restoreItem(e.account.id, e.file.id));
+    await writeLog("move", `${ok} Einträge aus dem Papierkorb wiederhergestellt (alles)`);
+    await syncAccounts([...new Set(list.map((e) => e.account.id))]).catch(() => undefined);
+    invalidateAll();
+    ui.toast(ok === list.length ? `${ok} wiederhergestellt` : `${ok} von ${list.length} wiederhergestellt`, ok === list.length ? "ok" : "error");
+    await load();
+  };
+
   const removeForever = async () => {
     const yes = await ui.confirm({
       title: `${chosen.length} endgültig löschen?`,
@@ -227,6 +245,9 @@ export default function PapierkorbView({ accounts }: { accounts: Account[] }) {
                 );
               })}
           </div>
+          <button className="btn block" onClick={restoreAll}>
+            <Icon name="refresh" size={18} /> Alles wiederherstellen
+          </button>
           <button className="btn danger-solid block" onClick={() => emptyAll()}>
             <Icon name="trash" size={18} /> Alles endgültig löschen
           </button>
