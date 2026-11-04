@@ -10,6 +10,7 @@ import { maxNumber } from "../lib/naming";
 import { planUpload, summarize, type PlanEntry, type PlanFile, type PlanInput } from "../lib/plan";
 import { executeUpload, type UploadProgress, type UploadResult } from "../lib/upload";
 import type { Account, Crumb, FolderContent } from "../lib/types";
+import { useKeepAwake } from "../lib/wakelock";
 
 type Phase = "analyse" | "review" | "upload" | "done";
 
@@ -33,6 +34,7 @@ export default function UploadSheet({
   onClose: (changed: boolean) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("analyse");
+  useKeepAwake(phase === "analyse" || phase === "upload"); // Bildschirm bleibt an, solange es läuft
   const [analysed, setAnalysed] = useState(0);
   const [planFiles, setPlanFiles] = useState<PlanFile[]>([]);
   const [known, setKnown] = useState<Set<string>>(new Set());

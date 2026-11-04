@@ -8,6 +8,7 @@ import { planBatchRename } from "../lib/renameplan";
 import type { Item, LogicalFolder } from "../lib/types";
 import Icon from "./Icon";
 import Ring from "./Ring";
+import { useKeepAwake } from "../lib/wakelock";
 
 const key = (i: Item) => `${i.account_id}|${i.drive_id}`;
 const PREVIEW = 8;
@@ -31,6 +32,7 @@ export default function RenameSheet({
   const [base, setBase] = useState("");
   const [start, setStart] = useState("1");
   const [phase, setPhase] = useState<"edit" | "run" | "done">("edit");
+  useKeepAwake(phase === "run"); // Bildschirm bleibt an, solange es läuft
   const [done, setDone] = useState(0);
   const [failed, setFailed] = useState<string[]>([]);
   const input = useRef<HTMLInputElement>(null);

@@ -13,6 +13,7 @@ import { loadRebalance } from "../lib/rebalanceData";
 import { hueOf, useFolderColors } from "../lib/folderColors";
 import FolderActions from "../components/FolderActions";
 import { haptic } from "../lib/haptic";
+import { useKeepAwake } from "../lib/wakelock";
 import { movePathPrefs } from "../lib/folders";
 import { cachedFolder, invalidateAll, invalidateFolder, loadFolder, patchFolder, prefetchFolder } from "../lib/cache";
 import { countSubtreeFiles, fetchBigFolders, fetchStats, fetchSubtreeFiles, syncAccounts, writeLog } from "../lib/db";
@@ -89,6 +90,13 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   const [sortOpen, setSortOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  /** Laufende Lösch-Aufträge – solange bleibt der Bildschirm an */
+  const [working, setWorking] = useState(0);
+  useKeepAwake(working > 0);
+  const awake = <T,>(p: Promise<T>): Promise<T> => {
+    setWorking((w) => w + 1);
+    return p.finally(() => setWorking((w) => w - 1));
+  };
   const [renameOpen, setRenameOpen] = useState(false);
   useTags();
   /** Per Ziehen verschieben: was und wohin */
@@ -212,7 +220,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
     patchFolder(parentKey, (c) => ({ ...c, folders: c.folders.filter((f) => f.key !== folder.key) }));
     goTo(stack.length - 2);
     try {
-      await trashLogicalFolder(folder);
+      await awake(trashLogicalFolder(folder));
       ui.toast(`„${folder.name}“ gelöscht`, "ok");
     } catch (e) {
       ui.toast(e instanceof Error ? e.message : String(e), "error");
@@ -335,7 +343,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
     patchFolder(current.key, (c) => ({ ...c, folders: c.folders.filter((x) => x.key !== f.key) }));
     setContent((c) => (c ? { ...c, folders: c.folders.filter((x) => x.key !== f.key) } : c));
     try {
-      await trashLogicalFolder(f);
+      await awake(trashLogicalFolder(f));
       ui.toast(`„${f.name}“ gelöscht`, "ok");
     } catch (e) {
       ui.toast(e instanceof Error ? e.message : String(e), "error");
@@ -379,9 +387,9 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
       setSelectMode(false);
       clearSelection();
       try {
-        for (const f of folderList) await trashLogicalFolder(f);
+        for (const f of folderList) await awake(trashLogicalFolder(f));
         if (photos.length) {
-          const r = await trashFiles(photos);
+          const r = await awake(trashFiles(photos));
           if (r.failed.length) ui.toast(`Nicht gelöscht: ${r.failed.length}`, "error");
         }
         ui.toast(`${parts.join(" und ")} gelöscht`, "ok");
@@ -407,7 +415,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
     setSelectMode(false);
     clearSelection();
     ui.toast(`${n} Foto${n === 1 ? "" : "s"} gelöscht`, "ok");
-    trashFiles(selectedItems)
+    awake(trashFiles(selectedItems))
       .then((r) => {
         if (r.failed.length) ui.toast(`Nicht gelöscht: ${r.failed.length}`, "error");
       })

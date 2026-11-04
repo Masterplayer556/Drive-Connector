@@ -1,4 +1,5 @@
-// Bildschirm während des Uploads wach halten (iOS pausiert Uploads im Hintergrund).
+// Bildschirm wach halten (Uploads, Löschen, Verschieben … – iOS pausiert die App sonst, wenn der Bildschirm ausgeht).
+import { useEffect } from "react";
 type Sentinel = { release: () => Promise<void> };
 
 export async function keepAwake(): Promise<() => void> {
@@ -20,4 +21,21 @@ export async function keepAwake(): Promise<() => void> {
     document.removeEventListener("visibilitychange", onVisible);
     void sentinel?.release().catch(() => undefined);
   };
+}
+
+/** React: Bildschirm wach halten, solange `active` (Löschen, Hochladen, Verschieben …). */
+export function useKeepAwake(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    let release: (() => void) | null = null;
+    let gone = false;
+    void keepAwake().then((r) => {
+      if (gone) r();
+      else release = r;
+    });
+    return () => {
+      gone = true;
+      release?.();
+    };
+  }, [active]);
 }

@@ -1,10 +1,10 @@
-// KI-SUCHE (Test): Abschnitt in „Mehr“ – einschalten, Fortschritt sehen, alles wieder löschen.
+// KI-SUCHE: Abschnitt in „Mehr“ – einschalten, Fortschritt sehen. Löschen: Mehr → Sicherheit (AiWipeSheet, mit 2FA).
 import "./ai.css";
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { Account } from "../lib/types";
 import Icon from "../components/Icon";
 import { useUI } from "../components/ui";
-import { crashNote, forgetOldSettings, modelProgress, onModelProgress, visionDevice } from "./engine";
+import { crashNote, modelProgress, onModelProgress, visionDevice } from "./engine";
 import {
   isAppleMobile,
   setAiEnabled,
@@ -37,7 +37,7 @@ import {
   type IndexState,
 } from "./indexer";
 import { allNames, removeName } from "./search";
-import { usedBytes, wipeEverything } from "./store";
+import { usedBytes } from "./store";
 
 const TrainSheet = lazy(() => import("./TrainSheet"));
 
@@ -94,7 +94,6 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
   const feedbackOn = useFeedbackEnabled();
   const [s, setS] = useState(indexState);
   const [bytes, setBytes] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
   const [, tick] = useState(0);
 
   useEffect(() => onIndexState(() => setS(indexState())), []);
@@ -113,7 +112,7 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
       return;
     }
     const ok = await ui.confirm({
-      title: "KI-Suche (Beta) einschalten?",
+      title: "KI-Suche einschalten?",
       message:
         "Die App lädt einmalig ein KI-Modell (ca. 160 MB – am besten im WLAN) und lernt danach nebenbei deine Fotos kennen, " +
         "solange die App offen ist. Alles läuft auf diesem iPhone, keine Fotos oder Suchen gehen an einen KI-Dienst. " +
@@ -130,32 +129,6 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
     ui.toast("KI-Suche deaktiviert – das Gelernte bleibt gespeichert", "ok");
   };
 
-  /** Alles von diesem Gerät löschen (Modell, Index, Bewertungen, Namen). */
-  const wipe = async () => {
-    const ok = await ui.confirm({
-      title: "KI-Daten löschen?",
-      message:
-        "Modell, gelernte Fotos, 👍/👎 und gelernte Namen werden von diesem Gerät gelöscht. Beim nächsten Einschalten lädt und lernt die KI " +
-        "alles neu. Deine Fotos und Tags bleiben unverändert.",
-      confirmLabel: "Alles löschen",
-      danger: true,
-    });
-    if (!ok) return;
-    setBusy(true);
-    try {
-      stopIndexer();
-      setAiEnabled(false);
-      forgetOldSettings();
-      await wipeEverything();
-      setBytes(null);
-      ui.toast("KI-Daten gelöscht", "ok");
-    } catch (e) {
-      ui.toast(e instanceof Error ? e.message : String(e), "error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
   const left = Math.max(0, s.total - s.done);
   const cloud = MODELS[model].cloud;
@@ -169,7 +142,7 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
           <Icon name="sparkles" size={18} />
         </span>
         <span className="li-text">
-          KI-Suche <span className="ai-pill">Beta</span>
+          KI-Suche
           <small>
             {on
               ? statusText(s)
@@ -178,20 +151,16 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
                 : "Fotos per Beschreibung finden – läuft nur auf diesem Gerät"}
           </small>
         </span>
-        {busy ? (
-          <span className="spinner" />
-        ) : (
-          <span className="switch">
-            <input type="checkbox" checked={on} onChange={() => (on ? disable() : void enable())} />
-            <span />
-          </span>
-        )}
+        <span className="switch">
+          <input type="checkbox" checked={on} onChange={() => (on ? disable() : void enable())} />
+          <span />
+        </span>
       </label>
       {kept && (
         <div className="ai-settings-body">
-          <button className="link small ai-wipe" onClick={() => void wipe()} disabled={busy}>
-            KI-Daten von diesem Gerät löschen ({mb(bytes!)})
-          </button>
+          <p className="faint small" style={{ margin: 0 }}>
+            Ganz löschen: Mehr → Sicherheit → KI-Daten löschen.
+          </p>
         </div>
       )}
       {on && (
@@ -263,9 +232,6 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
           )}
           <ModelChoice />
           <LearnedNames />
-          <button className="link small ai-wipe" onClick={() => void wipe()} disabled={busy}>
-            KI-Daten von diesem Gerät löschen
-          </button>
           <p className="faint small" style={{ margin: 0 }}>
             Tipp: In der Suche einfach beschreiben, auf Englisch, z. B. „dog in the snow“ oder „worksheet with a table“.
           </p>
@@ -296,11 +262,13 @@ function LearnedNames() {
     await load();
   };
   return (
-    <div className="ai-names">
-      <div className="ai-names-head">
-        <strong className="small">Gelernte Namen</strong>
+    <details className="ai-names ai-fold">
+      <summary className="ai-names-head">
+        <strong className="small">
+          Gelernte Namen <span className="faint">({names.length})</span>
+        </strong>
         <span className="faint small">Suche nach dem Namen zeigt ähnlich aussehende Fotos. Mehr 👍 = besser.</span>
-      </div>
+      </summary>
       <div className="ai-name-chips">
         {names.map((n) => (
           <span key={n.name} className="ai-name-chip on">
@@ -312,7 +280,7 @@ function LearnedNames() {
           </span>
         ))}
       </div>
-    </div>
+    </details>
   );
 }
 
@@ -321,11 +289,13 @@ function ModelChoice() {
   const model = useAiModel();
   const kombiOn = useKombi();
   return (
-    <div className="ai-names">
-      <div className="ai-names-head">
-        <strong className="small">Modell</strong>
+    <details className="ai-names ai-fold">
+      <summary className="ai-names-head">
+        <strong className="small">
+          Modell <span className="faint">({MODELS[model].label})</span>
+        </strong>
         <span className="faint small">Jedes Modell hat seinen eigenen Index – Umschalten löscht nichts.</span>
-      </div>
+      </summary>
       {MODEL_IDS.map((m) => (
         <label key={m} className="ai-mode-opt">
           <input type="radio" name="ai-model" checked={model === m} onChange={() => setAiModel(m)} />
@@ -353,7 +323,7 @@ function ModelChoice() {
           </span>
         </label>
       )}
-    </div>
+    </details>
   );
 }
 

@@ -7,6 +7,7 @@ import Icon from "./Icon";
 import Ring from "./Ring";
 import Thumb from "./Thumb";
 import { useUI } from "./ui";
+import { useKeepAwake } from "../lib/wakelock";
 
 const key = (i: Item) => `${i.account_id}|${i.drive_id}`;
 
@@ -25,6 +26,7 @@ export default function SortSheet({
   const ui = useUI();
   const [order, setOrder] = useState<string[]>([]);
   const [phase, setPhase] = useState<"order" | "run" | "done">("order");
+  useKeepAwake(phase === "run"); // Bildschirm bleibt an, solange es läuft
   const [done, setDone] = useState(0);
   const [failed, setFailed] = useState<string[]>([]);
 

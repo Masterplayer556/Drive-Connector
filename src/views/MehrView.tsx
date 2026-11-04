@@ -12,6 +12,7 @@ import { supabase } from "../lib/supabase";
 import type { Account } from "../lib/types";
 
 const AiSettings = lazy(() => import("../ai/AiSettings")); // KI-SUCHE
+const AiWipeSheet = lazy(() => import("../ai/AiWipeSheet")); // KI-SUCHE
 
 interface Enroll {
   factorId: string;
@@ -115,6 +116,7 @@ export default function MehrView({ session, accounts }: { session: Session; acco
   const [enroll, setEnroll] = useState<Enroll | null>(null);
   const [code, setCode] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [aiWipe, setAiWipe] = useState(false); // KI-SUCHE
 
   const loadFactors = async () => {
     const { data, error } = await supabase.auth.mfa.listFactors();
@@ -312,6 +314,22 @@ export default function MehrView({ session, accounts }: { session: Session; acco
           />
         )}
       </div>
+
+      {/* KI-SUCHE: KI-Daten löschen – eigenes Fenster, nur mit 2FA-Code */}
+      <div className="list glass enter" style={{ animationDelay: "90ms" }}>
+        <Item
+          icon="sparkles"
+          bg="linear-gradient(135deg,#f472b6,#e11d48)"
+          title="KI-Daten löschen"
+          sub={hasMfa ? "Modell, Index und Namen von diesem Gerät – mit 2FA-Code" : "Braucht den Zwei-Faktor-Schutz"}
+          onClick={() => setAiWipe(true)}
+        />
+      </div>
+      {aiWipe && (
+        <Suspense fallback={null}>
+          <AiWipeSheet factorId={factorId} onClose={() => setAiWipe(false)} />
+        </Suspense>
+      )}
 
       <div className="list glass enter" style={{ animationDelay: "120ms" }}>
         <Item icon="logout" bg="linear-gradient(135deg,#fb7185,#e11d48)" title="Abmelden" danger onClick={logout} />

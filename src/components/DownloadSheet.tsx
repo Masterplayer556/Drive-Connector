@@ -5,6 +5,7 @@ import type { Item } from "../lib/types";
 import { buildZip, chunkBySize } from "../lib/zip";
 import Icon from "./Icon";
 import Ring from "./Ring";
+import { useKeepAwake } from "../lib/wakelock";
 
 const PHOTO_BATCH_BYTES = 150 * 1024 ** 2;
 const PHOTO_BATCH_COUNT = 25;
@@ -37,6 +38,7 @@ export default function DownloadSheet({
   const [loaded, setLoaded] = useState(0);
   const [ready, setReady] = useState<File[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useKeepAwake(!ready && !error); // Bildschirm bleibt an, solange es läuft
   const [finished, setFinished] = useState(false);
   const loadingFor = useRef(-1);
 

@@ -10,6 +10,7 @@ import { folderHue } from "../lib/theme";
 import type { Account, Crumb, FolderContent, Item, LogicalFolder } from "../lib/types";
 import Icon from "./Icon";
 import Ring from "./Ring";
+import { useKeepAwake } from "../lib/wakelock";
 
 const ROOT: Crumb = { name: "Drive", path: "", key: "" };
 
@@ -34,6 +35,7 @@ export default function MoveSheet({
   const [content, setContent] = useState<FolderContent | null>(null);
   const [conflictMode, setConflictMode] = useState<"skip" | "rename">("skip");
   const [phase, setPhase] = useState<"pick" | "run" | "done">("pick");
+  useKeepAwake(phase === "run"); // Bildschirm bleibt an, solange es läuft
   const [done, setDone] = useState(0);
   const [failed, setFailed] = useState<string[]>([]);
 

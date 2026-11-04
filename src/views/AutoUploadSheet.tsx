@@ -10,6 +10,7 @@ import { childKey } from "../lib/naming";
 import { planUpload, summarize, type PlanEntry, type PlanFile } from "../lib/plan";
 import type { Account, Crumb } from "../lib/types";
 import { executeUpload } from "../lib/upload";
+import { useKeepAwake } from "../lib/wakelock";
 
 /** Wurzel der automatischen Ablage (Regel 8). */
 export const AUTO_ROOT = "Privat/Fotos";
@@ -46,6 +47,7 @@ export default function AutoUploadSheet({
   onClose: (changed: boolean) => void;
 }) {
   const [phase, setPhase] = useState<"analyse" | "review" | "upload" | "done">("analyse");
+  useKeepAwake(phase === "analyse" || phase === "upload"); // Bildschirm bleibt an, solange es läuft
   const [analysed, setAnalysed] = useState(0);
   const [groups, setGroups] = useState<Group[]>([]);
   const [conflictMode, setConflictMode] = useState<"skip" | "rename">("skip");
