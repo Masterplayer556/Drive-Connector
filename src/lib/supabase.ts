@@ -8,8 +8,8 @@ export const supabase = createClient(url, key, {
 });
 
 /** Ruft eine Edge Function auf und gibt verständliche Fehlermeldungen zurück. */
-export async function callFunction<T>(name: string, body: Record<string, unknown> = {}): Promise<T> {
-  const { data, error } = await supabase.functions.invoke(name, { body });
+export async function callFunction<T>(name: string, body: Record<string, unknown> = {}, { timeout }: { timeout?: number } = {}): Promise<T> {
+  const { data, error } = await supabase.functions.invoke(name, { body, ...(timeout ? { timeout } : {}) });
   if (error) {
     let message = error.message;
     const ctx = (error as { context?: unknown }).context;

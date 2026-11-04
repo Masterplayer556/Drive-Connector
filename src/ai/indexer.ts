@@ -333,11 +333,22 @@ async function pass(stopped: () => boolean): Promise<"done" | "wait"> {
         try {
           vecs = withBlob.length ? await embedImages(withBlob.map((it) => blobs.get(itemKey(it))!)) : [];
         } catch {
-          // Worker beendet (z. B. Suche geöffnet) → Paket einmal neu einreihen
-          for (const it of part) if (!retried.has(itemKey(it))) (retried.add(itemKey(it)), todo.push(it));
-          refill();
-          await prepareVision();
-          continue;
+          // Paket hängt (Zeitlimit) oder Worker beendet → einzeln versuchen: so hält ein kaputtes Foto
+          // nicht alles auf. Was auch allein nicht geht, wird übersprungen und später nochmals versucht.
+          vecs = [];
+          for (const it of withBlob) {
+            if (stopped() || !cloudRun) break;
+            try {
+              await prepareVision();
+              vecs.push((await embedImages([blobs.get(itemKey(it))!]))[0] ?? null);
+            } catch {
+              vecs.push(null);
+            }
+          }
+          if (vecs.length < withBlob.length) {
+            todo.push(...part); // angehalten → Paket bleibt für später
+            break;
+          }
         }
         const got = new Map(withBlob.map((it, j) => [itemKey(it), vecs[j] ?? null]));
         const learned: [string, Float32Array][] = [];

@@ -115,14 +115,29 @@ function getWorker(slot: number): Worker {
   return w;
 }
 
-function send(msg: WithoutId<ToWorker>, slot: number, model: ModelId = aiModel()): Promise<FromWorker> {
+/** `timeout`: keine Antwort in dieser Zeit → Worker beenden (er hängt) – die App lädt ihn neu. */
+function send(msg: WithoutId<ToWorker>, slot: number, model: ModelId = aiModel(), timeout = 0): Promise<FromWorker> {
   const id = nextId++;
-  return new Promise((resolve, reject) => {
+  return new Promise<FromWorker>((resolve, reject) => {
     pending.set(id, { resolve, reject, slot });
     busy[slot]++;
     // Gewähltes Modell (Standard oder Test) – beim Umschalten werden die Worker neu gestartet
     getWorker(slot).postMessage({ ...msg, id, model } as ToWorker);
+    if (timeout) {
+      const t = setTimeout(() => pending.has(id) && kill(slot), timeout);
+      const p = pending.get(id)!;
+      p.resolve = (m) => (clearTimeout(t), resolve(m));
+      p.reject = (e) => (clearTimeout(t), reject(e));
+    }
   });
+}
+
+/** So lange darf ein Bild-Paket höchstens dauern. Das erste nach dem Laden länger (Grafikkarte bereitet sich vor). */
+let firstImages = true;
+function imageTimeout(n: number) {
+  const ms = 45_000 + 5_000 * n + (firstImages ? 120_000 : 0);
+  firstImages = false;
+  return ms;
 }
 
 /** Bildmodell bereitmachen (beim ersten Mal herunterladen, danach aus dem Gerätespeicher). */
@@ -138,6 +153,7 @@ export function prepareVision(): Promise<void> {
     const m = await send({ type: "warm", part: "bild", gpu: useGpu() }, VISION);
     device = m.type === "ok" ? (m.device ?? "wasm") : "wasm";
     visionReady = true;
+    firstImages = true;
     updateRisk();
   })().finally(() => (preparing = null));
   return preparing;
@@ -170,7 +186,7 @@ export const textAlive = () => !!workers[TEXT];
 /** Ein Bild → Vektor; null = Bild nicht lesbar. */
 export async function embedImage(blob: Blob): Promise<Float32Array | null> {
   if (!visionReady) throw new Error("Bildmodell nicht bereit");
-  const m = await send({ type: "images", blobs: [blob], gpu: useGpu() }, VISION);
+  const m = await send({ type: "images", blobs: [blob], gpu: useGpu() }, VISION, aiModel(), imageTimeout(1));
   if (m.type !== "vecs") throw new Error("Unerwartete Antwort");
   return m.vecs[0] ?? null;
 }
@@ -201,7 +217,7 @@ export async function embedConcepts(labels: string[], onProgress?: (done: number
 /** Mehrere Bilder auf einmal (Paket) → Vektoren; null = Bild nicht lesbar. Am PC deutlich schneller. */
 export async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[]> {
   if (!visionReady) throw new Error("Bildmodell nicht bereit");
-  const m = await send({ type: "images", blobs, gpu: useGpu() }, VISION);
+  const m = await send({ type: "images", blobs, gpu: useGpu() }, VISION, aiModel(), imageTimeout(blobs.length));
   if (m.type !== "vecs") throw new Error("Unerwartete Antwort");
   return m.vecs;
 }
