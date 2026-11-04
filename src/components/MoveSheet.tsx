@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { invalidateAll, invalidateFolder, loadFolder } from "../lib/cache";
+import { invalidateAll, invalidateFolder, loadFolder, patchFolder } from "../lib/cache";
 import { fetchFolderParts, syncAccounts, writeLogs, type LogInput } from "../lib/db";
 import { moveLogicalFolder, PathResolver, pathSegments, PRIVAT_SEALED } from "../lib/folders";
 import { crossesPrivat } from "../lib/placement";
@@ -125,6 +125,7 @@ export default function MoveSheet({
     const parts = await fetchFolderParts(current.path);
     const parentBy = new Map(parts.map((p) => [p.account_id, p.drive_id]));
     const resolver = new PathResolver(accounts);
+    const gone = new Set<string>();
     for (const e of todo) {
       try {
         let parent = parentBy.get(e.item.account_id);
@@ -140,6 +141,7 @@ export default function MoveSheet({
           e.item.parent_drive_id,
           e.renamed ? { name: e.targetName, description: `Originalname: ${e.item.name}` } : {},
         );
+        gone.add(`${e.item.account_id}|${e.item.drive_id}`);
         if (e.renamed) {
           logs.push({ kind: "rename", message: `„${e.item.name}“ → „${e.targetName}“ (Namenskonflikt beim Verschieben)` });
         }
@@ -148,14 +150,24 @@ export default function MoveSheet({
       }
       setDone((d) => d + 1);
     }
-    const moved = todo.length - errors.length;
+    const moved = gone.size;
     logs.unshift({
       kind: "move",
       message: `${moved} Foto${moved === 1 ? "" : "s"} nach „${current.path}“ verschoben`,
       details: { von: [...new Set(todo.map((e) => e.item.path?.replace(/\/[^/]*$/, "")))] },
     });
     await writeLogs(logs);
-    await syncAccounts([...new Set(todo.map((e) => e.item.account_id))]).catch(() => undefined);
+    // Abgleich: schlägt er fehl, zeigt die App sonst den alten Stand (Foto scheinbar nicht verschoben)
+    const ids = [...new Set(todo.map((e) => e.item.account_id))];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await syncAccounts(ids).catch(() => null);
+      if (res && !res.some((r) => r.error)) break;
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+    }
+    // Verschobene Fotos sofort aus dem alten Ordner nehmen
+    for (const k of new Set(items.map((i) => i.parent_key ?? ""))) {
+      patchFolder(k, (c) => ({ ...c, files: c.files.filter((f) => !gone.has(`${f.account_id}|${f.drive_id}`)) }));
+    }
     invalidateFolder(current.key);
     for (const k of new Set(items.map((i) => i.parent_key ?? ""))) invalidateFolder(k);
     setFailed(errors);

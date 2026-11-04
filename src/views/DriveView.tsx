@@ -33,6 +33,7 @@ const SortSheet = lazy(() => import("../components/SortSheet"));
 const DownloadSheet = lazy(() => import("../components/DownloadSheet"));
 const MoveSheet = lazy(() => import("../components/MoveSheet"));
 const TagSheet = lazy(() => import("../components/TagSheet"));
+const RenameSheet = lazy(() => import("../components/RenameSheet"));
 const SearchSheet = lazy(() => import("../components/SearchSheet"));
 const Viewer = lazy(() => import("../components/Viewer"));
 
@@ -88,6 +89,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   const [sortOpen, setSortOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   useTags();
   /** Per Ziehen verschieben: was und wohin */
   const [dropMove, setDropMove] = useState<{ items: Item[]; folders: LogicalFolder[]; target: Crumb[] } | null>(null);
@@ -455,6 +457,13 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
       // Nicht in sich selbst oder in einen mitgezogenen Ordner
       return { payload: { items, folders }, count: items.length + folders.length, exclude: new Set([current.key, ...folders.map((x) => x.key)]) };
     },
+    // Mit einem zweiten Finger weitere Fotos antippen → kommen mit
+    add: (what, el) => {
+      const f = files.find((x) => itemKey(x) === el.dataset.itemKey);
+      if (!f || what.items.some((x) => itemKey(x) === itemKey(f))) return null;
+      const items = [...what.items, f];
+      return { payload: { items, folders: what.folders }, count: items.length + what.folders.length };
+    },
     onDrop: (what, target) => {
       // Pfad bis zum Ziel: Unterordner von hier oder ein Ordner weiter oben im Pfad
       const upIndex = stack.findIndex((c) => c.key === target.key);
@@ -680,12 +689,15 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
               {allSelected ? "Keine" : "Alle"}
             </button>
           </span>
-          <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
+          <div className="row" style={{ flexWrap: "nowrap", gap: 4 }}>
             <button className="btn small" disabled={!selCount} onClick={() => setMoveOpen(true)} aria-label="Verschieben">
               <Icon name="move" size={17} />
             </button>
             <button className="btn small" disabled={!selectedItems.length} onClick={() => setTagOpen(true)} aria-label="Tags">
               <Icon name="tag" size={17} />
+            </button>
+            <button className="btn small" disabled={!selCount} onClick={() => setRenameOpen(true)} aria-label="Umbenennen">
+              <Icon name="pencil" size={17} />
             </button>
             <button
               className="btn small"
@@ -816,6 +828,25 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
         />
       )}
       {tagOpen && <TagSheet items={selectedItems} onClose={() => setTagOpen(false)} />}
+      {renameOpen && content && (
+        <RenameSheet
+          items={selectedItems}
+          folders={selectedFolderList}
+          folderFiles={content.files}
+          folderFolders={content.folders}
+          folderPath={current.path}
+          onClose={(changed) => {
+            setRenameOpen(false);
+            if (changed) {
+              setSelectMode(false);
+              clearSelection();
+              if (selectedFolderList.length) invalidateAll();
+              invalidateFolder(current.key);
+              reload();
+            }
+          }}
+        />
+      )}
       {dropMove && (
           <MoveSheet
             items={dropMove.items}
@@ -1008,33 +1039,46 @@ function useInsights(accounts: Account[]): Insight[] {
   const [data, setData] = useState(insightCache);
   useEffect(() => {
     if (insightCache && Date.now() - insightCache.at < 60_000) return;
-    Promise.all([fetchStats(), fetchBigFolders(13.5 * 1024 ** 3)])
-      .then(([stats, big]) => {
-        insightCache = { at: Date.now(), stats, big };
-        setData(insightCache);
-      })
-      .catch(() => undefined);
+    // Erst die Ordner laden lassen, dann die Hinweise (beim Start zählt jede Anfrage)
+    const t = setTimeout(() => {
+      Promise.all([fetchStats(), fetchBigFolders(13.5 * 1024 ** 3)])
+        .then(([stats, big]) => {
+          insightCache = { at: Date.now(), stats, big };
+          setData(insightCache);
+        })
+        .catch(() => undefined);
+    }, insightCache ? 0 : 1200);
+    return () => clearTimeout(t);
   }, [accounts]);
   // Rebalancing (Regel 6): Vorschlag bzw. laufende Ausführung als Hinweis
   const [reb, setReb] = useState<Insight | null>(null);
   useEffect(() => {
     if (accounts.filter((a) => a.status === "active").length < 2) return;
-    loadRebalance(accounts)
-      .then((r) => {
-        if (r.active) {
-          setReb({ id: "rebalance", level: "info", title: "Rebalancing läuft", text: `${r.active.done} von ${r.active.total || "…"} Fotos verschoben – antippen für Details.`, action: { kind: "route", to: "regal" } });
-        } else if (r.plan.steps.length && !r.rejected) {
-          const fresh = accounts.some((a) => Date.now() - Date.parse(a.created_at) < 7 * 864e5);
-          setReb({
-            id: "rebalance",
-            level: "info",
-            title: fresh ? "Neues Konto – Rebalancing-Vorschlag bereit" : "Rebalancing-Vorschlag bereit",
-            text: `${r.plan.steps.length} Ordner, ${formatBytes(r.plan.bytes)} – antippen zum Ansehen.`,
-            action: { kind: "route", to: "regal" },
-          });
-        } else setReb(null);
-      })
-      .catch(() => undefined);
+    let cancelled = false;
+    // Etwas später: braucht alle Ordner-Einheiten und rechnet einen Plan (beim Start nicht im Weg sein)
+    const t = setTimeout(() => {
+      loadRebalance(accounts)
+        .then((r) => {
+          if (cancelled) return;
+          if (r.active) {
+            setReb({ id: "rebalance", level: "info", title: "Rebalancing läuft", text: `${r.active.done} von ${r.active.total || "…"} Fotos verschoben – antippen für Details.`, action: { kind: "route", to: "regal" } });
+          } else if (r.plan.steps.length && !r.rejected) {
+            const fresh = accounts.some((a) => Date.now() - Date.parse(a.created_at) < 7 * 864e5);
+            setReb({
+              id: "rebalance",
+              level: "info",
+              title: fresh ? "Neues Konto – Rebalancing-Vorschlag bereit" : "Rebalancing-Vorschlag bereit",
+              text: `${r.plan.steps.length} Ordner, ${formatBytes(r.plan.bytes)} – antippen zum Ansehen.`,
+              action: { kind: "route", to: "regal" },
+            });
+          } else setReb(null);
+        })
+        .catch(() => undefined);
+    }, 2500);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [accounts]);
   return useMemo(() => [...computeInsights(accounts, data?.stats ?? null, data?.big ?? []), ...(reb ? [reb] : [])], [accounts, data, reb]);
 }
