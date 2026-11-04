@@ -45,3 +45,25 @@ describe("KI-Suche: Wörterbuch – Endungen, zusammengesetzt, Englisch", () => 
     expect(toEnglish("Gipfeli")).toBe("croissant");
   });
 });
+
+describe("KI-Suche: Englisch besser erkennen", () => {
+  it("einzelne englische Wörter und Suchen ohne Füllwörter", () => {
+    expect(looksEnglish("dog")).toBe(true);
+    expect(looksEnglish("sunset beach")).toBe(true);
+    expect(looksEnglish("red car snow")).toBe(true);
+    expect(toEnglish("dog")).toBe("dog");
+    expect(toEnglish("red car snow")).toBe("red car snow");
+  });
+  it("deutsche Suchen bleiben deutsch", () => {
+    expect(looksEnglish("Hund")).toBe(false);
+    expect(looksEnglish("Hund Schnee")).toBe(false);
+    expect(looksEnglish("See")).toBe(false);
+    expect(looksEnglish("Velo")).toBe(false);
+    expect(toEnglish("Kind am See")).toBe("child at the lake");
+  });
+  it("englische Wörter, die auch deutsch sind, behalten in englischen Suchen ihre Bedeutung", () => {
+    expect(toEnglish("kind dog")).toBe("kind dog");
+    expect(toEnglish("rock concert")).toBe("rock concert");
+    expect(toEnglish("birthday gift")).toBe("birthday gift");
+  });
+});

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { invalidateAll, invalidateFolder, loadFolder } from "../lib/cache";
 import { fetchFolderParts, syncAccounts, writeLogs, type LogInput } from "../lib/db";
 import { moveLogicalFolder, PathResolver, pathSegments, PRIVAT_SEALED } from "../lib/folders";
@@ -18,15 +18,18 @@ export default function MoveSheet({
   items,
   folders = [],
   accounts,
+  target,
   onClose,
 }: {
   items: Item[];
+  /** Ziel schon gewählt (z. B. per Ziehen): Pfad dorthin. Ohne Rückfragen wird dann gleich verschoben. */
+  target?: Crumb[];
   /** Ausgewählte Ordner – wandern samt Inhalt, jeder Teil bleibt in seinem Konto */
   folders?: LogicalFolder[];
   accounts: Account[];
   onClose: (changed: boolean) => void;
 }) {
-  const [stack, setStack] = useState<Crumb[]>([ROOT]);
+  const [stack, setStack] = useState<Crumb[]>(() => (target?.length ? [ROOT, ...target.filter((c) => c.key)] : [ROOT]));
   const current = stack[stack.length - 1];
   const [content, setContent] = useState<FolderContent | null>(null);
   const [conflictMode, setConflictMode] = useState<"skip" | "rename">("skip");
@@ -88,6 +91,15 @@ export default function MoveSheet({
         : 0,
     [content, current.key, items],
   );
+
+  // Ziel per Ziehen gewählt: ohne Namenskonflikte, 15-GB-Grenze und Privat-Sperre gleich verschieben
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (!target || autoTried.current || phase !== "pick" || !content || !current.key) return;
+    autoTried.current = true;
+    if (!sealed && total > 0 && conflictsIfSkip === 0 && count("limit") === 0 && merging.length === 0) void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, current.key, phase]);
 
   const run = async () => {
     const todo = plan.filter((e) => e.status === "move");

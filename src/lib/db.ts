@@ -331,6 +331,13 @@ export async function deleteShareRow(id: string): Promise<void> {
 export interface MonthStat {
   month: string;
   files: number;
+  /** Davon Videos (fehlt, wenn die Datenbank-Funktion noch alt ist) */
+  videos?: number;
+  bytes: number;
+}
+export interface KindStat {
+  kind: "foto" | "video" | "andere";
+  files: number;
   bytes: number;
 }
 export interface AreaStat {
@@ -351,9 +358,11 @@ export interface Snapshot {
   files: number;
 }
 
-export async function fetchStatistics(): Promise<{ months: MonthStat[]; areas: AreaStat[]; folders: FolderStat[]; snapshots: Snapshot[] }> {
+export async function fetchStatistics(): Promise<{ months: MonthStat[]; areas: AreaStat[]; folders: FolderStat[]; snapshots: Snapshot[]; kinds: KindStat[] }> {
+  // Fotos/Videos getrennt (neuere Funktionen) – fehlen sie, gilt die alte Statistik ohne Aufteilung
+  const [m0, k] = await Promise.all([supabase.rpc("upload_months_media", { p_months: 12 }), supabase.rpc("media_kinds")]);
   const [m, a, f, s] = await Promise.all([
-    supabase.rpc("upload_months", { p_months: 12 }),
+    m0.error ? supabase.rpc("upload_months", { p_months: 12 }) : Promise.resolve(m0),
     supabase.rpc("area_usage"),
     supabase.rpc("top_folders", { p_limit: 8 }),
     supabase.from("usage_snapshots").select("day,usage,quota,files").order("day").limit(400),
@@ -366,6 +375,7 @@ export async function fetchStatistics(): Promise<{ months: MonthStat[]; areas: A
     areas: num((a.data ?? []) as AreaStat[]),
     folders: num((f.data ?? []) as FolderStat[]),
     snapshots: num((s.data ?? []) as Snapshot[]),
+    kinds: k.error ? [] : num((k.data ?? []) as KindStat[]),
   };
 }
 

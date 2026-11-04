@@ -3,6 +3,7 @@
 import type { Item } from "../lib/types";
 import { catalog } from "./catalog";
 import { embedText } from "./engine";
+import { inFolder, parseQuery } from "./query";
 import { applyFeedback, groupSimilar, rank } from "./rank";
 import { allFeedback, allVectors, deleteFeedback, itemKey, putFeedback, type Feedback } from "./store";
 
@@ -15,6 +16,11 @@ export interface AiResult {
   q: Float32Array;
   /** Bisherige Bewertungen dieser Suche: Foto-Schlüssel → +1/−1 */
   votes: Map<string, 1 | -1>;
+  /** Filter aus dem Suchtext („O: Ferien“, „Video“) */
+  folder: string | null;
+  video: boolean;
+  /** Nur gefiltert, ohne Beschreibung → neueste zuerst, keine 👍/👎 */
+  filterOnly: boolean;
 }
 
 let vectors: { at: number; map: Map<string, Float32Array> } | null = null;
@@ -39,22 +45,38 @@ export const privateAccounts = (accounts: { id: string; role: string }[]) =>
   new Set(accounts.filter((a) => a.role === "privat").map((a) => a.id));
 
 export async function aiSearch(query: string, { exclude }: { exclude?: Set<string> } = {}): Promise<AiResult> {
+  const { text, folder, video } = parseQuery(query);
   // Bisherige Bewertungen wirken immer – der Schalter in den Einstellungen blendet nur die 👍/👎-Knöpfe aus
-  const [all, fb] = await Promise.all([loadVectors(), feedback ?? allFeedback().catch(() => [])]);
+  const [all, fb, items] = await Promise.all([loadVectors(), feedback ?? allFeedback().catch(() => []), catalog()]);
   feedback = fb;
-  const map = without(all, exclude);
-  const [{ vec, english }, items] = await Promise.all([embedText(query), catalog()]);
+
+  // Filter: Ordner und/oder nur Videos
+  const allowed = (it: Item) => (!folder || inFolder(it.path, folder)) && (!video || !!it.mime_type?.startsWith("video/"));
+  let map = without(all, exclude);
+  if (folder || video) map = new Map([...map].filter(([k]) => { const it = items.get(k); return !!it && allowed(it); }));
+  const base = { folder, video, votes: new Map<string, 1 | -1>() };
+
+  // Nur Filter, keine Beschreibung → alle passenden Fotos/Videos, neueste zuerst (auch noch nicht gelernte)
+  if (!text) {
+    const hidden = exclude ?? new Set<string>();
+    const list = [...items.values()]
+      .filter((it) => allowed(it) && !hidden.has(it.account_id))
+      .sort((a, b) => (b.taken_at ?? "").localeCompare(a.taken_at ?? ""));
+    return { ...base, items: list.slice(0, 60), english: "", indexed: list.length, q: new Float32Array(0), filterOnly: true };
+  }
+
+  const { vec, english } = await embedText(text);
   // Feedback dieser und ähnlicher Suchen einrechnen
   const { query: q2, adjust } = applyFeedback(vec, fb, map);
   const hits = rank(q2, map, { limit: 30, adjust }); // wenige Vorschaubilder = wenig Speicher
-  const votes = new Map<string, 1 | -1>();
-  for (const f of fb) if (f.english.toLowerCase() === english.toLowerCase()) votes.set(f.key, f.vote);
+  for (const f of fb) if (f.english.toLowerCase() === english.toLowerCase()) base.votes.set(f.key, f.vote);
   return {
+    ...base,
     items: hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x),
     english,
     indexed: map.size,
     q: vec,
-    votes,
+    filterOnly: false,
   };
 }
 
