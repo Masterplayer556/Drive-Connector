@@ -8,18 +8,22 @@ import Thumb from "../components/Thumb";
 import type { Account, Item } from "../lib/types";
 import { addToTally, compareTally, resetTally, type Tally } from "./flag";
 import { searchClosed, searchOpened } from "./indexer";
-import { isModelId, MODEL_IDS, MODELS, type ModelId } from "./protocol";
-import { compareModels, type CompareSide } from "./search";
+import { isModelId, MODEL_IDS, MODELS } from "./protocol";
+import { compareModels, type CompareId, type CompareSide } from "./search";
+
+const CHOICES: CompareId[] = [...MODEL_IDS, "kombi"];
+const labelOf = (id: CompareId) => (id === "kombi" ? "Kombi (B + Standard)" : MODELS[id].label);
+const isChoice = (x: unknown): x is CompareId => x === "kombi" || isModelId(x);
 
 const Viewer = lazy(() => import("../components/Viewer"));
 
 type Result = { query: string; pair: string; english: string; left: CompareSide; right: CompareSide };
 
 const PAIR_KEY = "drivepool.ai.comparePair";
-function loadPair(): [ModelId, ModelId] {
+function loadPair(): [CompareId, CompareId] {
   try {
     const [a, b] = JSON.parse(localStorage.getItem(PAIR_KEY) ?? "[]");
-    if (isModelId(a) && isModelId(b) && a !== b) return [a, b];
+    if (isChoice(a) && isChoice(b) && a !== b) return [a, b];
   } catch {
     /* ignorieren */
   }
@@ -31,7 +35,7 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [[left, right], setPair] = useState<[ModelId, ModelId]>(loadPair);
+  const [[left, right], setPair] = useState<[CompareId, CompareId]>(loadPair);
   const pair = `${left}|${right}`;
   const [tally, setTally] = useState<Tally>(() => compareTally(left, right));
   useEffect(() => {
@@ -42,7 +46,7 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
       /* ignorieren */
     }
   }, [left, right]);
-  const choose = (side: 0 | 1, m: ModelId) =>
+  const choose = (side: 0 | 1, m: CompareId) =>
     setPair(([a, b]) => (side === 0 ? (m === b ? [m, a] : [m, b]) : m === a ? [b, m] : [a, m]));
   const [voted, setVoted] = useState<Set<string>>(new Set());
   const [viewer, setViewer] = useState<{ items: Item[]; index: number } | null>(null);
@@ -120,10 +124,10 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
         <div className="sheet-body">
           <div className="cmp-pick">
             {([0, 1] as const).map((side) => (
-              <select key={side} value={side === 0 ? left : right} onChange={(e) => choose(side, e.target.value as ModelId)} aria-label={side === 0 ? "Links" : "Rechts"}>
-                {MODEL_IDS.map((m) => (
+              <select key={side} value={side === 0 ? left : right} onChange={(e) => choose(side, e.target.value as CompareId)} aria-label={side === 0 ? "Links" : "Rechts"}>
+                {CHOICES.map((m) => (
                   <option key={m} value={m}>
-                    {MODELS[m].label}
+                    {labelOf(m)}
                   </option>
                 ))}
               </select>
@@ -134,7 +138,7 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
             {total > 0 && (
               <>
                 <br />
-                Bisher besser: {MODELS[left].label} <b>{tally.left}</b> · {MODELS[right].label} <b>{tally.right}</b> · gleich{" "}
+                Bisher besser: {labelOf(left)} <b>{tally.left}</b> · {labelOf(right)} <b>{tally.right}</b> · gleich{" "}
                 {tally.same}{" "}
                 <button className="link small" onClick={() => (resetTally(left, right), setTally(compareTally(left, right)))}>
                   zurücksetzen
@@ -152,8 +156,8 @@ export default function CompareSheet({ accounts, onClose }: { accounts: Account[
             <>
               <p className="faint small ai-understood">Verstanden als „{result.english}“</p>
               <div className="cmp-cols">
-                {column(result.left, MODELS[left].label)}
-                {column(result.right, MODELS[right].label)}
+                {column(result.left, labelOf(left))}
+                {column(result.right, labelOf(right))}
               </div>
               <div className="cmp-vote">
                 {hasVoted ? (

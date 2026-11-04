@@ -90,6 +90,64 @@ export function rank(
     .map(({ key, score }) => ({ key, score }));
 }
 
+/** Ähnlichkeit jedes Fotos zur Suche (mit Stichwörtern und Abzug wie in rank()). */
+export function scoreAll(
+  query: Float32Array,
+  vectors: Map<string, Float32Array>,
+  {
+    keywords,
+    keywordWeight = 0.35,
+    negative,
+    negativeWeight = 0.5,
+  }: { keywords?: Float32Array[]; keywordWeight?: number; negative?: Float32Array; negativeWeight?: number } = {},
+): Map<string, number> {
+  const kw = keywords && keywords.length >= 2 ? keywords : null;
+  const out = new Map<string, number>();
+  for (const [key, v] of vectors) {
+    const raw = kw ? (1 - keywordWeight) * dot(query, v) + keywordWeight * Math.min(...kw.map((k) => dot(k, v))) : dot(query, v);
+    out.set(key, negative ? raw - negativeWeight * dot(negative, v) : raw);
+  }
+  return out;
+}
+
+/**
+ * Kombi: mehrere Modelle zusammen. Jedes Modell rechnet mit eigener Skala – darum zuerst je Modell in
+ * Standardabweichungen umrechnen („wie viel besser als der Durchschnitt“), dann gewichtet mitteln.
+ * Fehlt ein Foto bei einem Modell (noch nicht gelernt), zählt das andere allein.
+ * 👍-Bonus (adjust.boost) ist in der Skala des ersten Modells angegeben.
+ */
+export function fuse(
+  lists: { scores: Map<string, number>; weight: number }[],
+  { limit = 60, adjust, zFloor = 2, zWindow = 2.5 }: { limit?: number; adjust?: Adjust; zFloor?: number; zWindow?: number } = {},
+): Hit[] {
+  const norm = lists.filter((l) => l.scores.size).map((l) => ({ ...l, ...spread([...l.scores.values()]) }));
+  if (!norm.length) return [];
+  const keys = new Set(norm.flatMap((l) => [...l.scores.keys()]));
+  const sd0 = norm[0].sd || 1;
+  const all: (Hit & { base: number })[] = [];
+  for (const key of keys) {
+    if (adjust?.hide.has(key)) continue;
+    let sum = 0;
+    let w = 0;
+    for (const l of norm) {
+      const s = l.scores.get(key);
+      if (s === undefined) continue;
+      sum += l.weight * ((s - l.mean) / (l.sd || 1));
+      w += l.weight;
+    }
+    if (!w) continue;
+    const base = sum / w;
+    all.push({ key, base, score: base + (adjust?.boost.get(key) ?? 0) / sd0 });
+  }
+  const best = all.reduce((m, h) => Math.max(m, h.base), -Infinity);
+  const min = Math.max(zFloor, best - zWindow);
+  return all
+    .filter((h) => h.base >= min || h.score >= min + zWindow)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ key, score }) => ({ key, score }));
+}
+
 /** Mittelwert und Standardabweichung. */
 export function spread(xs: number[]): { mean: number; sd: number } {
   if (!xs.length) return { mean: 0, sd: 0 };

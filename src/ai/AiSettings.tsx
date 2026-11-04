@@ -10,10 +10,12 @@ import {
   setAiEnabled,
   setAiModel,
   setFeedbackEnabled,
+  setKombi,
   setLearningDevice,
   useAiEnabled,
   useAiModel,
   useFeedbackEnabled,
+  useKombi,
   useLearningDevice,
 } from "./flag";
 import { MODEL_IDS, MODELS, type ModelId } from "./protocol";
@@ -320,6 +322,7 @@ function LearnedNames() {
 /** Modell wählen: Standard oder MobileCLIP (Test). */
 function ModelChoice({ accounts }: { accounts: Account[] }) {
   const model = useAiModel();
+  const kombiOn = useKombi();
   const [comparing, setComparing] = useState(false);
   return (
     <div className="ai-names">
@@ -338,6 +341,22 @@ function ModelChoice({ accounts }: { accounts: Account[] }) {
           </span>
         </label>
       ))}
+      {MODELS[model].cloud && (
+        <label className="ai-toggle small">
+          <span>
+            <strong>Kombi mit Standard</strong>
+            <span className="faint">
+              {kombiOn
+                ? " An – die Suche fragt beide Modelle und rechnet sie zusammen (meist genauer als jedes allein)."
+                : " Aus – nur das gewählte Modell."}
+            </span>
+          </span>
+          <span className="switch">
+            <input type="checkbox" checked={kombiOn} onChange={(e) => setKombi(e.target.checked)} />
+            <span />
+          </span>
+        </label>
+      )}
       <button className="btn small" onClick={() => setComparing(true)}>
         <Icon name="search" size={16} /> Modelle vergleichen
       </button>
