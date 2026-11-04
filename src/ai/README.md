@@ -1,4 +1,4 @@
-# KI-Suche (Test)
+# KI-Suche (Beta)
 
 Fotos per Beschreibung finden („Hund im Schnee“, „Arbeitsblatt mit Tabelle“) – **komplett auf dem Gerät**.
 

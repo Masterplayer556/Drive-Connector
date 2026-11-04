@@ -62,7 +62,7 @@ export default function AiSettings() {
 
   const enable = async () => {
     const ok = await ui.confirm({
-      title: "KI-Suche testen?",
+      title: "KI-Suche (Beta) einschalten?",
       message:
         "Die App lädt einmalig ein KI-Modell (ca. 160 MB – am besten im WLAN) und lernt danach nebenbei deine Fotos kennen, " +
         "solange die App offen ist. Alles läuft auf diesem iPhone, keine Fotos oder Suchen gehen an einen KI-Dienst. " +
@@ -105,7 +105,7 @@ export default function AiSettings() {
           <Icon name="sparkles" size={18} />
         </span>
         <span className="li-text">
-          KI-Suche <span className="ai-pill">Test</span>
+          KI-Suche <span className="ai-pill">Beta</span>
           <small>{on ? statusText(s) : "Fotos per Beschreibung finden – läuft nur auf diesem Gerät"}</small>
         </span>
         {busy ? (
