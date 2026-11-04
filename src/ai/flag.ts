@@ -1,6 +1,7 @@
 // KI-SUCHE (Test): Schalter ein/aus. Bewusst winzig und ohne Abhängigkeiten,
 // damit der Rest der App ihn nutzen kann, ohne das KI-Modul zu laden.
 import { useSyncExternalStore } from "react";
+import { isModelId, type ModelId } from "./protocol";
 
 const KEY = "drivepool.ai";
 
@@ -62,15 +63,16 @@ export function useFeedbackEnabled(): boolean {
 // ---- Modell (Standard oder MobileCLIP zum Testen) ----
 const MODEL_KEY = "drivepool.ai.model";
 
-export function aiModel(): "clip" | "mobileclip" {
+export function aiModel(): ModelId {
   try {
-    return localStorage.getItem(MODEL_KEY) === "mobileclip" ? "mobileclip" : "clip";
+    const v = localStorage.getItem(MODEL_KEY);
+    return isModelId(v) ? v : "clip";
   } catch {
     return "clip";
   }
 }
 
-export function setAiModel(m: "clip" | "mobileclip") {
+export function setAiModel(m: ModelId) {
   try {
     if (m === "clip") localStorage.removeItem(MODEL_KEY);
     else localStorage.setItem(MODEL_KEY, m);
@@ -80,7 +82,7 @@ export function setAiModel(m: "clip" | "mobileclip") {
   window.dispatchEvent(new Event("drivepool-ai"));
 }
 
-export function useAiModel(): "clip" | "mobileclip" {
+export function useAiModel(): ModelId {
   return useSyncExternalStore(onAiFlag, aiModel, () => "clip" as const);
 }
 
@@ -128,38 +130,47 @@ export function inTestFolders(path: string | null, folders: string[]): boolean {
   return folders.some((f) => dirs.includes(f.trim().toLowerCase()));
 }
 
-// ---- Vergleich: Strichliste, welches Modell besser war ----
-const TALLY_KEY = "drivepool.ai.compare";
+// ---- Vergleich: Strichliste je Paarung (links gegen rechts), welches Modell besser war ----
+const TALLY_KEY = "drivepool.ai.compare2";
 export interface Tally {
-  clip: number;
-  mobileclip: number;
+  left: number;
+  right: number;
   same: number;
 }
+const pairKey = (a: ModelId, b: ModelId) => `${a}|${b}`;
 
-export function compareTally(): Tally {
+function readTallies(): Record<string, Tally> {
   try {
     const t = JSON.parse(localStorage.getItem(TALLY_KEY) ?? "null");
-    if (t && typeof t.clip === "number") return t as Tally;
+    if (t && typeof t === "object") return t as Record<string, Tally>;
   } catch {
     /* ignorieren */
   }
-  return { clip: 0, mobileclip: 0, same: 0 };
+  return {};
 }
 
-export function addToTally(winner: keyof Tally): Tally {
-  const t = compareTally();
+export function compareTally(a: ModelId, b: ModelId): Tally {
+  return readTallies()[pairKey(a, b)] ?? { left: 0, right: 0, same: 0 };
+}
+
+export function addToTally(a: ModelId, b: ModelId, winner: keyof Tally): Tally {
+  const all = readTallies();
+  const t = all[pairKey(a, b)] ?? { left: 0, right: 0, same: 0 };
   t[winner]++;
+  all[pairKey(a, b)] = t;
   try {
-    localStorage.setItem(TALLY_KEY, JSON.stringify(t));
+    localStorage.setItem(TALLY_KEY, JSON.stringify(all));
   } catch {
     /* ignorieren */
   }
   return t;
 }
 
-export function resetTally() {
+export function resetTally(a: ModelId, b: ModelId) {
+  const all = readTallies();
+  delete all[pairKey(a, b)];
   try {
-    localStorage.removeItem(TALLY_KEY);
+    localStorage.setItem(TALLY_KEY, JSON.stringify(all));
   } catch {
     /* ignorieren */
   }

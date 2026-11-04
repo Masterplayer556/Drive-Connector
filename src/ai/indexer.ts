@@ -6,8 +6,8 @@ import { catalog, thumbsFor } from "./catalog";
 import { aiModel, inTestFolders, learningDevice, testFolders, testOnly } from "./flag";
 import { syncDown, uploadVectors } from "./cloud";
 import { MODELS } from "./protocol";
-import { crashedDuring, embedImage, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive } from "./engine";
-import { itemKey, markSkip, putVector, removeKeys, skipped, vectorKeys } from "./store";
+import { crashedDuring, embedImage, embedImages, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive } from "./engine";
+import { itemKey, markSkip, putVector, putVectors, removeKeys, skipped, vectorKeys } from "./store";
 
 export type Phase =
   | "start"
@@ -167,6 +167,8 @@ async function waitForQuiet(stopped: () => boolean) {
       await sleep(400);
       continue;
     }
+    // PC (Knopf gedrückt): auch im Hintergrund-Tab weiterlernen
+    if (cloudRun) return;
     if (document.visibilityState !== "visible") {
       set({ phase: "paused" });
       await sleep(60_000);
@@ -202,23 +204,29 @@ function nextChunk(todo: Item[]): Item[] {
 
 /** Tempo über die letzten ~60 Fotos messen (Pausen zählen nicht mit). */
 function rateMeter() {
-  const times: number[] = [];
+  // Zeitpunkte mit Anzahl Fotos (bei Paketen mehrere auf einmal)
+  const marks: { t: number; n: number }[] = [];
   return {
-    tick() {
-      times.push(performance.now());
-      if (times.length > 60) times.shift();
-      if (times.length >= 5) set({ rate: (times.length - 1) / ((times[times.length - 1] - times[0]) / 1000) });
+    tick(n = 1) {
+      marks.push({ t: performance.now(), n });
+      while (marks.length > 2 && marks.reduce((s, m) => s + m.n, 0) - marks[0].n > 60) marks.shift();
+      const span = (marks[marks.length - 1].t - marks[0].t) / 1000;
+      const count = marks.slice(1).reduce((s, m) => s + m.n, 0);
+      if (marks.length >= 3 && span > 0) set({ rate: count / span });
     },
-    reset: () => (times.length = 0),
+    reset: () => (marks.length = 0),
   };
 }
+
+/** Am PC (Cloud-Modell) so viele Fotos auf einmal durchs Modell schicken. */
+const BATCH = 16;
 
 /** Ein Durchgang. "wait" = es gäbe noch zu lernen, aber nicht hier/jetzt (Cloud-Modell). */
 async function pass(stopped: () => boolean): Promise<"done" | "wait"> {
   const spec = MODELS[aiModel()];
   const all = await catalog(true);
   // Test-Modell: auf Wunsch nur Fotos in den Testordnern
-  const folders = aiModel() === "mobileclip" && testOnly() ? testFolders() : null;
+  const folders = spec.cloud && testOnly() ? testFolders() : null;
   const items = folders ? new Map([...all].filter(([, it]) => inTestFolders(it.path, folders))) : all;
   // Cloud-Modell: zuerst holen, was der PC schon gelernt hat
   if (spec.cloud) {
@@ -286,7 +294,7 @@ async function pass(stopped: () => boolean): Promise<"done" | "wait"> {
   const queue: { chunk: Item[]; blobs: Promise<Map<string, Blob>> }[] = [];
   // Vorschaubilder im Voraus laden (bei „Schnell lernen“ zwei Portionen), damit nie aufs Netz gewartet wird
   const refill = () => {
-    while (todo.length && queue.length < (state.turbo ? 2 : 1)) {
+    while (todo.length && queue.length < (cloudRun ? 3 : state.turbo ? 2 : 1)) {
       const chunk = nextChunk(todo);
       const blobs = thumbsFor(chunk);
       blobs.catch(() => undefined); // Fehler wird beim Abholen behandelt
@@ -315,6 +323,39 @@ async function pass(stopped: () => boolean): Promise<"done" | "wait"> {
       continue;
     }
     refill();
+
+    // PC (Cloud-Modell): in Paketen lernen – viel schneller, vor allem auf der Grafikkarte
+    if (spec.cloud && cloudRun) {
+      for (let i = 0; i < chunk.length && !stopped() && cloudRun; i += BATCH) {
+        const part = chunk.slice(i, i + BATCH);
+        const withBlob = part.filter((it) => blobs.has(itemKey(it)));
+        let vecs: (Float32Array | null)[] = [];
+        try {
+          vecs = withBlob.length ? await embedImages(withBlob.map((it) => blobs.get(itemKey(it))!)) : [];
+        } catch {
+          // Worker beendet (z. B. Suche geöffnet) → Paket einmal neu einreihen
+          for (const it of part) if (!retried.has(itemKey(it))) (retried.add(itemKey(it)), todo.push(it));
+          refill();
+          await prepareVision();
+          continue;
+        }
+        const got = new Map(withBlob.map((it, j) => [itemKey(it), vecs[j] ?? null]));
+        const learned: [string, Float32Array][] = [];
+        for (const it of part) {
+          const k = itemKey(it);
+          const v = got.get(k) ?? null;
+          if (v) learned.push([k, v]);
+          else await markSkip(k);
+          upload.push([k, v]); // auch „nicht lernbar“ melden
+        }
+        await putVectors(learned);
+        done += part.length;
+        meter.tick(part.length);
+        set({ done });
+        await flush();
+      }
+      continue;
+    }
 
     for (const it of chunk) {
       if (stopped()) break;

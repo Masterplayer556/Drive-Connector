@@ -2,6 +2,7 @@
 // Dazu: Feedback (👍/👎), „Ähnliche Fotos“ und Gruppen fast gleicher Fotos – alles nur mit dem Index, ohne Modell.
 import type { Item } from "../lib/types";
 import { catalog } from "./catalog";
+import { MODELS, type ModelId } from "./protocol";
 import { syncDown } from "./cloud";
 import { aiModel, inTestFolders, testFolders } from "./flag";
 import { embedConcepts, embedText } from "./engine";
@@ -407,11 +408,18 @@ export interface CompareSide {
   learned: number;
 }
 
-export async function compareModels(query: string, { exclude }: { exclude?: Set<string> } = {}): Promise<{ english: string; clip: CompareSide; mobileclip: CompareSide }> {
+export async function compareModels(
+  query: string,
+  left: ModelId,
+  right: ModelId,
+  { exclude }: { exclude?: Set<string> } = {},
+): Promise<{ english: string; left: CompareSide; right: CompareSide }> {
   const folders = testFolders();
   const items = await catalog();
   const inTest = new Set([...items].filter(([, it]) => inTestFolders(it.path, folders)).map(([k]) => k));
-  const side = async (model: "clip" | "mobileclip"): Promise<CompareSide & { english: string }> => {
+  const side = async (model: ModelId): Promise<CompareSide & { english: string }> => {
+    // Was der PC gelernt hat, zuerst holen (auch wenn gerade ein anderes Modell gewählt ist)
+    if (MODELS[model].cloud) await syncDown(model).catch(() => 0);
     const all = without(await allVectors(model), exclude);
     const map = new Map([...all].filter(([k]) => inTest.has(k)));
     if (!map.size) return { items: [], learned: 0, english: "" };
@@ -419,10 +427,8 @@ export async function compareModels(query: string, { exclude }: { exclude?: Set<
     const hits = rank(vec, map, { limit: 12, keywords: kvecs });
     return { items: hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x), learned: map.size, english };
   };
-  // Was der PC mit MobileCLIP gelernt hat, zuerst holen (auch wenn gerade das Standardmodell gewählt ist)
-  await syncDown("mobileclip").catch(() => 0);
   // Nacheinander, nicht gleichzeitig (Arbeitsspeicher)
-  const clip = await side("clip");
-  const mobileclip = await side("mobileclip");
-  return { english: clip.english || mobileclip.english, clip, mobileclip };
+  const l = await side(left);
+  const r = await side(right);
+  return { english: l.english || r.english, left: l, right: r };
 }

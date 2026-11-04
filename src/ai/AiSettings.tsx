@@ -21,7 +21,15 @@ import {
   useTestOnly,
 } from "./flag";
 import { catalog } from "./catalog";
-import { MODELS } from "./protocol";
+import { MODEL_IDS, MODELS, type ModelId } from "./protocol";
+
+const MODEL_INFO: Record<ModelId, string> = {
+  clip: "OpenAI CLIP (2021) – lernt alle Fotos, auch auf dem iPhone",
+  mobileclip:
+    "Apple MobileCLIP-S2 (2024) – laut Apple treffsicherer, genaue Rechnung. Gelernt wird am PC per Knopf; das iPhone lädt nur die Ergebnisse und sucht damit",
+  mobileclipB:
+    "Apple MobileCLIP-B (2024) – grösser, laut Apple nochmals genauer. Nur am PC lernbar (ca. 350 MB); das iPhone sucht mit dem gleich grossen Textteil wie S2",
+};
 import {
   cloudLearning,
   indexState,
@@ -340,7 +348,7 @@ function ModelChoice({ accounts }: { accounts: Account[] }) {
   const [text, setText] = useState("");
 
   useEffect(() => {
-    if (model !== "mobileclip") return;
+    if (!MODELS[model].cloud) return;
     let alive = true;
     catalog()
       .then((items) => {
@@ -384,20 +392,18 @@ function ModelChoice({ accounts }: { accounts: Account[] }) {
         <strong className="small">Modell</strong>
         <span className="faint small">Jedes Modell hat seinen eigenen Index – Umschalten löscht nichts.</span>
       </div>
-      {(["clip", "mobileclip"] as const).map((m) => (
+      {MODEL_IDS.map((m) => (
         <label key={m} className="ai-mode-opt">
           <input type="radio" name="ai-model" checked={model === m} onChange={() => setAiModel(m)} />
           <span>
             <strong>{MODELS[m].label}</strong>
             <small className="faint">
-              {m === "clip"
-                ? "OpenAI CLIP (2021) – lernt alle Fotos"
-                : "Apple MobileCLIP (2024) – laut Apple treffsicherer, genaue Rechnung. Gelernt wird am PC per Knopf; das iPhone lädt nur die Ergebnisse und sucht damit"}
+              {MODEL_INFO[m]}
             </small>
           </span>
         </label>
       ))}
-      {model === "mobileclip" && (
+      {MODELS[model].cloud && (
         <>
           <label className="ai-toggle small">
             <span>
