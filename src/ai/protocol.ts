@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Modelle und Nachrichten zwischen App und Worker.
+// KI-SUCHE: Modelle und Nachrichten zwischen App und Worker.
 
 export type ModelId = "clip" | "mobileclip2b";
 
@@ -49,7 +49,7 @@ export const MODELS: Record<ModelId, ModelSpec> = {
   // (65 MB) und liefern ihn mit der App aus (public/models/mobileclip2-b). Tokenizer/Vorverarbeitung von Xenova/mobileclip_blt.
   mobileclip2b: {
     id: "mobileclip2b",
-    label: "MobileCLIP2-B (Test)",
+    label: "MobileCLIP2-B",
     repo: "Xenova/mobileclip_blt",
     vision: { repo: "plhery/mobileclip2-onnx", subfolder: "onnx/b", file: "vision_model" },
     textLocal: "mobileclip2-b",

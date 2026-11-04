@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): „KI trainieren“ – ein Begriff (vorgeschlagen oder selbst eingegeben) und ein Foto: nach
+// KI-SUCHE: „KI trainieren“ – ein Begriff (vorgeschlagen oder selbst eingegeben) und ein Foto: nach
 // rechts wischen = passt, nach links = passt nicht. Läuft endlos weiter (Paket für Paket), bis „Fertig“ oder
 // ein anderer Begriff. Jede Antwort ist ein 👍/👎 für diesen Begriff (gleich wie in der Suche).
 import "./ai.css";

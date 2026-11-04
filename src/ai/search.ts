@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Suchtext → Vektor (auf dem Gerät) → ähnlichste Fotos aus dem lokalen Index.
+// KI-SUCHE: Suchtext → Vektor (auf dem Gerät) → ähnlichste Fotos aus dem lokalen Index.
 // Dazu: Feedback (👍/👎), „Ähnliche Fotos“ und Gruppen fast gleicher Fotos – alles nur mit dem Index, ohne Modell.
 import type { Item } from "../lib/types";
 import { catalog } from "./catalog";

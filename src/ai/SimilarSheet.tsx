@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): „Ähnliche Fotos“ – aus der Foto-Ansicht. Rechnet nur mit dem lokalen Index (kein Modell).
+// KI-SUCHE: „Ähnliche Fotos“ – aus der Foto-Ansicht. Rechnet nur mit dem lokalen Index (kein Modell).
 import "./ai.css";
 import { lazy, Suspense, useEffect, useState } from "react";
 import Icon from "../components/Icon";

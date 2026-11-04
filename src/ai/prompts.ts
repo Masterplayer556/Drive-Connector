@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Wie die Suche dem Bildmodell (CLIP) gestellt wird. Reine Funktionen (getestet).
+// KI-SUCHE: Wie die Suche dem Bildmodell (CLIP) gestellt wird. Reine Funktionen (getestet).
 // CLIP wurde mit Bildunterschriften trainiert. Mehrere Formulierungen derselben Suche, gemittelt
 // („Prompt-Ensemble“, wie im CLIP-Paper), treffen zuverlässiger als eine einzige.
 

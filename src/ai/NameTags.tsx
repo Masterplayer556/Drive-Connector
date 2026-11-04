@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Namen geben – im ✨-Fenster der Foto-Ansicht und für mehrere Fotos auf einmal
+// KI-SUCHE: Namen geben – im ✨-Fenster der Foto-Ansicht und für mehrere Fotos auf einmal
 // (Auswahl → Tags). Die Suche nach dem Namen findet danach Fotos, die ähnlich aussehen
 // (am besten bei Figuren mit festem Aussehen, siehe names.ts).
 import { useEffect, useState } from "react";

@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): kleines Menü im Suchfeld – mit KI oder nach Namen suchen, und ob die KI-Suche
+// KI-SUCHE: kleines Menü im Suchfeld – mit KI oder nach Namen suchen, und ob die KI-Suche
 // auch Fotos aus privaten Konten zeigen darf.
 import "./ai.css";
 import { useEffect, useRef, useState } from "react";

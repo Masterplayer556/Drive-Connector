@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): welche Fotos/Videos es gibt (aus dem bestehenden Index in Postgres – nur lesen)
+// KI-SUCHE: welche Fotos/Videos es gibt (aus dem bestehenden Index in Postgres – nur lesen)
 // und deren Vorschaubilder fürs Modell.
 import { GRID_SIZE } from "../lib/thumbs";
 import { callFunction, supabase } from "../lib/supabase";

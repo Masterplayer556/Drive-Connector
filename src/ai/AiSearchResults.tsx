@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): zusätzlicher Abschnitt „Passt zur Beschreibung“ im Suchfenster.
+// KI-SUCHE: zusätzlicher Abschnitt „Passt zur Beschreibung“ im Suchfenster.
 import "./ai.css";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";

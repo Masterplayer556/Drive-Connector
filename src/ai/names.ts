@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Namen lernen („Luca“, „Pikachu“, eigene Figuren).
+// KI-SUCHE: Namen lernen („Luca“, „Pikachu“, eigene Figuren).
 // Das Bildmodell kennt keine Namen. Statt dessen merkt sich die Suche, welche Fotos du bei einem Namen
 // mit 👍 bewertet hast (oder in der Foto-Ansicht so benannt hast), und sucht nach Fotos, die diesen ähnlich
 // sehen. Klappt am besten bei Figuren mit festem Aussehen (gezeichnet, Kostüm, Plüschtier …).

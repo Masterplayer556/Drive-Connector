@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): englischer Wortschatz für die Suche. Gesucht wird nur noch auf Englisch – der Suchtext geht
+// KI-SUCHE: englischer Wortschatz für die Suche. Gesucht wird nur noch auf Englisch – der Suchtext geht
 // unverändert ans Modell (kein Deutsch→Englisch-Wörterbuch mehr, das mit doppeldeutigen Wörtern verwirrt hat).
 // Der Wortschatz dient nur dazu, Namen („Luca“, „Pikachu“) von normalen Wörtern zu unterscheiden und Begriffe
 // zum Trainieren vorzuschlagen.

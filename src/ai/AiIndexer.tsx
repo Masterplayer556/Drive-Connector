@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): unsichtbar – läuft nur, solange die KI-Suche an ist und die App entsperrt ist.
+// KI-SUCHE: unsichtbar – läuft nur, solange die KI-Suche an ist und die App entsperrt ist.
 import { useEffect } from "react";
 import { useAiModel, useLearningDevice } from "./flag";
 import { startIndexer, stopIndexer } from "./indexer";

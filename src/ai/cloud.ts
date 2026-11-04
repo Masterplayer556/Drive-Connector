@@ -1,4 +1,4 @@
-// KI-SUCHE (Test): Fingerabdrücke über Supabase teilen – am PC gelernt (genaues Modell), auf dem iPhone
+// KI-SUCHE: Fingerabdrücke über Supabase teilen – am PC gelernt (genaues Modell), auf dem iPhone
 // nur heruntergeladen und zum Suchen benutzt. Es sind nur Zahlen, keine Fotos.
 // Kompakt gespeichert: [Float32 Skalierung][512 × Int8] als Base64 (≈ 700 Zeichen pro Foto).
 import { supabase } from "../lib/supabase";
