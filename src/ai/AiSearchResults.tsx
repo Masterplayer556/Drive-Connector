@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import Thumb from "../components/Thumb";
 import { TagDots } from "../components/TagSheet";
+import { SelectCheck, SelectionBar, SelectToggle, useSelection } from "../components/Selection";
 import { useTags } from "../lib/tags";
 import type { Account, Item } from "../lib/types";
 import { modelProgress, onModelProgress } from "./engine";
@@ -34,6 +35,7 @@ export default function AiSearchResults({
   const [votes, setVotes] = useState<Map<string, 1 | -1>>(new Map());
   const feedbackOn = useFeedbackEnabled();
   const [training, setTraining] = useState(false);
+  const sel = useSelection();
   useTags();
   const [, tick] = useState(0);
   const seq = useRef(0);
@@ -94,7 +96,10 @@ export default function AiSearchResults({
         <span>
           <Icon name="sparkles" size={14} /> Passt zur Beschreibung
         </span>
-        <span>{busy ? <span className="spinner" style={{ width: 14, height: 14 }} /> : items.length}</span>
+        <span className="row" style={{ gap: 10 }}>
+          {items.length > 0 && !busy && <SelectToggle sel={sel} />}
+          {busy ? <span className="spinner" style={{ width: 14, height: 14 }} /> : items.length}
+        </span>
       </div>
 
       {downloading && (
@@ -120,6 +125,15 @@ export default function AiSearchResults({
               <Icon name="play" size={12} /> Nur Videos
             </span>
           )}
+        </div>
+      )}
+      {result && !busy && result.tagHelp.length > 0 && (
+        <div className="ai-filters">
+          {result.tagHelp.map((t) => (
+            <span key={t.label} className="ai-filter">
+              <Icon name="tag" size={12} /> {t.label} · {t.count} {t.count === 1 ? "Foto hilft" : "Fotos helfen"} der KI
+            </span>
+          ))}
         </div>
       )}
       {result && !busy && result.names.length > 0 && (
@@ -179,13 +193,14 @@ export default function AiSearchResults({
       {items.length > 0 && (
         <div className="grid stagger">
           {items.map((f, i) => {
-            const showVotes = feedbackOn && !result?.filterOnly;
+            const showVotes = feedbackOn && !result?.filterOnly && !sel.on;
             const v = showVotes ? votes.get(itemKey(f)) : undefined;
             return (
               <div key={`${f.account_id}|${f.drive_id}`} className={`ai-cell ${v === -1 ? "down" : v === 1 ? "up" : ""}`} style={{ ["--i" as string]: i }}>
-                <button className="cell" onClick={() => setViewer(i)}>
+                <button className={`cell ${sel.has(f) ? "selected" : ""}`} onClick={() => (sel.on ? sel.toggle(f) : setViewer(i))}>
                   <Thumb item={f} />
                   <TagDots item={f} />
+                  <SelectCheck sel={sel} item={f} />
                   <span className="cell-name">{f.name}</span>
                   {f.mime_type?.startsWith("video/") && (
                     <span className="cell-play">
@@ -208,6 +223,8 @@ export default function AiSearchResults({
           })}
         </div>
       )}
+
+      <SelectionBar sel={sel} items={items} />
 
       {viewer !== null && items[viewer] && (
         <Suspense fallback={null}>

@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { searchItems } from "../lib/db";
 import { allTags, taggedItems, tagHits, useTags } from "../lib/tags";
 import { TagDots } from "./TagSheet";
+import { SelectCheck, SelectionBar, SelectToggle, useSelection } from "./Selection";
 import { hueOf } from "../lib/folderColors";
 import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
@@ -34,6 +35,7 @@ export default function SearchSheet({
   const kiMode = ai && mode === "ki"; // KI-SUCHE
   useTags();
   const tags = allTags();
+  const sel = useSelection();
   // „#Ferien“ in der Namenssuche: alle Fotos mit diesem Tag
   // Tags ohne „#“: passt die Suche zu einem Tag, oben einen Knopf dafür zeigen
   const hits = tagHits(q, tags);
@@ -172,13 +174,22 @@ export default function SearchSheet({
                 <>
                   <div className="section-title" style={{ padding: "4px 0" }}>
                     <span>{tagQuery ? `#${tagQuery}` : "Fotos"}</span>
-                    <span>{files.length}</span>
+                    <span className="row" style={{ gap: 10 }}>
+                      <SelectToggle sel={sel} />
+                      {files.length}
+                    </span>
                   </div>
                   <div className="grid stagger">
                     {files.map((f, i) => (
-                      <button key={`${f.account_id}|${f.drive_id}`} className="cell" style={{ ["--i" as string]: i }} onClick={() => setViewer(i)}>
+                      <button
+                        key={`${f.account_id}|${f.drive_id}`}
+                        className={`cell ${sel.has(f) ? "selected" : ""}`}
+                        style={{ ["--i" as string]: i }}
+                        onClick={() => (sel.on ? sel.toggle(f) : setViewer(i))}
+                      >
                         <Thumb item={f} />
                         <TagDots item={f} />
+                        <SelectCheck sel={sel} item={f} />
                         <span className="cell-name">{f.name}</span>
                           {f.mime_type?.startsWith("video/") && (
                             <span className="cell-play">
@@ -188,6 +199,7 @@ export default function SearchSheet({
                       </button>
                     ))}
                   </div>
+                  <SelectionBar sel={sel} items={files} />
                 </>
               )}
             </>

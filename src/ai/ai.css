@@ -402,3 +402,7 @@
   text-align: center;
   margin: 0;
 }
+.ai-wipe {
+  align-self: flex-start;
+  color: #ef4444;
+}

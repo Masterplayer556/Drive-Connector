@@ -7,7 +7,7 @@ import { conceptVocabulary, nameWords, toEnglish } from "./dict";
 import { expandNameKeys, FOLDER_KEY, folderKey, isFolderKey, learnedNames, prototypeOf, rankByName } from "./names";
 import { inFolder, parseQuery } from "./query";
 import { frequentConcepts, pickCards, sample, type Term } from "./train";
-import { inheritsTag, loadFolderTags, loadTags, tagKey } from "../lib/tags";
+import { allTags, inheritsTag, loadFolderTags, loadTags, markerColor, tagHits, tagKey } from "../lib/tags";
 import { applyFeedback, groupSimilar, rank } from "./rank";
 import { allFeedback, allVectors, deleteFeedback, getMeta, itemKey, putFeedback, putMeta, type Feedback } from "./store";
 
@@ -28,6 +28,8 @@ export interface AiResult {
   filterOnly: boolean;
   /** Gelernte Namen, die in dieser Suche vorkamen (mit Anzahl gelobter Fotos) */
   names: { label: string; count: number }[];
+  /** Eigene Tags in der Suche, deren Fotos der KI als Beispiele helfen */
+  tagHelp: { label: string; count: number }[];
 }
 
 let vectors: { at: number; map: Map<string, Float32Array> } | null = null;
@@ -64,7 +66,7 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
   const allowed = (it: Item) => (!folder || inFolder(it.path, folder)) && (!video || !!it.mime_type?.startsWith("video/")) && hasTag(it);
   let map = without(all, exclude);
   if (folder || video || tag) map = new Map([...map].filter(([k]) => { const it = items.get(k); return !!it && allowed(it); }));
-  const base = { folder, video, tag, votes: new Map<string, 1 | -1>(), names: [] as AiResult["names"] };
+  const base = { folder, video, tag, votes: new Map<string, 1 | -1>(), names: [] as AiResult["names"], tagHelp: [] as AiResult["tagHelp"] };
 
   // Nur Filter, keine Beschreibung → alle passenden Fotos/Videos, neueste zuerst (auch noch nicht gelernte)
   if (!text) {
@@ -75,8 +77,17 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
     return { ...base, items: list.slice(0, 60), english: "", indexed: list.length, q: new Float32Array(0), filterOnly: true };
   }
 
+  // Eigene Tags in der Suche („Ferien“, auch ohne #): ihre Fotos sind Beispiele für die KI
+  const tagEx = (await tagExamples(text, items)).map((t) => ({ ...t, keys: t.keys.filter((k) => all.has(k)) })).filter((t) => t.keys.length);
+
   // Gelernte Namen („Luca“, „Pikachu“): Fotos, die wie die gelobten aussehen
   const learned = learnedNames(fb);
+  // Tags mit einem Namen (Wort, das das Modell nicht kennt) wirken wie gelernte Namen
+  for (const t of tagEx) {
+    if (nameWords(t.label).join(" ") !== t.name) continue;
+    const n = learned.get(t.name);
+    learned.set(t.name, { name: t.name, label: n?.label ?? t.label, keys: [...new Set([...(n?.keys ?? []), ...t.keys])] });
+  }
   const fileList = filesOf(items);
   const known = nameWords(text)
     .map((n) => learned.get(n))
@@ -116,7 +127,13 @@ export async function aiSearch(query: string, { exclude }: { exclude?: Set<strin
   // Feedback dieser und ähnlicher Suchen einrechnen. Gleiche Suche = immer voll (auch wenn sie früher
   // anders ans Modell gestellt wurde und der gespeicherte Vektor darum leicht abweicht)
   const same = english.toLowerCase();
-  const fbNow = fb.map((f) => (f.english.toLowerCase() === same ? { ...f, q: vec } : f));
+  const fbNow: { q: Float32Array; key: string; vote: 1 | -1 }[] = fb.map((f) => (f.english.toLowerCase() === same ? { ...f, q: vec } : f));
+  // Getaggte Fotos zählen wie ein 👍 für diese Suche (schiebt die Suche zu ihnen hin, sie kommen nach oben)
+  for (const t of tagEx) {
+    if (nameWords(t.label).join(" ") === t.name) continue; // schon als Name berücksichtigt
+    base.tagHelp.push({ label: t.label, count: t.keys.length });
+    for (const k of t.keys.slice(0, 300)) fbNow.push({ q: vec, key: k, vote: 1 });
+  }
   const { query: q2, adjust } = applyFeedback(vec, fbNow, map);
   const hits = rank(q2, map, { limit: 30, adjust, keywords: kvecs }); // wenige Vorschaubilder = wenig Speicher
   for (const f of fb) if (f.english.toLowerCase() === english.toLowerCase()) base.votes.set(f.key, f.vote);
@@ -353,4 +370,26 @@ export async function trainingBatch(term: string, { exclude, n = 12 }: { exclude
   const cards = pickCards(ranked, voted, n);
   if (!cards.length) return null;
   return { term, english, q, items: cards.map((k) => items.get(k)).filter((x): x is Item => !!x) };
+}
+
+/**
+ * Eigene Tags, die in der Suche vorkommen (ganzes Wort, ohne #; keine Merkzeichen-Farben), mit ihren
+ * Fotos – direkt getaggt oder in einem getaggten Ordner. Schlüssel im Format des KI-Index.
+ */
+async function tagExamples(text: string, items: Map<string, Item>): Promise<{ name: string; label: string; keys: string[] }[]> {
+  const [byItem, folders] = await Promise.all([loadTags(), loadFolderTags()]).catch(
+    (): [Map<string, string[]>, { tag: string; path: string }[]] => [new Map(), []],
+  );
+  const hits = tagHits(text, allTags().filter((t) => !markerColor(t.tag)));
+  return hits
+    .map((h) => {
+      const low = h.tag.toLowerCase();
+      const keys: string[] = [];
+      for (const [k, it] of items) {
+        const direct = (byItem.get(tagKey(it)) ?? []).some((t) => t.toLowerCase() === low);
+        if (direct || inheritsTag(it.path, h.tag, folders)) keys.push(k);
+      }
+      return { name: low, label: h.tag, keys };
+    })
+    .filter((t) => t.keys.length);
 }
