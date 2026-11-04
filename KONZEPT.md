@@ -84,7 +84,7 @@ Jede Gruppe ist eine Einheit und liegt möglichst komplett in einem Konto. Neue 
 - Nie über die Grenze von Privat: Privat-Ordner nur zwischen Privat-Konten, alles andere nur zwischen Archiv-Konten (auch der Server prüft das beim Ausführen).
 - Liegt ein Ordner im falschen Gebiet (z. B. `Privat/…` in einem Archiv-Konto), schlägt die App vor, ihn ins richtige Gebiet zu holen („Ins richtige Gebiet“).
 - Ziel: möglichst viele Einheiten ganz in einem Konto, möglichst grosse freie Blöcke.
-- Ein Vorschlag kommt erst, wenn er **mehr als 1 GB** frei macht (Ausnahme: Ordner im falschen Gebiet).
+- Ein Vorschlag kommt erst, wenn er **mehr als 1 GB** frei macht (Ausnahme: Ordner im falschen Gebiet). Die Grenze ist in der Regal-Ansicht einstellbar (Immer, 0,5 – 10 GB), gespeichert in `settings.min_plan_gb`.
 - Ablauf beim Verschieben (ohne dass eine Datei geöffnet wird):
   1. Konto A gibt den Ordner intern für Konto B frei.
   2. Konto B erstellt eine **serverseitige Kopie** bei Google (Daten laufen nicht über Backend oder Handy).

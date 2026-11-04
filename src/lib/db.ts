@@ -417,6 +417,24 @@ export async function saveGroupFolder(key: string | null): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/** Rebalancing: Vorschlag erst ab so vielen GB (null = Standard 1 GB). */
+export async function fetchMinPlanGb(): Promise<number | null> {
+  const { data, error } = await supabase.from("settings").select("min_plan_gb").maybeSingle();
+  if (error) throw new Error(error.message);
+  const v = data?.min_plan_gb;
+  return v === null || v === undefined ? null : Number(v);
+}
+
+export async function saveMinPlanGb(gb: number | null): Promise<void> {
+  const { data: s } = await supabase.auth.getSession();
+  const owner_id = s.session?.user.id;
+  if (!owner_id) throw new Error("Nicht angemeldet");
+  const { error } = await supabase
+    .from("settings")
+    .upsert({ owner_id, min_plan_gb: gb, updated_at: new Date().toISOString() }, { onConflict: "owner_id" });
+  if (error) throw new Error(error.message);
+}
+
 export interface PlanRow {
   id: string;
   signature: string;
