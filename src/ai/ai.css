@@ -223,3 +223,66 @@
   background: rgba(var(--accent-rgb), 0.16);
   color: var(--text);
 }
+
+/* Namen („Wer ist das?“, gelernte Namen) */
+.ai-names {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 4px 0;
+  border-radius: 14px;
+  background: var(--glass);
+}
+.ai-names-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ai-name-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ai-name-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--tint-rgb), 0.14);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ai-name-chip.on {
+  border-color: transparent;
+  background: rgba(var(--accent-rgb), 0.18);
+}
+.ai-name-chip button {
+  display: inline-flex;
+  padding: 2px;
+  margin-right: -4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  opacity: 0.7;
+}
+.ai-name-form {
+  display: flex;
+  gap: 8px;
+}
+.ai-name-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--tint-rgb), 0.14);
+  background: rgba(var(--tint-rgb), 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px; /* kein Hineinzoomen auf dem iPhone */
+}

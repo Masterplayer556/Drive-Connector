@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import Icon from "../components/Icon";
 import Thumb from "../components/Thumb";
 import type { Account, Item } from "../lib/types";
+import NameTags from "./NameTags";
 import { privateAccounts, similarTo } from "./search";
 
 const Viewer = lazy(() => import("../components/Viewer"));
@@ -29,7 +30,7 @@ export default function SimilarSheet({ item, accounts, onClose }: { item: Item; 
         <div className="sheet-grip" />
         <div className="search-bar">
           <strong className="ai-similar-title">
-            <Icon name="sparkles" size={16} /> Ähnliche Fotos
+            <Icon name="sparkles" size={16} /> KI
           </strong>
           <button className="btn ghost small" onClick={onClose}>
             Fertig
@@ -41,6 +42,11 @@ export default function SimilarSheet({ item, accounts, onClose }: { item: Item; 
               <Thumb item={item} />
             </div>
             <span className="muted small ellipsis">{item.name}</span>
+          </div>
+          <NameTags item={item} />
+          <div className="section-title" style={{ padding: "8px 0 0" }}>
+            <span>Ähnliche Fotos</span>
+            {items && items.length > 0 && <span>{items.length}</span>}
           </div>
           {error ? (
             <p className="muted small">Nicht möglich: {error}</p>

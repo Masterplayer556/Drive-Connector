@@ -264,7 +264,49 @@ export function keywordsOf(query: string): string[] {
   const english = looksEnglish(query);
   const out = words
     .filter((w) => !/^\d+$/.test(bare(w))) // Zahlen (Jahre) helfen dem Bildmodell nicht
+    .filter((w) => !isNameWord(bare(w))) // Namen kennt das Modell nicht – die lernt die Suche über 👍 (names.ts)
     .map((w) => translateWord(bare(w), english).trim())
     .filter(Boolean);
   return out.length >= 2 ? [...new Set(out)] : [];
+}
+
+/**
+ * Wort, das weder im Wörterbuch noch im englischen Wortschatz steht – meist ein Name
+ * („Luca“, „Pikachu“, eine eigene Figur). Solche Wörter lernt die Suche über 👍.
+ */
+export function isNameWord(word: string): boolean {
+  const w = word.toLowerCase();
+  if (w.length < 2 || !/^[\p{L}][\p{L}'-]*$/u.test(w)) return false;
+  if (GERMAN_HINTS.has(w) || ENGLISH_HINTS.has(w) || ENGLISH_VOCAB.has(w) || AMBIGUOUS.has(w)) return false;
+  return lookup(w) === undefined;
+}
+
+/**
+ * Die Namen in einer Suche, klein geschrieben. Aufeinanderfolgende Namenswörter sind ein Name
+ * („Darth Vader am Strand“ → ["darth vader"]).
+ */
+export function nameWords(text: string): string[] {
+  return nameRuns(text).map((r) => r.name);
+}
+
+/** Wie nameWords, dazu die Schreibweise aus dem Text („Darth Vader“). */
+export function nameRuns(text: string): { name: string; label: string }[] {
+  const out: { name: string; label: string }[] = [];
+  let run: string[] = [];
+  const flush = () => {
+    if (run.length) {
+      const label = run.join(" ");
+      if (!out.some((o) => o.name === label.toLowerCase())) out.push({ name: label.toLowerCase(), label });
+    }
+    run = [];
+  };
+  for (const raw of text.split(/\s+/)) {
+    const w = raw.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+    if (w && isNameWord(w)) run.push(w);
+    else flush();
+    // Satzzeichen am Wortende (Komma …) beendet den Namen
+    if (/[^\p{L}'-]$/u.test(raw)) flush();
+  }
+  flush();
+  return out;
 }

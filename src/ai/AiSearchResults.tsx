@@ -8,6 +8,8 @@ import { modelProgress, onModelProgress } from "./engine";
 import { indexState, searchClosed, searchOpened } from "./indexer";
 import { aiSearch, privateAccounts, vote, type AiResult } from "./search";
 import { itemKey } from "./store";
+import { nameRuns } from "./dict";
+import { parseQuery } from "./query";
 import { useFeedbackEnabled } from "./flag";
 
 const Viewer = lazy(() => import("../components/Viewer"));
@@ -65,6 +67,7 @@ export default function AiSearchResults({
   const p = modelProgress("text");
   const downloading = busy && p && p.total > 0 && p.loaded < p.total;
   const idx = indexState();
+  const unknownNames = nameRuns(parseQuery(query).text).map((r) => r.label);
 
   /** 👍/👎 – nochmals tippen nimmt es zurück. Gilt ab der nächsten Suche (auch für ähnliche Suchen). */
   const rate = (f: Item, value: 1 | -1) => {
@@ -108,6 +111,21 @@ export default function AiSearchResults({
             </span>
           )}
         </div>
+      )}
+      {result && !busy && result.names.length > 0 && (
+        <div className="ai-filters">
+          {result.names.map((n) => (
+            <span key={n.label} className="ai-filter">
+              <Icon name="user" size={12} /> {n.label} · {n.count} {n.count === 1 ? "Foto" : "Fotos"} gelernt
+            </span>
+          ))}
+        </div>
+      )}
+      {result && !busy && !result.filterOnly && result.names.length === 0 && unknownNames.length > 0 && (
+        <p className="faint small ai-understood">
+          Falls {unknownNames.map((n) => `„${n}“`).join(", ")} ein Name ist: Namen lernt die KI, wenn du passenden Fotos 👍 gibst
+          oder sie in der Foto-Ansicht (✨ → „Wer ist das?“) benennst. Danach findet die Suche ähnlich aussehende Fotos.
+        </p>
       )}
       {result && !busy &&
         (result.filterOnly ? (

@@ -6,6 +6,7 @@ import { useUI } from "../components/ui";
 import { crashNote, forgetOldSettings, modelProgress, onModelProgress } from "./engine";
 import { setAiEnabled, setFeedbackEnabled, useAiEnabled, useFeedbackEnabled } from "./flag";
 import { indexState, onIndexState, setTurbo, stopIndexer, type IndexState } from "./indexer";
+import { allNames, removeName } from "./search";
 import { usedBytes, wipeEverything } from "./store";
 
 const mb = (b: number) => `${Math.round(b / 1e6).toLocaleString("de-CH")} MB`;
@@ -162,11 +163,52 @@ export default function AiSettings() {
               <span />
             </span>
           </label>
+          <LearnedNames />
           <p className="faint small" style={{ margin: 0 }}>
             Tipp: In der Suche einfach beschreiben, z. B. „Hund im Schnee“ oder „Arbeitsblatt mit Tabelle“.
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Gelernte Namen (aus 👍 und „Wer ist das?“) – ansehen und vergessen. */
+function LearnedNames() {
+  const [names, setNames] = useState<{ name: string; label: string; count: number }[] | null>(null);
+  const ui = useUI();
+  const load = () => allNames().then(setNames).catch(() => setNames([]));
+  useEffect(() => {
+    void load();
+  }, []);
+  if (!names?.length) return null;
+  const forget = async (n: { label: string; name: string }) => {
+    const ok = await ui.confirm({
+      title: `„${n.label}“ vergessen?`,
+      message: "Die Fotos bleiben, nur der gelernte Name und seine 👍 werden gelöscht.",
+      confirmLabel: "Vergessen",
+      danger: true,
+    });
+    if (!ok) return;
+    await removeName(null, n.name);
+    await load();
+  };
+  return (
+    <div className="ai-names">
+      <div className="ai-names-head">
+        <strong className="small">Gelernte Namen</strong>
+        <span className="faint small">Suche nach dem Namen zeigt ähnlich aussehende Fotos. Mehr 👍 = besser.</span>
+      </div>
+      <div className="ai-name-chips">
+        {names.map((n) => (
+          <span key={n.name} className="ai-name-chip on">
+            {n.label} <span className="faint">{n.count}</span>
+            <button onClick={() => void forget(n)} aria-label={`${n.label} vergessen`}>
+              <Icon name="x" size={12} />
+            </button>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
