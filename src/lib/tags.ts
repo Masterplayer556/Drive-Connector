@@ -169,3 +169,21 @@ export async function taggedItems(tag: string): Promise<Item[]> {
   if (error) throw new Error(error.message);
   return (data ?? []) as Item[];
 }
+
+/**
+ * Tags, die in einer Suche ohne „#“ vorkommen („Ferien Strand“ → Tag „Ferien“).
+ * Liefert je Tag die Suche mit #Tag statt des Wortes – zum Antippen.
+ */
+export function tagHits(query: string, tags: { tag: string; count: number }[]): { tag: string; count: number; query: string }[] {
+  const q = query.trim();
+  if (!q || q.includes("#")) return [];
+  const out: { tag: string; count: number; query: string }[] = [];
+  for (const t of tags) {
+    const esc = t.tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(^|\\s)${esc}(?=$|\\s)`, "iu");
+    if (!re.test(q)) continue;
+    const ref = t.tag.includes(" ") ? `#"${t.tag}"` : `#${t.tag}`;
+    out.push({ ...t, query: q.replace(re, (_m, pre: string) => `${pre}${ref}`) });
+  }
+  return out.slice(0, 4);
+}

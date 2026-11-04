@@ -287,34 +287,118 @@
   font-size: 16px; /* kein Hineinzoomen auf dem iPhone */
 }
 
-/* ✨ für Ordner: Leiste zum Verschieben der ausgewählten Fotos */
-.ai-folder-bar {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: calc(12px + env(safe-area-inset-bottom));
+/* ✨ für Ordner: Verschieben-Fenster über der Foto-Ansicht */
+.ai-move-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+/* ---------- KI trainieren (Wischen) ---------- */
+.train-body {
+  align-items: center;
+  gap: 12px;
+}
+.train-term {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.train-term h2 {
+  margin: 0;
+}
+.train-card {
+  position: relative;
+  width: min(100%, 360px);
+  aspect-ratio: 3 / 4;
+  max-height: 52vh; /* Knöpfe bleiben auch auf kleinen iPhones sichtbar */
+  border-radius: 22px;
+  overflow: hidden;
+  background: rgba(var(--tint-rgb), 0.06);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 18px;
-  background: rgba(var(--surface-rgb), 0.96);
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  z-index: 2;
+  justify-content: center;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+  transition: transform 0.22s var(--ease), opacity 0.22s var(--ease);
 }
-.ai-cell-zoom {
+.train-card.gone {
+  opacity: 0;
+}
+.train-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.train-placeholder {
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  text-align: center;
+  cursor: default;
+  box-shadow: none;
+}
+.train-stamp {
   position: absolute;
-  left: 6px;
-  bottom: 24px;
-  width: 30px;
-  height: 30px;
+  top: 22px;
+  padding: 6px 12px;
+  border: 3px solid currentColor;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  background: rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.train-stamp.yes {
+  left: 18px;
+  color: #22c55e;
+  transform: rotate(-12deg);
+}
+.train-stamp.no {
+  right: 18px;
+  color: #ef4444;
+  transform: rotate(12deg);
+}
+.train-buttons {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.train-btn {
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
+  border: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(6px);
+  font-size: 22px;
+  font-weight: 800;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+.train-btn.no {
+  background: #ef4444;
+}
+.train-btn.yes {
+  background: #22c55e;
+}
+.train-btn.skip {
+  width: 46px;
+  height: 46px;
+  font-size: 18px;
+  color: var(--text);
+  background: rgba(var(--tint-rgb), 0.12);
+}
+.train-hint {
+  text-align: center;
+  margin: 0;
 }

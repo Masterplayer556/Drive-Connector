@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { searchItems } from "../lib/db";
-import { allTags, taggedItems, useTags } from "../lib/tags";
+import { allTags, taggedItems, tagHits, useTags } from "../lib/tags";
 import { TagDots } from "./TagSheet";
 import { hueOf } from "../lib/folderColors";
 import type { Account, Item } from "../lib/types";
@@ -35,6 +35,8 @@ export default function SearchSheet({
   useTags();
   const tags = allTags();
   // „#Ferien“ in der Namenssuche: alle Fotos mit diesem Tag
+  // Tags ohne „#“: passt die Suche zu einem Tag, oben einen Knopf dafür zeigen
+  const hits = tagHits(q, tags);
   const tagQuery = !kiMode && q.trim().startsWith("#") ? q.trim().slice(1).replace(/^["“„«]|["”“»]$/g, "").trim() : null;
 
   useEffect(() => {
@@ -92,6 +94,16 @@ export default function SearchSheet({
           </button>
         </div>
         <div className="sheet-body">
+          {hits.length > 0 && (
+            <div className="tag-chips tag-hits">
+              {hits.map((h) => (
+                <button key={h.tag} className="tag-chip on" onClick={() => setQ(h.query)}>
+                  <Icon name="tag" size={13} /> {h.tag} <span className="faint">{h.count}</span>
+                </button>
+              ))}
+              <span className="faint small">Nur Fotos mit diesem Tag</span>
+            </div>
+          )}
           {/* KI-SUCHE: im KI-Modus nur die KI-Treffer */}
           {kiMode ? (
             <>

@@ -3,6 +3,7 @@
 // ein Bild-Worker (lernt) und ein Such-Worker, nie beide gleichzeitig. Beides läuft auf dem Prozessor.
 // Suchbegriffe übersetzt ein kleines Wörterbuch statt eines Übersetzungsmodells.
 import { keywordsOf, toEnglish } from "./dict";
+import { keywordPrompts, searchPrompts } from "./prompts";
 import { setRisk, takeCrash, type Risk } from "./guard";
 import { MODEL_CACHE } from "./store";
 import type { FromWorker, ToWorker } from "./protocol";
@@ -171,9 +172,11 @@ export async function embedText(text: string): Promise<{ vec: Float32Array; engl
     await new Promise((r) => setTimeout(r, 100));
   }
   const english = toEnglish(text) || text;
-  const m = await send({ type: "text", text: english, keywords: keywordsOf(text) }, TEXT);
+  const keywords = keywordsOf(text);
+  const m = await send({ type: "text", groups: [searchPrompts(english), ...keywords.map(keywordPrompts)] }, TEXT);
   if (m.type !== "vec") throw new Error("Unerwartete Antwort");
-  return { vec: m.vec, english, kvecs: m.kvecs ?? [] };
+  const [vec, ...kvecs] = m.vecs;
+  return { vec, english, kvecs };
 }
 
 /** Alle Worker beenden und Arbeitsspeicher freigeben. */

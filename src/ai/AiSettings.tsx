@@ -1,6 +1,7 @@
 // KI-SUCHE (Test): Abschnitt in „Mehr“ – einschalten, Fortschritt sehen, alles wieder löschen.
 import "./ai.css";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
+import type { Account } from "../lib/types";
 import Icon from "../components/Icon";
 import { useUI } from "../components/ui";
 import { crashNote, forgetOldSettings, modelProgress, onModelProgress } from "./engine";
@@ -8,6 +9,8 @@ import { setAiEnabled, setFeedbackEnabled, useAiEnabled, useFeedbackEnabled } fr
 import { indexState, onIndexState, setTurbo, stopIndexer, type IndexState } from "./indexer";
 import { allNames, removeName } from "./search";
 import { usedBytes, wipeEverything } from "./store";
+
+const TrainSheet = lazy(() => import("./TrainSheet"));
 
 const mb = (b: number) => `${Math.round(b / 1e6).toLocaleString("de-CH")} MB`;
 
@@ -46,7 +49,8 @@ function statusText(s: IndexState): string {
   }
 }
 
-export default function AiSettings() {
+export default function AiSettings({ accounts }: { accounts: Account[] }) {
+  const [training, setTraining] = useState(false);
   const ui = useUI();
   const on = useAiEnabled();
   const feedbackOn = useFeedbackEnabled();
@@ -163,6 +167,17 @@ export default function AiSettings() {
               <span />
             </span>
           </label>
+          <button className="btn small primary" onClick={() => setTraining(true)}>
+            <Icon name="sparkles" size={16} /> KI trainieren
+          </button>
+          <p className="faint small" style={{ margin: 0 }}>
+            Begriffe aus deinen Ordnern, Tags und Suchen – Foto nach rechts wischen = passt, nach links = passt nicht.
+          </p>
+          {training && (
+            <Suspense fallback={null}>
+              <TrainSheet accounts={accounts} onClose={() => setTraining(false)} />
+            </Suspense>
+          )}
           <LearnedNames />
           <p className="faint small" style={{ margin: 0 }}>
             Tipp: In der Suche einfach beschreiben, z. B. „Hund im Schnee“ oder „Arbeitsblatt mit Tabelle“.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { keywordPrompt, promptsFor, stripPhotoWords } from "./prompts";
+import { keywordPrompt, keywordPrompts, promptsFor, searchPrompts, stripPhotoWords, synonymVariants } from "./prompts";
 
 describe("KI-Suche: Formulierungen", () => {
   it("mehrere Formulierungen", () => {
@@ -16,5 +16,18 @@ describe("KI-Suche: Formulierungen", () => {
   });
   it("Stichwort", () => {
     expect(keywordPrompt("snow")).toBe("a photo of snow.");
+  });
+});
+
+describe("KI-Suche: Synonyme", () => {
+  it("ersetzt einzelne Wörter", () => {
+    expect(synonymVariants("dog in the snow")).toEqual(["puppy in the snow", "pet dog in the snow", "dog in the snowfall"]);
+    expect(synonymVariants("unknownword")).toEqual([]);
+    expect(synonymVariants("red car", 1)).toEqual(["red automobile"]);
+  });
+  it("Suche und Stichwörter", () => {
+    expect(searchPrompts("car")).toContain("a photo of automobile.");
+    expect(searchPrompts("car")).toContain("a photo of car.");
+    expect(keywordPrompts("beach")).toEqual(["a photo of beach.", "a photo of seaside.", "a photo of shore."]);
   });
 });

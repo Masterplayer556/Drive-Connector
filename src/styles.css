@@ -3823,3 +3823,11 @@ body.drag-moving {
 .tag-dots.inline i {
   box-shadow: none;
 }
+.tag-hits {
+  align-items: center;
+  margin-bottom: 6px;
+}
+.viewer-action {
+  margin: 8px 14px 0;
+  justify-content: center;
+}

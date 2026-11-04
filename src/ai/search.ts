@@ -6,7 +6,8 @@ import { embedText } from "./engine";
 import { nameWords, toEnglish } from "./dict";
 import { expandNameKeys, FOLDER_KEY, folderKey, isFolderKey, learnedNames, prototypeOf, rankByName } from "./names";
 import { inFolder, parseQuery } from "./query";
-import { inheritsTag, loadFolderTags, loadTags, tagKey } from "../lib/tags";
+import { collectTerms, pickCards, type Term } from "./train";
+import { allTags, inheritsTag, loadFolderTags, loadTags, markerColor, tagKey } from "../lib/tags";
 import { applyFeedback, groupSimilar, rank } from "./rank";
 import { allFeedback, allVectors, deleteFeedback, itemKey, putFeedback, type Feedback } from "./store";
 
@@ -251,4 +252,68 @@ export async function removeName(item: Item | null, name: string) {
     if (nameWords(f.english).includes(n.trim().replace(/\s+/g, " "))) await deleteFeedback(f.id);
   }
   feedback = null;
+}
+
+// ---- KI trainieren (Wischen: passt / passt nicht) ----
+
+/** Begriffe aus deiner Ablage: gelernte Namen, Ordner, eigene Tags, frühere Suchen. */
+export async function trainingTerms(): Promise<Term[]> {
+  const [fb, items] = await Promise.all([allFeedback(), catalog()]);
+  await loadTags().catch(() => undefined);
+  const names = [...learnedNames(fb).values()].map((n) => n.label);
+  // Ordner = letzter Ordnername im Pfad, mit Anzahl Fotos darin
+  const folders = new Map<string, number>();
+  for (const it of items.values()) {
+    const segs = (it.path ?? "").split("/");
+    const dir = segs.length > 2 ? segs[segs.length - 2] : null; // oberste Ebene (Bereich) zählt nicht
+    if (dir) folders.set(dir, (folders.get(dir) ?? 0) + 1);
+  }
+  const tags = allTags().filter((t) => !markerColor(t.tag)).map((t) => t.tag);
+  const searches = [...new Set(fb.filter((f) => !isFolderKey(f.key)).map((f) => f.english))];
+  return collectTerms({ names, folders, tags, searches });
+}
+
+export interface TrainingBatch {
+  term: string;
+  /** So wird bewertet (gleich wie bei der Suche) */
+  english: string;
+  q: Float32Array;
+  items: Item[];
+}
+
+/**
+ * Fotos zum Wischen für einen Begriff. null = der Begriff passt zu keinem Foto gut genug
+ * (dann lohnt sich das Trainieren nicht – nächster Begriff).
+ */
+export async function trainingBatch(term: string, { exclude, n = 12 }: { exclude?: Set<string>; n?: number } = {}): Promise<TrainingBatch | null> {
+  const [all, fb, items] = await Promise.all([loadVectors(), allFeedback(), catalog()]);
+  const map = without(all, exclude);
+  const learned = learnedNames(fb);
+  const runs = nameWords(term);
+  const name = runs.length === 1 && runs[0] === term.trim().toLowerCase().replace(/\s+/g, " ") ? learned.get(runs[0]) : undefined;
+
+  let q: Float32Array;
+  let english: string;
+  let ranked: string[];
+  if (name) {
+    // Gelernter Name: Fotos, die wie die bisherigen aussehen
+    const keys = expandNameKeys(name.keys, filesOf(items));
+    const proto = prototypeOf(keys, all);
+    if (!proto) return null;
+    q = proto;
+    english = term.trim();
+    const liked = new Set(keys);
+    ranked = rank(proto, map, { limit: 200, floor: 0.6, window: 1 }).map((h) => h.key).filter((k) => !liked.has(k));
+  } else {
+    const e = await embedText(term);
+    q = e.vec;
+    english = e.english;
+    const hits = rank(q, map, { limit: 200, floor: 0, window: 1, keywords: e.kvecs });
+    if (!hits.length || hits[0].score < 0.2) return null; // passt zu nichts in deiner Ablage
+    ranked = hits.map((h) => h.key);
+  }
+  const voted = new Set(fb.filter((f) => f.english.toLowerCase() === english.toLowerCase()).map((f) => f.key));
+  const cards = pickCards(ranked, voted, n);
+  if (!cards.length) return null;
+  return { term, english, q, items: cards.map((k) => items.get(k)).filter((x): x is Item => !!x) };
 }

@@ -9,7 +9,6 @@ import {
   RawImage,
 } from "@huggingface/transformers";
 import { CLIP_MODEL, type FromWorker, type ToWorker } from "./protocol";
-import { keywordPrompt, promptsFor } from "./prompts";
 
 env.allowLocalModels = false;
 const onnx = env.backends.onnx as { wasm?: { numThreads?: number; wasmPaths?: unknown } };
@@ -107,18 +106,23 @@ async function embedImages(blobs: Blob[]): Promise<(Float32Array | null)[]> {
 }
 
 /**
- * Suchtext (schon auf Englisch, siehe dict.ts) → Vektor: Mittel aus mehreren Formulierungen (prompts.ts).
- * Bei Stichwörtern zusätzlich je ein Vektor pro Stichwort. Alles in einem Durchgang.
+ * Gruppen von Formulierungen (prompts.ts) → je Gruppe ein Vektor: Mittel aller Formulierungen.
+ * Alles in einem Durchgang durchs Textmodell.
  */
-async function embedText(english: string, keywords: string[] = []): Promise<{ vec: Float32Array; english: string; kvecs: Float32Array[] }> {
+async function embedGroups(groups: string[][]): Promise<Float32Array[]> {
   const { tokenizer, model } = await loadText();
-  const prompts = promptsFor(english);
-  const inputs = tokenizer([...prompts, ...keywords.map(keywordPrompt)], { padding: true, truncation: true });
-  const { text_embeds } = await model(inputs);
+  const flat = groups.flat();
+  const { text_embeds } = await model(tokenizer(flat, { padding: true, truncation: true }));
   const all = rows(text_embeds);
-  const mean = new Float32Array(all[0].length);
-  for (const v of all.slice(0, prompts.length)) for (let i = 0; i < mean.length; i++) mean[i] += v[i];
-  return { vec: normalized(mean), english, kvecs: all.slice(prompts.length) };
+  const out: Float32Array[] = [];
+  let i = 0;
+  for (const g of groups) {
+    const mean = new Float32Array(all[0].length);
+    for (const v of all.slice(i, i + g.length)) for (let j = 0; j < mean.length; j++) mean[j] += v[j];
+    out.push(normalized(mean));
+    i += g.length;
+  }
+  return out;
 }
 
 ctx.onmessage = async (e) => {
@@ -130,8 +134,7 @@ ctx.onmessage = async (e) => {
     } else if (m.type === "images") {
       ctx.postMessage({ type: "vecs", id: m.id, vecs: await embedImages(m.blobs) });
     } else if (m.type === "text") {
-      const { vec, english, kvecs } = await embedText(m.text, m.keywords);
-      ctx.postMessage({ type: "vec", id: m.id, vec, english, kvecs });
+      ctx.postMessage({ type: "vec", id: m.id, vecs: await embedGroups(m.groups) });
     }
   } catch (err) {
     ctx.postMessage({ type: "error", id: m.id, message: err instanceof Error ? err.message : String(err) });
