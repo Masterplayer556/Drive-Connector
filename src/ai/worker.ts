@@ -60,7 +60,9 @@ function rows(t: { data: Float32Array; dims: number[] }): Float32Array[] {
 }
 
 const loadVisionModel = (spec: ModelSpec, device: "webgpu" | "wasm") =>
-  CLIPVisionModelWithProjection.from_pretrained(spec.repo, {
+  CLIPVisionModelWithProjection.from_pretrained(spec.vision?.repo ?? spec.repo, {
+    ...(spec.vision?.subfolder ? { subfolder: spec.vision.subfolder } : {}),
+    ...(spec.vision?.file ? { model_file_name: spec.vision.file } : {}),
     device,
     dtype: spec.visionDtype,
     progress_callback: progress("bild"),
@@ -88,25 +90,47 @@ function loadVision(spec: ModelSpec, gpu = false) {
   return vision;
 }
 
+// Wo die App liegt (für Modelle, die sie selbst ausliefert: public/models/…). Der Worker liegt im Build unter assets/.
+const APP_BASE = import.meta.env.DEV ? new URL("/", self.location.href).href : new URL("../", self.location.href).href;
+
+// Textmodelle nacheinander laden: für selbst ausgelieferte Modelle wird die Download-Adresse kurz umgestellt –
+// in der Zeit darf nichts anderes von Hugging Face laden
+let textChain: Promise<unknown> = Promise.resolve();
+
+function loadTextModel(spec: ModelSpec) {
+  const load = () =>
+    CLIPTextModelWithProjection.from_pretrained(spec.textLocal ?? spec.repo, {
+      device: "wasm",
+      dtype: spec.textDtype,
+      progress_callback: progress("text"),
+      session_options: LEAN,
+    });
+  if (!spec.textLocal) return load();
+  const host = env.remoteHost;
+  const template = env.remotePathTemplate;
+  env.remoteHost = `${APP_BASE}models/`;
+  env.remotePathTemplate = "{model}/";
+  return load().finally(() => {
+    env.remoteHost = host;
+    env.remotePathTemplate = template;
+  });
+}
+
 function loadText(spec: ModelSpec) {
-  let p = texts.get(spec.repo);
+  const key = spec.textLocal ?? spec.repo;
+  let p = texts.get(key);
   if (p) return p;
-  p = (async () => {
-    const [tokenizer, model] = await Promise.all([
-      AutoTokenizer.from_pretrained(spec.repo, { progress_callback: progress("text") }),
-      CLIPTextModelWithProjection.from_pretrained(spec.repo, {
-        device: "wasm",
-        dtype: spec.textDtype,
-        progress_callback: progress("text"),
-        session_options: LEAN,
-      }),
-    ]);
+  const run = textChain.then(async () => {
+    const tokenizer = await AutoTokenizer.from_pretrained(spec.repo, { progress_callback: progress("text") });
+    const model = await loadTextModel(spec);
     return { tokenizer: tokenizer as unknown as (t: string[], o: object) => unknown, model: model as unknown as Fn, spec };
-  })().catch((e) => {
-    texts.delete(spec.repo);
+  });
+  textChain = run.catch(() => undefined);
+  p = run.catch((e) => {
+    texts.delete(key);
     throw e;
   });
-  texts.set(spec.repo, p);
+  texts.set(key, p);
   return p;
 }
 
