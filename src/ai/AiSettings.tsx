@@ -22,10 +22,10 @@ import { MODEL_IDS, MODELS, type ModelId } from "./protocol";
 
 const MODEL_INFO: Record<ModelId, string> = {
   clip: "OpenAI CLIP (2021) – lernt alle Fotos, auch auf dem iPhone",
-  mobileclip:
-    "Apple MobileCLIP-S2 (2024) – laut Apple treffsicherer, genaue Rechnung. Gelernt wird am PC per Knopf; das iPhone lädt nur die Ergebnisse und sucht damit",
+  mobileclip2b:
+    "Apple MobileCLIP2-B (2025) – Nachfolger von B, laut Apple nochmals genauer. Nur am PC lernbar (ca. 350 MB); das iPhone sucht mit einem kleinen Textteil (65 MB)",
   mobileclipB:
-    "Apple MobileCLIP-B (2024) – grösser, laut Apple nochmals genauer. Nur am PC lernbar (ca. 350 MB); das iPhone sucht mit dem gleich grossen Textteil wie S2",
+    "Apple MobileCLIP-B (2024) – grösser, laut Apple genauer als Standard. Nur am PC lernbar (ca. 350 MB); das iPhone sucht mit einem kleinen Textteil (64 MB)",
 };
 import {
   cloudLearning,

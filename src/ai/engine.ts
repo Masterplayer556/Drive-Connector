@@ -38,6 +38,12 @@ async function dropModelFiles(part: string) {
 }
 void dropModelFiles("vision_model_fp16");
 void dropModelFiles("opus-mt");
+void dropModelFiles("mobileclip_s2"); // MobileCLIP-S2 wurde durch MobileCLIP2-B ersetzt
+try {
+  indexedDB.deleteDatabase("drivepool-ai-mobileclip-s2");
+} catch {
+  /* ignorieren */
+}
 forgetOldSettings();
 
 /** Merker früherer Versionen entfernen (auch beim Ausschalten der KI-Suche). */

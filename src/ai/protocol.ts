@@ -1,12 +1,16 @@
 // KI-SUCHE (Test): Modelle und Nachrichten zwischen App und Worker.
 
-export type ModelId = "clip" | "mobileclip" | "mobileclipB";
+export type ModelId = "clip" | "mobileclip2b" | "mobileclipB";
 
 export interface ModelSpec {
   id: ModelId;
   label: string;
-  /** Modell auf Hugging Face (ONNX für den Browser) */
+  /** Modell auf Hugging Face (ONNX für den Browser); daraus kommen auch Wörterbuch und Bild-Vorverarbeitung */
   repo: string;
+  /** Bildteil liegt anderswo (anderes Repo / Unterordner / Dateiname) */
+  vision?: { repo: string; subfolder?: string; file?: string };
+  /** Textteil liefert die App selbst aus: public/models/<Name>/ (config.json + onnx/text_model_quantized.onnx) */
+  textLocal?: string;
   /** Eigene Datenbank pro Modell – die Fingerabdrücke verschiedener Modelle passen nicht zusammen */
   db: string;
   /** Ändert sich das, muss der Index neu aufgebaut werden */
@@ -40,21 +44,25 @@ export const MODELS: Record<ModelId, ModelSpec> = {
     padMax: false,
     cloud: false,
   },
-  // Apple MobileCLIP-S2 (2024) – laut Apple deutlich treffsicherer. Bildteil ungerundet (fp32) = genau;
-  // dafür ist er dem iPhone zu gross → gelernt wird am PC, das iPhone lädt nur die Fingerabdrücke
-  mobileclip: {
-    id: "mobileclip",
-    label: "MobileCLIP-S2 (Test)",
-    repo: "Xenova/mobileclip_s2",
-    db: "drivepool-ai-mobileclip-s2",
-    version: "Xenova/mobileclip_s2@fp32",
+  // Apple MobileCLIP2-B (2025) – laut Apple genauer als MobileCLIP-B (ImageNet 79,4 % statt 77,2 %), gleich grosser
+  // Textteil. Bildteil (fp32, nur PC) von plhery/mobileclip2-onnx; den Textteil haben wir selbst auf 8 Bit verkleinert
+  // (65 MB) und liefern ihn mit der App aus (public/models/mobileclip2-b). Wörterbuch/Vorverarbeitung wie MobileCLIP-B.
+  mobileclip2b: {
+    id: "mobileclip2b",
+    label: "MobileCLIP2-B (Test)",
+    repo: "Xenova/mobileclip_blt",
+    vision: { repo: "plhery/mobileclip2-onnx", subfolder: "onnx/b", file: "vision_model" },
+    textLocal: "mobileclip2-b",
+    db: "drivepool-ai-mobileclip2-b",
+    version: "plhery/mobileclip2-onnx/b@fp32",
     visionDtype: "fp32",
     textDtype: "q8",
     padMax: true,
     cloud: true,
+    autoFloor: true,
   },
   // Apple MobileCLIP-B (LT) – grösserer Bildteil (ViT-B/16), laut Apple nochmals treffsicherer. Nur am PC lernbar;
-  // der Textteil ist gleich gross wie bei S2, die Suche läuft also auch auf dem iPhone
+  // der Textteil ist klein (65 MB), die Suche läuft also auch auf dem iPhone
   mobileclipB: {
     id: "mobileclipB",
     label: "MobileCLIP-B (Test)",
