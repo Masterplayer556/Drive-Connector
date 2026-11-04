@@ -29,15 +29,15 @@ export const MODELS: Record<ModelId, ModelSpec> = {
     textDtype: "q8",
     padMax: false,
   },
-  // Apple MobileCLIP-S2 (2024) – kleiner, laut Apple deutlich treffsicherer. Bildteil ungerundet (fp32),
-  // weil die gerundete Fassung bei MobileCLIP ungenauer sein kann
+  // Apple MobileCLIP-S2 (2024) – kleiner, laut Apple deutlich treffsicherer. Bildteil gerundet (q8):
+  // ungerundet (fp32) stürzte das iPhone beim Lernen nach einer Weile ab (Arbeitsspeicher)
   mobileclip: {
     id: "mobileclip",
     label: "MobileCLIP-S2 (Test)",
     repo: "Xenova/mobileclip_s2",
     db: "drivepool-ai-mobileclip-s2",
-    version: "Xenova/mobileclip_s2@fp32",
-    visionDtype: "fp32",
+    version: "Xenova/mobileclip_s2@q8",
+    visionDtype: "q8",
     textDtype: "q8",
     padMax: true,
   },
