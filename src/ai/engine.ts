@@ -19,6 +19,9 @@ const TEXT = 1; // Such-Worker
 // ---- Nach einem Absturz beim letzten Mal ----
 const crashed: Risk | null = takeCrash();
 
+/** Bei welchem Schritt ist die App letztes Mal abgestürzt? (null = gar nicht) */
+export const crashedDuring = (): Risk | null => crashed;
+
 /** Hinweis, wenn die App letztes Mal bei der KI abgestürzt ist, sonst null. */
 export function crashNote(): string | null {
   return crashed ? "Letztes Mal ist die App bei der KI-Suche abgestürzt. Bitte melden, falls das wieder passiert." : null;

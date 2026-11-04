@@ -18,7 +18,7 @@ import {
 } from "./flag";
 import { catalog } from "./catalog";
 import { MODELS } from "./protocol";
-import { indexState, onIndexState, setTurbo, stopIndexer, type IndexState } from "./indexer";
+import { indexState, onIndexState, resumeLearning, setTurbo, stopIndexer, type IndexState } from "./indexer";
 import { allNames, removeName } from "./search";
 import { usedBytes, wipeEverything } from "./store";
 
@@ -53,6 +53,8 @@ function statusText(s: IndexState): string {
       return `Pausiert, solange die Suche offen ist · noch ${left.toLocaleString("de-CH")}`;
     case "paused":
       return `Pausiert, solange die App im Hintergrund ist · noch ${left.toLocaleString("de-CH")}`;
+    case "held":
+      return `Angehalten – die App ist beim Lernen abgestürzt · noch ${left.toLocaleString("de-CH")}`;
     case "done":
       return "Alle Fotos bereit";
     case "error":
@@ -133,7 +135,7 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
 
   const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
   const left = Math.max(0, s.total - s.done);
-  const learning = left > 0 && ["start", "model", "indexing", "paused", "searching"].includes(s.phase);
+  const learning = left > 0 && ["start", "model", "indexing", "paused", "searching", "held"].includes(s.phase);
 
   return (
     <div className="list glass enter">
@@ -184,6 +186,17 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
               <span>{s.rate.toLocaleString("de-CH", { maximumFractionDigits: 1 })} Fotos/s</span>
               <span>{eta(left, s.rate)}</span>
             </div>
+          )}
+          {s.phase === "held" && (
+            <>
+              <p className="small ai-note" style={{ margin: 0 }}>
+                Die App ist beim Lernen abgestürzt (zu wenig Arbeitsspeicher). Damit das nicht immer wieder passiert, lernt sie erst
+                weiter, wenn du es sagst.
+              </p>
+              <button className="btn small" onClick={resumeLearning}>
+                Weiter lernen
+              </button>
+            </>
           )}
           {learning && (
             <>
@@ -354,7 +367,7 @@ function ModelChoice({ accounts }: { accounts: Account[] }) {
             <small className="faint">
               {m === "clip"
                 ? "OpenAI CLIP (2021) – lernt alle Fotos"
-                : "Apple MobileCLIP (2024) – kleiner, laut Apple treffsicherer. Zum Testen: lernt nur Fotos in den Testordnern (einmalig ca. 200 MB laden)"}
+                : "Apple MobileCLIP (2024) – kleiner, laut Apple treffsicherer. Zum Testen: lernt nur Fotos in den Testordnern (einmalig ca. 100 MB laden)"}
             </small>
           </span>
         </label>

@@ -4,10 +4,10 @@
 import type { Item } from "../lib/types";
 import { catalog, thumbsFor } from "./catalog";
 import { aiModel, inTestFolders, testFolders } from "./flag";
-import { embedImage, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive } from "./engine";
+import { crashedDuring, embedImage, prepareVision, releaseIdleVision, releaseTextLater, setSearching, shutdown, textAlive } from "./engine";
 import { itemKey, markSkip, putVector, removeKeys, skipped, vectorKeys } from "./store";
 
-export type Phase = "start" | "model" | "indexing" | "done" | "paused" | "searching" | "error" | "off";
+export type Phase = "start" | "model" | "indexing" | "done" | "paused" | "searching" | "held" | "error" | "off";
 
 export interface IndexState {
   phase: Phase;
@@ -90,8 +90,21 @@ function releaseScreen() {
   wakeLock = null;
 }
 
+// Nach einem Absturz beim Lernen nicht gleich wieder loslegen (sonst stürzt die App immer wieder ab)
+let held = crashedDuring() === "learn";
+
+/** Nach einem Absturz angehalten? */
+export const learningHeld = () => held;
+
+/** Nach einem Absturz bewusst weiterlernen. */
+export function resumeLearning() {
+  held = false;
+  wakeAll();
+}
+
 /** „Schnell lernen“ ein/aus. */
 export function setTurbo(on: boolean) {
+  if (on) held = false; // bewusst gestartet
   set({ turbo: on });
   if (on) void lockScreen();
   else releaseScreen();
@@ -124,6 +137,12 @@ async function waitForQuiet(stopped: () => boolean) {
     if (document.visibilityState !== "visible") {
       set({ phase: "paused" });
       await sleep(60_000);
+      continue;
+    }
+    if (held) {
+      releaseIdleVision();
+      if (state.phase !== "held") set({ phase: "held", rate: 0 });
+      await sleep(2000);
       continue;
     }
     if (state.turbo) return;
@@ -185,6 +204,9 @@ async function pass(stopped: () => boolean): Promise<void> {
   set({ total: indexed + todo.length, done: indexed, error: null });
   if (!todo.length) return;
 
+  // Erst laden, wenn gelernt werden darf (z. B. nicht nach einem Absturz)
+  await waitForQuiet(stopped);
+  if (stopped()) return;
   set({ phase: "model" });
   await prepareVision();
 
