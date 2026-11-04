@@ -3,7 +3,7 @@
 // Kompakt gespeichert: [Float32 Skalierung][512 × Int8] als Base64 (≈ 700 Zeichen pro Foto).
 import { supabase } from "../lib/supabase";
 import { MODELS, type ModelId } from "./protocol";
-import { getMeta, putMeta, putVectors } from "./store";
+import { getMeta, putMeta, putSkips, putVectors } from "./store";
 
 /** Vektor → kurzer Text (gerundet auf 8 Bit; für die Suche genau genug). */
 export function encodeVec(v: Float32Array): string {
@@ -41,11 +41,11 @@ const split = (key: string) => {
   return { account_id: key.slice(0, i), drive_id: key.slice(i + 1) };
 };
 
-/** Gelernte Fingerabdrücke hochladen (Schlüssel = "konto/datei"). */
-export async function uploadVectors(model: string, entries: [string, Float32Array][]) {
+/** Gelernte Fingerabdrücke hochladen (Schlüssel = "konto/datei"). null = nicht lernbar (kein Vorschaubild). */
+export async function uploadVectors(model: string, entries: [string, Float32Array | null][]) {
   const at = new Date().toISOString();
   for (let i = 0; i < entries.length; i += 200) {
-    const rows = entries.slice(i, i + 200).map(([k, v]) => ({ model, ...split(k), v: encodeVec(v), updated_at: at }));
+    const rows = entries.slice(i, i + 200).map(([k, v]) => ({ model, ...split(k), v: v ? encodeVec(v) : "", updated_at: at }));
     const { error } = await supabase.from("ai_vectors").upsert(rows, { onConflict: "owner_id,model,account_id,drive_id" });
     if (error) throw new Error(error.message);
   }
@@ -72,7 +72,9 @@ export function syncDown(id: ModelId, onProgress?: (n: number) => void): Promise
         .range(from, from + 999);
       if (error) throw new Error(error.message);
       const rows = data ?? [];
-      await putVectors(rows.map((r) => [`${r.account_id}/${r.drive_id}`, decodeVec(r.v)] as [string, Float32Array]), id);
+      // Leerer Eintrag = der PC konnte das Foto nicht lernen (kein Vorschaubild) → hier als erledigt merken
+      await putVectors(rows.filter((r) => r.v).map((r) => [`${r.account_id}/${r.drive_id}`, decodeVec(r.v)] as [string, Float32Array]), id);
+      await putSkips(rows.filter((r) => !r.v).map((r) => `${r.account_id}/${r.drive_id}`), id);
       for (const r of rows) if (r.updated_at > newest) newest = r.updated_at;
       count += rows.length;
       onProgress?.(count);

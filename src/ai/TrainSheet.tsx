@@ -1,6 +1,7 @@
 // KI-SUCHE (Test): „KI trainieren“ – ein Begriff aus deiner Ablage und ein Foto: nach rechts wischen = passt,
 // nach links = passt nicht. Jede Antwort ist ein 👍/👎 für diesen Begriff (gleich wie in der Suche).
 import "./ai.css";
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import { haptic } from "../lib/haptic";
@@ -74,7 +75,8 @@ export default function TrainSheet({ accounts, start, onClose }: { accounts: Acc
     setCi((i) => i + 1);
   };
 
-  return (
+  // Direkt an die Seite hängen: im Einstellungs-Kasten (Glas-Effekt) würde das Fenster sonst eingesperrt
+  return createPortal(
     <>
       <div className="sheet-backdrop" onClick={onClose} />
       <div className="sheet train-sheet">
@@ -164,7 +166,8 @@ export default function TrainSheet({ accounts, start, onClose }: { accounts: Acc
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 

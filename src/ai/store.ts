@@ -70,6 +70,18 @@ export async function markSkip(key: string) {
   await req(store.put({ at: Date.now(), n: n + 1 } satisfies Skip, key));
 }
 
+/** Viele Fotos als „nicht lernbar“ merken (vom PC gemeldet) – zählen dann als erledigt. */
+export async function putSkips(keys: string[], model: ModelId = aiModel()) {
+  if (!keys.length) return;
+  const db = await openDb(MODELS[model]);
+  const tx = db.transaction("skip", "readwrite");
+  for (const k of keys) tx.objectStore("skip").put({ at: Date.now(), n: 99 } satisfies Skip, k);
+  await new Promise((res, rej) => {
+    tx.oncomplete = res;
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
 export interface Skip {
   at: number;
   /** Anzahl Fehlversuche */
