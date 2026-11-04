@@ -573,6 +573,11 @@ p {
   animation-delay: calc(min(var(--i, 0), 18) * 28ms);
 }
 
+/* Bei vielen Kacheln nur die ersten einblenden – hunderte gleichzeitige Animationen kosten viel Arbeitsspeicher */
+.stagger > :nth-child(n + 25) {
+  animation: none;
+}
+
 .skeleton {
   background: linear-gradient(
     100deg,
@@ -964,6 +969,13 @@ p {
   background: none;
   min-width: 0;
   transition: transform 0.18s var(--ease);
+  /* Kacheln ausserhalb des Bildschirms nicht zeichnen (spart Arbeitsspeicher bei grossen Ordnern) */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 140px;
+}
+
+.grid-more {
+  height: 1px;
 }
 
 .thumb-wrap {

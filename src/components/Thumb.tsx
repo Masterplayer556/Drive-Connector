@@ -33,6 +33,8 @@ export default function Thumb({ item }: { item: Item }) {
   const [src, setSrc] = useState<string | null>(() => peekThumb(item));
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Ein älteres Vorschaubild kann aus dem Arbeitsspeicher geräumt worden sein → einmal neu holen (aus dem Gerätespeicher)
+  const retried = useRef(false);
 
   useEffect(() => {
     const ready = peekThumb(item);
@@ -65,7 +67,13 @@ export default function Thumb({ item }: { item: Item }) {
           alt={item.name}
           decoding="async"
           onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
+          onError={() => {
+            if (retried.current) return setFailed(true);
+            retried.current = true;
+            getThumb(item)
+              .then((u) => (u !== src ? setSrc(u) : setFailed(true)))
+              .catch(() => setFailed(true));
+          }}
         />
       )}
       {failed && (
