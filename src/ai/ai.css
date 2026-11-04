@@ -40,7 +40,7 @@
   padding: 8px 10px;
   border-radius: 10px;
   background: rgba(251, 191, 36, 0.12);
-  color: var(--text, inherit);
+  color: var(--text);
 }
 .ai-cell {
   position: relative;
@@ -203,4 +203,23 @@
 }
 .ai-toggle > span:first-child {
   min-width: 0;
+}
+
+/* Filter aus dem Suchtext („O: Ferien“, „Video“) */
+.ai-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+.ai-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--text);
 }

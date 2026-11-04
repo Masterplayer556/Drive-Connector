@@ -95,21 +95,51 @@ export default function AiSearchResults({
         </p>
       )}
       {error && <p className="muted small">KI-Suche nicht möglich: {error}</p>}
-      {result && !busy && (
-        <p className="faint small ai-understood">
-          Verstanden als „{result.english}“ · {result.indexed.toLocaleString("de-CH")} Fotos durchsucht
-          {idx.total > result.indexed && ` (von ${idx.total.toLocaleString("de-CH")})`}
+      {result && !busy && (result.folder || result.video) && (
+        <div className="ai-filters">
+          {result.folder && (
+            <span className="ai-filter">
+              <Icon name="folder" size={12} /> {result.folder}
+            </span>
+          )}
+          {result.video && (
+            <span className="ai-filter">
+              <Icon name="play" size={12} /> Nur Videos
+            </span>
+          )}
+        </div>
+      )}
+      {result && !busy &&
+        (result.filterOnly ? (
+          <p className="faint small ai-understood">
+            {result.indexed.toLocaleString("de-CH")} {result.video ? "Videos" : "Fotos und Videos"}
+            {result.folder && ` in Ordnern mit „${result.folder}“`} · neueste zuerst
+            {result.indexed > items.length && ` (die ersten ${items.length})`}
+          </p>
+        ) : (
+          <p className="faint small ai-understood">
+            Verstanden als „{result.english}“ · {result.indexed.toLocaleString("de-CH")} {result.video ? "Videos" : "Fotos"} durchsucht
+            {!result.folder && !result.video && idx.total > result.indexed && ` (von ${idx.total.toLocaleString("de-CH")})`}
+          </p>
+        ))}
+      {result && !busy && items.length === 0 && (
+        <p className="muted small">
+          {result.indexed === 0 && result.folder
+            ? `Kein Ordner mit „${result.folder}“ gefunden (oder darin ist noch nichts gelernt).`
+            : result.video && result.indexed === 0
+              ? "Noch keine Videos gelernt."
+              : "Nichts passt gut genug."}
         </p>
       )}
-      {result && !busy && items.length === 0 && <p className="muted small">Kein Foto passt gut genug.</p>}
-      {feedbackOn && result && !busy && items.length > 0 && (
+      {feedbackOn && result && !busy && !result.filterOnly && items.length > 0 && (
         <p className="faint small ai-understood">👍 passt · 👎 passt nicht – die Suche lernt daraus, auch für ähnliche Suchen.</p>
       )}
 
       {items.length > 0 && (
         <div className="grid stagger">
           {items.map((f, i) => {
-            const v = feedbackOn ? votes.get(itemKey(f)) : undefined;
+            const showVotes = feedbackOn && !result?.filterOnly;
+            const v = showVotes ? votes.get(itemKey(f)) : undefined;
             return (
               <div key={`${f.account_id}|${f.drive_id}`} className={`ai-cell ${v === -1 ? "down" : v === 1 ? "up" : ""}`} style={{ ["--i" as string]: i }}>
                 <button className="cell" onClick={() => setViewer(i)}>
@@ -121,7 +151,7 @@ export default function AiSearchResults({
                     </span>
                   )}
                 </button>
-                {feedbackOn && (
+                {showVotes && (
                   <span className="ai-votes">
                     <button className={v === 1 ? "on" : ""} onClick={() => rate(f, 1)} aria-label="Passt">
                       👍

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Donut from "../components/Donut";
+import { DragGhost, useDragToFolder } from "../components/DragToFolder";
 import Icon from "../components/Icon";
 import { FolderSkeleton, GridSkeleton } from "../components/Skeleton";
 import Thumb from "../components/Thumb";
@@ -81,6 +82,8 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   const [autoFiles, setAutoFiles] = useState<File[] | null>(null);
   const [sortOpen, setSortOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  /** Per Ziehen verschieben: was und wohin */
+  const [dropMove, setDropMove] = useState<{ items: Item[]; folders: LogicalFolder[]; target: Crumb[] } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [download, setDownload] = useState<{ items: Item[]; mode: "photos" | "zip"; title: string; basePath: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -419,13 +422,40 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
       return n;
     });
 
+  // Foto gedrückt halten und auf einen Ordner ziehen → verschieben (im Auswahlmodus: alle ausgewählten)
+  const dragMove = useDragToFolder<{ items: Item[]; folders: LogicalFolder[] }>({
+    disabled: viewer !== null,
+    begin: (el) => {
+      const f = files.find((x) => itemKey(x) === el.dataset.itemKey);
+      if (!f) return null;
+      const group = selectMode && selected.has(itemKey(f));
+      const items = group ? selectedItems : [f];
+      const folders = group ? selectedFolderList : [];
+      // Nicht in sich selbst oder in einen mitgezogenen Ordner
+      return { payload: { items, folders }, count: items.length + folders.length, exclude: new Set([current.key, ...folders.map((x) => x.key)]) };
+    },
+    onDrop: (what, target) => {
+      // Pfad bis zum Ziel: Unterordner von hier oder ein Ordner weiter oben im Pfad
+      const upIndex = stack.findIndex((c) => c.key === target.key);
+      const path = upIndex >= 0 ? stack.slice(0, upIndex + 1) : [...stack, target];
+      setDropMove({ ...what, target: path });
+    },
+  });
+
   // Ziehen zum Aktualisieren
   const onTouchStart = (e: React.TouchEvent) => {
+    if (dragMove.isDragging()) return;
     if (window.scrollY <= 0 && !refreshing && viewer === null && !uploadFiles) pullStart.current = e.touches[0].clientY;
   };
   const pullRef = useRef(0);
   const onTouchMove = (e: React.TouchEvent) => {
     if (pullStart.current === null) return;
+    if (dragMove.isDragging()) {
+      pullStart.current = null;
+      pullRef.current = 0;
+      setPull(0);
+      return;
+    }
     const d = e.touches[0].clientY - pullStart.current;
     if (d > 0 && window.scrollY <= 0) {
       pullRef.current = Math.min(d * 0.5, 110);
@@ -448,6 +478,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
 
   return (
     <div className="view" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+      <DragGhost drag={dragMove.drag} />
       <div
         className={`ptr ${refreshing ? "spinning" : ""} ${pull ? "dragging" : ""} ${pull >= PULL_TRIGGER ? "armed" : ""}`}
         style={{ ["--pull" as string]: `${refreshing ? 64 : pull}px` }}
@@ -506,7 +537,13 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
           {stack.length > 2 && (
             <div className="crumbs">
               {stack.map((c, i) => (
-                <button key={c.key + i} className={`crumb ${i === stack.length - 1 ? "current" : ""}`} onClick={() => goTo(i)}>
+                <button
+                  key={c.key + i}
+                  className={`crumb ${i === stack.length - 1 ? "current" : ""}`}
+                  onClick={() => goTo(i)}
+                  // Foto hierher ziehen = eine Ebene (oder mehr) nach oben verschieben
+                  {...(i > 0 && i < stack.length - 1 ? { "data-drop-key": c.key, "data-drop-path": c.path, "data-drop-name": c.name } : {})}
+                >
                   {i === 0 ? <Icon name="grid" size={13} /> : null}
                   {c.name}
                 </button>
@@ -572,8 +609,12 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
                       {files.map((f, i) => (
                         <button
                           key={itemKey(f)}
-                          className={`cell ${selected.has(itemKey(f)) ? "selected" : ""}`}
+                          className={`cell ${selected.has(itemKey(f)) ? "selected" : ""} ${
+                            dragMove.drag?.payload.items.some((x) => itemKey(x) === itemKey(f)) ? "dragging-src" : ""
+                          }`}
                           style={{ ["--i" as string]: i }}
+                          data-item-key={itemKey(f)}
+                          {...dragMove.bind}
                           onClick={() => (selectMode ? toggle(f) : setViewer(i))}
                         >
                           <Thumb item={f} />
@@ -748,6 +789,24 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
           onClose={() => setActionFolder(null)}
         />
       )}
+      {dropMove && (
+          <MoveSheet
+            items={dropMove.items}
+            folders={dropMove.folders}
+            accounts={accounts}
+            target={dropMove.target}
+            onClose={(changed) => {
+              setDropMove(null);
+              if (changed) {
+                setSelectMode(false);
+                clearSelection();
+                if (dropMove.folders.length) invalidateAll();
+                invalidateFolder(current.key);
+                reload();
+              }
+            }}
+          />
+        )}
       {moveOpen && (
           <MoveSheet
             items={selectedItems}
@@ -848,6 +907,8 @@ function FolderGrid({
           key={f.key}
           className={`folder ${f.parts.length === 0 ? "pending" : ""} ${select?.keys.has(f.key) ? "selected" : ""}`}
           style={{ ["--i" as string]: i, ["--h" as string]: hueOf(f.key, f.name) }}
+          // Ziel für „Foto hierher ziehen“ (nicht, solange der Ordner noch erstellt wird)
+          {...(f.parts.length ? { "data-drop-key": f.key, "data-drop-path": f.path, "data-drop-name": f.name } : {})}
           onPointerDown={(e) => {
             void prefetchFolder(f.key).then((c) => c && warmThumbs(c.files));
             if (!onLongPress || f.parts.length === 0) return;

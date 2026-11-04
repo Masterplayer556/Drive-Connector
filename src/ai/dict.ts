@@ -202,11 +202,42 @@ function lookup(raw: string): string | undefined {
   return undefined;
 }
 
-/** Ist die Suche wohl auf Englisch? (englische Füllwörter, keine deutschen, keine Umlaute) */
+// Englischer Wortschatz = alle Übersetzungen im Wörterbuch (dog, beach, sunset …)
+const ENGLISH_VOCAB = new Set(
+  Object.values(W)
+    .flatMap((v) => v.toLowerCase().split(/[^\p{L}]+/u))
+    .filter((w) => w.length > 1),
+);
+
+/**
+ * Ist die Suche wohl auf Englisch? Zählt englische Wörter (Füllwörter und bekannte englische Begriffe
+ * wie „dog“, „sunset“) gegen deutsche (Füllwörter und Wörter aus dem Wörterbuch). Umlaute = deutsch.
+ * Wörter, die es in beiden Sprachen gibt („hand“, „park“, „see“), zählen nicht. Bei Gleichstand: deutsch.
+ */
 export function looksEnglish(query: string): boolean {
   const words = query.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
-  if (words.some((w) => GERMAN_HINTS.has(w) || /[äöüß]/.test(w))) return false;
-  return words.some((w) => ENGLISH_HINTS.has(w));
+  if (words.some((w) => /[äöüß]/.test(w))) return false;
+  let en = 0;
+  let de = 0;
+  for (const w of words) {
+    const german = GERMAN_HINTS.has(w) || (lookup(w) !== undefined && !AMBIGUOUS.has(w));
+    const english = ENGLISH_HINTS.has(w) || ENGLISH_VOCAB.has(w);
+    if (english && !german) en++;
+    else if (german && !english) de++;
+  }
+  return en > de;
+}
+
+/** Ein Wort übertragen ("" = Füllwort, fällt weg). */
+function translateWord(word: string, english: boolean): string {
+  const m = /^([^\p{L}\p{N}]*)([\p{L}\p{N}-]+)([^\p{L}\p{N}]*)$/u.exec(word);
+  if (!m) return word;
+  const [, pre, core, post] = m;
+  const low = core.toLowerCase();
+  // In einer englischen Suche bleiben englische Wörter, wie sie sind
+  if (english && (AMBIGUOUS.has(low) || ENGLISH_HINTS.has(low) || ENGLISH_VOCAB.has(low))) return word;
+  const hit = lookup(core);
+  return hit === undefined ? word : hit ? `${pre}${hit}${post}` : "";
 }
 
 /** Suchtext grob ins Englische übertragen (Wort für Wort). In englischen Suchen bleiben mehrdeutige Wörter englisch. */
@@ -215,14 +246,25 @@ export function toEnglish(query: string): string {
   return query
     .trim()
     .split(/\s+/)
-    .map((word) => {
-      const m = /^([^\p{L}\p{N}]*)([\p{L}\p{N}-]+)([^\p{L}\p{N}]*)$/u.exec(word);
-      if (!m) return word;
-      const [, pre, core, post] = m;
-      if (english && (AMBIGUOUS.has(core.toLowerCase()) || ENGLISH_HINTS.has(core.toLowerCase()))) return word;
-      const hit = lookup(core);
-      return hit === undefined ? word : hit ? `${pre}${hit}${post}` : "";
-    })
+    .map((w) => translateWord(w, english))
     .filter(Boolean)
     .join(" ");
+}
+
+/**
+ * Stichwort-Suche („Hund Schnee Berg“, „dog, snow“): 2–5 Wörter ohne Füllwörter wie „im“, „mit“, „the“.
+ * Liefert die einzelnen Stichwörter auf Englisch – die Suche bevorzugt dann Fotos, auf denen ALLE zu sehen sind.
+ * Bei einem ganzen Satz („Hund im Schnee“) oder einem einzelnen Wort: [].
+ */
+export function keywordsOf(query: string): string[] {
+  const words = query.trim().split(/[\s,;+]+/).filter(Boolean);
+  if (words.length < 2 || words.length > 5) return [];
+  const bare = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}-]/gu, "");
+  if (words.some((w) => GERMAN_HINTS.has(bare(w)) || ENGLISH_HINTS.has(bare(w)))) return [];
+  const english = looksEnglish(query);
+  const out = words
+    .filter((w) => !/^\d+$/.test(bare(w))) // Zahlen (Jahre) helfen dem Bildmodell nicht
+    .map((w) => translateWord(bare(w), english).trim())
+    .filter(Boolean);
+  return out.length >= 2 ? [...new Set(out)] : [];
 }

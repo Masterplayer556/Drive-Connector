@@ -4,7 +4,7 @@ import Icon from "../components/Icon";
 import { LineSkeleton } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
 import { AREA_LABEL } from "../lib/areas";
-import { fetchStatistics, fetchStats, type AreaStat, type FolderStat, type MonthStat, type Snapshot } from "../lib/db";
+import { fetchStatistics, fetchStats, type AreaStat, type FolderStat, type KindStat, type MonthStat, type Snapshot } from "../lib/db";
 import { formatBytes } from "../lib/format";
 import type { PoolStats } from "../lib/insights";
 import { navigate } from "../lib/route";
@@ -35,7 +35,7 @@ function Tile({ label, value, sub }: { label: string; value: string; sub?: strin
 
 /** Statistik (#14): Kennzahlen, Uploads pro Monat, Speicherverlauf, Bereiche, grösste Ordner. */
 export default function StatistikView({ accounts }: { accounts: Account[] }) {
-  const [data, setData] = useState<{ months: MonthStat[]; areas: AreaStat[]; folders: FolderStat[]; snapshots: Snapshot[] } | null>(null);
+  const [data, setData] = useState<{ months: MonthStat[]; areas: AreaStat[]; folders: FolderStat[]; snapshots: Snapshot[]; kinds: KindStat[] } | null>(null);
   const [stats, setStats] = useState<PoolStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,7 +51,11 @@ export default function StatistikView({ accounts }: { accounts: Account[] }) {
   const active = accounts.filter((a) => a.status === "active");
   const total = active.reduce((s, a) => s + (a.quota_limit ?? 0), 0);
   const used = active.reduce((s, a) => s + (a.quota_usage ?? 0), 0);
-  const photos = useCountUp(stats?.files ?? 0);
+  // Fotos und Videos getrennt (ohne Aufteilung: alles als „Fotos“ wie bisher)
+  const kind = (k: KindStat["kind"]) => data?.kinds.find((x) => x.kind === k);
+  const split = !!data?.kinds.length;
+  const photos = useCountUp(split ? (kind("foto")?.files ?? 0) : (stats?.files ?? 0));
+  const videos = useCountUp(kind("video")?.files ?? 0);
 
   // Die letzten 12 Monate lückenlos (auch Monate ohne Uploads)
   const months = useMemo(() => {
@@ -63,10 +67,13 @@ export default function StatistikView({ accounts }: { accounts: Account[] }) {
       const m = new Date(d.getFullYear(), d.getMonth() - i, 1);
       const key = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, "0")}`;
       const hit = byKey.get(key);
+      const vids = hit?.videos ?? 0;
+      const count =
+        hit?.videos === undefined ? `${hit?.files ?? 0} Fotos` : `${(hit.files ?? 0) - vids} Fotos · ${vids} ${vids === 1 ? "Video" : "Videos"}`;
       out.push({
         label: monthShort.format(m),
         value: hit?.files ?? 0,
-        detail: `${monthLong.format(m)}: ${hit?.files ?? 0} Fotos · ${formatBytes(hit?.bytes ?? 0)}`,
+        detail: `${monthLong.format(m)}: ${count} · ${formatBytes(hit?.bytes ?? 0)}`,
       });
     }
     return out;
@@ -97,7 +104,8 @@ export default function StatistikView({ accounts }: { accounts: Account[] }) {
       ) : (
         <>
           <div className="stat-tiles stagger">
-            <Tile label="Fotos" value={Math.round(photos).toLocaleString("de-CH")} />
+            <Tile label="Fotos" value={Math.round(photos).toLocaleString("de-CH")} sub={split ? formatBytes(kind("foto")?.bytes ?? 0) : undefined} />
+            {split && <Tile label="Videos" value={Math.round(videos).toLocaleString("de-CH")} sub={formatBytes(kind("video")?.bytes ?? 0)} />}
             <Tile label="Belegt" value={formatBytes(used)} sub={`von ${formatBytes(total)}`} />
             <Tile label="Pro Monat" value={formatBytes(perMonth)} sub="Ø letzte 3 Monate" />
             <Tile
@@ -108,7 +116,7 @@ export default function StatistikView({ accounts }: { accounts: Account[] }) {
           </div>
 
           <section className="card glass enter">
-            <strong>Neue Fotos pro Monat</strong>
+            <strong>{split ? "Neue Fotos & Videos pro Monat" : "Neue Fotos pro Monat"}</strong>
             <p className="faint small">Antippen für Details</p>
             <BarChart data={months} />
           </section>
@@ -126,6 +134,20 @@ export default function StatistikView({ accounts }: { accounts: Account[] }) {
               </p>
             )}
           </section>
+
+          {split && (
+            <section className="card glass enter">
+              <strong>Fotos & Videos</strong>
+              <p className="faint small">Platz nach Art</p>
+              <HBars
+                rows={data.kinds.map((k) => ({
+                  label: k.kind === "foto" ? "Fotos" : k.kind === "video" ? "Videos" : "Andere Dateien",
+                  value: k.bytes,
+                  text: `${k.files.toLocaleString("de-CH")} · ${formatBytes(k.bytes)}`,
+                }))}
+              />
+            </section>
+          )}
 
           <section className="card glass enter">
             <strong>Bereiche</strong>

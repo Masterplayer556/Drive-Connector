@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { looksEnglish, toEnglish } from "./dict";
+import { keywordsOf, looksEnglish, toEnglish } from "./dict";
 
 describe("KI-Suche: Wörterbuch", () => {
   it("übersetzt typische Suchen", () => {
@@ -43,5 +43,42 @@ describe("KI-Suche: Wörterbuch – Endungen, zusammengesetzt, Englisch", () => 
   it("Schweizer Wörter", () => {
     expect(toEnglish("Velo")).toBe("bicycle");
     expect(toEnglish("Gipfeli")).toBe("croissant");
+  });
+});
+
+describe("KI-Suche: Englisch besser erkennen", () => {
+  it("einzelne englische Wörter und Suchen ohne Füllwörter", () => {
+    expect(looksEnglish("dog")).toBe(true);
+    expect(looksEnglish("sunset beach")).toBe(true);
+    expect(looksEnglish("red car snow")).toBe(true);
+    expect(toEnglish("dog")).toBe("dog");
+    expect(toEnglish("red car snow")).toBe("red car snow");
+  });
+  it("deutsche Suchen bleiben deutsch", () => {
+    expect(looksEnglish("Hund")).toBe(false);
+    expect(looksEnglish("Hund Schnee")).toBe(false);
+    expect(looksEnglish("See")).toBe(false);
+    expect(looksEnglish("Velo")).toBe(false);
+    expect(toEnglish("Kind am See")).toBe("child at the lake");
+  });
+  it("englische Wörter, die auch deutsch sind, behalten in englischen Suchen ihre Bedeutung", () => {
+    expect(toEnglish("kind dog")).toBe("kind dog");
+    expect(toEnglish("rock concert")).toBe("rock concert");
+    expect(toEnglish("birthday gift")).toBe("birthday gift");
+  });
+});
+
+describe("KI-Suche: Stichwörter", () => {
+  it("erkennt Stichwort-Suchen und übersetzt jedes Stichwort", () => {
+    expect(keywordsOf("Hund Schnee")).toEqual(["dog", "snow"]);
+    expect(keywordsOf("dog, snow, mountains")).toEqual(["dog", "snow", "mountains"]);
+    expect(keywordsOf("Glace Strand 2024")).toEqual(["ice cream", "beach"]);
+    expect(keywordsOf("rotes Auto")).toEqual(["red", "car"]);
+  });
+  it("Sätze und einzelne Wörter sind keine Stichwort-Suche", () => {
+    expect(keywordsOf("Hund im Schnee")).toEqual([]);
+    expect(keywordsOf("dog in the snow")).toEqual([]);
+    expect(keywordsOf("Hund")).toEqual([]);
+    expect(keywordsOf("Strand 2024")).toEqual([]);
   });
 });

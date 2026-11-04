@@ -92,6 +92,9 @@ export default function SearchSheet({
                 <p className="muted small" style={{ textAlign: "center", marginTop: 24 }}>
                   Beschreibe das Foto – z. B. „Hund im Schnee“ oder „Arbeitsblatt mit Tabelle“.
                   {!includePrivate && " Private Fotos sind ausgeblendet."}
+                  <br />
+                  „O: Ferien Strand“ sucht nur im Ordner „Ferien“, „Video Strand“ nur Videos.
+                  Englisch geht auch („dog in the snow“).
                 </p>
               )}
               <Suspense fallback={null}>
