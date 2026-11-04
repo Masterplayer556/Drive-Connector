@@ -35,7 +35,7 @@ Im Hintergrund (App verlassen, Bildschirm aus) friert iOS Web-Apps ein – geler
 
 ## Entfernen
 
-1. **Auf dem iPhone zuerst ausschalten:** *Mehr → KI-Suche* aus → „Ausschalten & löschen“.
+1. **Auf dem iPhone zuerst löschen:** *Mehr → KI-Suche* → „KI-Daten von diesem Gerät löschen“ (der Schalter allein deaktiviert nur und behält das Gelernte).
    Löscht Modelle, Index und Schalter vom Gerät.
 2. **Code entfernen** – am einfachsten den Merge-Commit der KI-Suche zurücknehmen (`git revert`).
    Von Hand:

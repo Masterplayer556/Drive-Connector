@@ -61,28 +61,45 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
 
   useEffect(() => onIndexState(() => setS(indexState())), []);
   useEffect(() => onModelProgress(() => tick((n) => n + 1)), []);
+  // Auch ausgeschaltet: zeigen, ob noch gelernte Daten auf dem Gerät liegen (dann geht Einschalten sofort)
   useEffect(() => {
-    if (!on) return setBytes(null);
     void usedBytes().then(setBytes);
   }, [on, s.phase]);
+  const kept = !on && bytes !== null && bytes >= 1e6;
 
   const enable = async () => {
+    // Schon gelernt (nur deaktiviert) → ohne Rückfrage wieder an, nichts wird neu geladen
+    if (kept) {
+      setAiEnabled(true);
+      ui.toast("KI-Suche wieder an – alles Gelernte ist noch da", "ok");
+      return;
+    }
     const ok = await ui.confirm({
       title: "KI-Suche (Beta) einschalten?",
       message:
         "Die App lädt einmalig ein KI-Modell (ca. 160 MB – am besten im WLAN) und lernt danach nebenbei deine Fotos kennen, " +
         "solange die App offen ist. Alles läuft auf diesem iPhone, keine Fotos oder Suchen gehen an einen KI-Dienst. " +
-        "Ausschalten löscht Modell und Index wieder vollständig.",
+        "Ausschalten deaktiviert sie nur; löschen kannst du alles separat.",
       confirmLabel: "Einschalten",
     });
     if (ok) setAiEnabled(true);
   };
 
-  const disable = async () => {
+  /** Nur deaktivieren: Modell, gelernte Fotos, 👍/👎 und Namen bleiben auf dem Gerät. */
+  const disable = () => {
+    stopIndexer();
+    setAiEnabled(false);
+    ui.toast("KI-Suche deaktiviert – das Gelernte bleibt gespeichert", "ok");
+  };
+
+  /** Alles von diesem Gerät löschen (Modell, Index, Bewertungen, Namen). */
+  const wipe = async () => {
     const ok = await ui.confirm({
-      title: "KI-Suche ausschalten?",
-      message: "Modell und Index werden von diesem Gerät gelöscht. Deine Fotos bleiben unverändert.",
-      confirmLabel: "Ausschalten & löschen",
+      title: "KI-Daten löschen?",
+      message:
+        "Modell, gelernte Fotos, 👍/👎 und gelernte Namen werden von diesem Gerät gelöscht. Beim nächsten Einschalten lädt und lernt die KI " +
+        "alles neu. Deine Fotos und Tags bleiben unverändert.",
+      confirmLabel: "Alles löschen",
       danger: true,
     });
     if (!ok) return;
@@ -92,7 +109,8 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
       setAiEnabled(false);
       forgetOldSettings();
       await wipeEverything();
-      ui.toast("KI-Suche aus – alles gelöscht", "ok");
+      setBytes(null);
+      ui.toast("KI-Daten gelöscht", "ok");
     } catch (e) {
       ui.toast(e instanceof Error ? e.message : String(e), "error");
     } finally {
@@ -112,17 +130,30 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
         </span>
         <span className="li-text">
           KI-Suche <span className="ai-pill">Beta</span>
-          <small>{on ? statusText(s) : "Fotos per Beschreibung finden – läuft nur auf diesem Gerät"}</small>
+          <small>
+            {on
+              ? statusText(s)
+              : kept
+                ? `Deaktiviert – Gelerntes bleibt gespeichert (${mb(bytes!)})`
+                : "Fotos per Beschreibung finden – läuft nur auf diesem Gerät"}
+          </small>
         </span>
         {busy ? (
           <span className="spinner" />
         ) : (
           <span className="switch">
-            <input type="checkbox" checked={on} onChange={() => void (on ? disable() : enable())} />
+            <input type="checkbox" checked={on} onChange={() => (on ? disable() : void enable())} />
             <span />
           </span>
         )}
       </label>
+      {kept && (
+        <div className="ai-settings-body">
+          <button className="link small ai-wipe" onClick={() => void wipe()} disabled={busy}>
+            KI-Daten von diesem Gerät löschen ({mb(bytes!)})
+          </button>
+        </div>
+      )}
       {on && (
         <div className="ai-settings-body">
           {crashNote() && <p className="small ai-note">{crashNote()}</p>}
@@ -179,6 +210,9 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
             </Suspense>
           )}
           <LearnedNames />
+          <button className="link small ai-wipe" onClick={() => void wipe()} disabled={busy}>
+            KI-Daten von diesem Gerät löschen
+          </button>
           <p className="faint small" style={{ margin: 0 }}>
             Tipp: In der Suche einfach beschreiben, z. B. „Hund im Schnee“ oder „Arbeitsblatt mit Tabelle“.
           </p>
