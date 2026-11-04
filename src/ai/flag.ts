@@ -127,3 +127,40 @@ export function inTestFolders(path: string | null, folders: string[]): boolean {
   const dirs = path.toLowerCase().split("/").slice(0, -1);
   return folders.some((f) => dirs.includes(f.trim().toLowerCase()));
 }
+
+// ---- Vergleich: Strichliste, welches Modell besser war ----
+const TALLY_KEY = "drivepool.ai.compare";
+export interface Tally {
+  clip: number;
+  mobileclip: number;
+  same: number;
+}
+
+export function compareTally(): Tally {
+  try {
+    const t = JSON.parse(localStorage.getItem(TALLY_KEY) ?? "null");
+    if (t && typeof t.clip === "number") return t as Tally;
+  } catch {
+    /* ignorieren */
+  }
+  return { clip: 0, mobileclip: 0, same: 0 };
+}
+
+export function addToTally(winner: keyof Tally): Tally {
+  const t = compareTally();
+  t[winner]++;
+  try {
+    localStorage.setItem(TALLY_KEY, JSON.stringify(t));
+  } catch {
+    /* ignorieren */
+  }
+  return t;
+}
+
+export function resetTally() {
+  try {
+    localStorage.removeItem(TALLY_KEY);
+  } catch {
+    /* ignorieren */
+  }
+}

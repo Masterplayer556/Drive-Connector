@@ -1,6 +1,6 @@
 // KI-SUCHE (Test): Index nur auf diesem Gerät (IndexedDB). Nichts davon geht an Supabase oder Google.
 import { aiModel } from "./flag";
-import { MODELS, type ModelSpec } from "./protocol";
+import { MODELS, type ModelId, type ModelSpec } from "./protocol";
 
 /** Cache, in dem transformers.js die Modelldateien ablegt. */
 export const MODEL_CACHE = "transformers-cache";
@@ -76,8 +76,8 @@ export interface Skip {
   n: number;
 }
 
-export async function allVectors(): Promise<Map<string, Float32Array>> {
-  const db = await open();
+export async function allVectors(model?: ModelId): Promise<Map<string, Float32Array>> {
+  const db = await (model ? openDb(MODELS[model]) : open());
   const store = db.transaction("vectors").objectStore("vectors");
   const [keys, values] = await Promise.all([req(store.getAllKeys()), req(store.getAll())]);
   return new Map(keys.map((k, i) => [String(k), values[i] as Float32Array]));
