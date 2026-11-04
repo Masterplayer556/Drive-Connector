@@ -13,6 +13,7 @@ import { navigate } from "../lib/route";
 import { accountColor, folderHue } from "../lib/theme";
 import { loadTrash, purgeOlderThan, trashEntryItem, type TrashEntry } from "../lib/trash";
 import type { Account } from "../lib/types";
+import { useKeepAwake } from "../lib/wakelock";
 
 const key = (e: TrashEntry) => `${e.account.id}|${e.file.id}`;
 const AUTO_OPTIONS: { days: number | null; label: string }[] = [
@@ -33,6 +34,7 @@ export default function PapierkorbView({ accounts }: { accounts: Account[] }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
+  useKeepAwake(!!progress); // Bildschirm bleibt an, solange es läuft
   const [error, setError] = useState<string | null>(null);
 
   const active = accounts.filter((a) => a.status === "active");

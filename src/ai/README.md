@@ -1,4 +1,4 @@
-# KI-Suche (Beta)
+# KI-Suche
 
 Fotos per Beschreibung finden (auf Englisch: „dog in the snow“, „worksheet with a table“) – **komplett auf dem Gerät**.
 
@@ -41,7 +41,7 @@ Im Hintergrund (App verlassen, Bildschirm aus) friert iOS Web-Apps ein – geler
 
 ## Entfernen
 
-1. **Auf dem iPhone zuerst löschen:** *Mehr → KI-Suche* → „KI-Daten von diesem Gerät löschen“ (der Schalter allein deaktiviert nur und behält das Gelernte).
+1. **Auf dem iPhone zuerst löschen:** *Mehr → Sicherheit → KI-Daten löschen* (mit 2FA-Code) (der Schalter allein deaktiviert nur und behält das Gelernte).
    Löscht Modelle, Index und Schalter vom Gerät.
 2. **Code entfernen** – am einfachsten den Merge-Commit der KI-Suche zurücknehmen (`git revert`).
    Von Hand:

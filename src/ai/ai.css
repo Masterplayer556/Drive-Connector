@@ -24,17 +24,6 @@
   justify-content: space-between;
   gap: 12px;
 }
-.ai-pill {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  vertical-align: 2px;
-  color: #fff;
-  background: linear-gradient(135deg, #f472b6, #8b5cf6);
-}
 .ai-note {
   margin: 0;
   padding: 8px 10px;
@@ -402,10 +391,6 @@
   text-align: center;
   margin: 0;
 }
-.ai-wipe {
-  align-self: flex-start;
-  color: #ef4444;
-}
 .ai-folder-chip {
   display: inline-flex;
   flex-direction: column;
@@ -431,4 +416,35 @@
 }
 .train-chips .chip {
   padding: 6px 12px;
+}
+
+/* Einklappbar (Modell, gelernte Namen) */
+.ai-fold > summary {
+  list-style: none;
+  cursor: pointer;
+  position: relative;
+  padding-right: 22px;
+}
+.ai-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.ai-fold > summary::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  opacity: 0.55;
+  transform: rotate(45deg);
+  transition: transform 0.2s;
+}
+.ai-fold[open] > summary::after {
+  transform: rotate(-135deg);
+  top: 8px;
+}
+.ai-fold:not([open]) {
+  gap: 0;
 }

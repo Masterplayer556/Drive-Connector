@@ -19,6 +19,7 @@ import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
 const AiSimilarDuplicates = lazy(() => import("../ai/AiSimilarDuplicates")); // KI-SUCHE
 
 const PAGE = 20;
+import { useKeepAwake } from "../lib/wakelock";
 
 /** Standard: das Foto in einem selbst sortierten Ordner behalten (nicht in der automatischen Ablage). */
 export function defaultKeep(items: Item[]): string {
@@ -42,6 +43,7 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
   const [remove, setRemove] = useState<Record<string, string[]>>({});
   const [shown, setShown] = useState(PAGE);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  useKeepAwake(!!progress); // Bildschirm bleibt an, solange es läuft
   const [error, setError] = useState<string | null>(null);
   const ai = useAiEnabled(); // KI-SUCHE
 

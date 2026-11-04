@@ -11,6 +11,7 @@ import { loadRebalance, toCaps, type RebalanceState } from "../lib/rebalanceData
 import { navigate } from "../lib/route";
 import { accountColor, folderHue } from "../lib/theme";
 import type { Account } from "../lib/types";
+import { useKeepAwake } from "../lib/wakelock";
 
 interface Segment {
   key: string;
@@ -35,6 +36,7 @@ export default function RegalView({ accounts }: { accounts: Account[] }) {
   const [mode, setMode] = useState<"vorher" | "nachher">("vorher");
   const [detail, setDetail] = useState<{ seg: Segment; account: string } | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number; failed: number } | null>(null);
+  useKeepAwake(!!progress); // Bildschirm bleibt an, solange es läuft
 
   const load = () =>
     loadRebalance(accounts)
