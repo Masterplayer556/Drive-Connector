@@ -39,7 +39,8 @@ const LEAN = { enableCpuMemArena: false, enableMemPattern: false };
 
 // Pro Worker immer nur ein Modell; beim Umschalten beendet die App die Worker
 let vision: Promise<{ processor: Fn; model: Fn }> | null = null;
-let text: Promise<{ tokenizer: (t: string[], o: object) => unknown; model: Fn; spec: ModelSpec }> | null = null;
+// Textmodelle je Modell (im Vergleichsmodus werden beide gebraucht)
+const texts = new Map<string, Promise<{ tokenizer: (t: string[], o: object) => unknown; model: Fn; spec: ModelSpec }>>();
 
 function normalized(v: Float32Array): Float32Array {
   let s = 0;
@@ -78,7 +79,9 @@ function loadVision(spec: ModelSpec) {
 }
 
 function loadText(spec: ModelSpec) {
-  text ??= (async () => {
+  let p = texts.get(spec.repo);
+  if (p) return p;
+  p = (async () => {
     const [tokenizer, model] = await Promise.all([
       AutoTokenizer.from_pretrained(spec.repo, { progress_callback: progress("text") }),
       CLIPTextModelWithProjection.from_pretrained(spec.repo, {
@@ -90,10 +93,11 @@ function loadText(spec: ModelSpec) {
     ]);
     return { tokenizer: tokenizer as unknown as (t: string[], o: object) => unknown, model: model as unknown as Fn, spec };
   })().catch((e) => {
-    text = null;
+    texts.delete(spec.repo);
     throw e;
   });
-  return text;
+  texts.set(spec.repo, p);
+  return p;
 }
 
 /** Bilder → Vektoren (null = Bild nicht lesbar). */

@@ -7,7 +7,7 @@ import { keywordPrompts, searchPrompts } from "./prompts";
 import { setRisk, takeCrash, type Risk } from "./guard";
 import { MODEL_CACHE } from "./store";
 import { aiModel } from "./flag";
-import type { FromWorker, ToWorker } from "./protocol";
+import type { FromWorker, ModelId, ToWorker } from "./protocol";
 
 type Part = "bild" | "text";
 type WithoutId<T> = T extends unknown ? Omit<T, "id" | "model"> : never;
@@ -112,13 +112,13 @@ function getWorker(slot: number): Worker {
   return w;
 }
 
-function send(msg: WithoutId<ToWorker>, slot: number): Promise<FromWorker> {
+function send(msg: WithoutId<ToWorker>, slot: number, model: ModelId = aiModel()): Promise<FromWorker> {
   const id = nextId++;
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject, slot });
     busy[slot]++;
     // Gewähltes Modell (Standard oder Test) – beim Umschalten werden die Worker neu gestartet
-    getWorker(slot).postMessage({ ...msg, id, model: aiModel() } as ToWorker);
+    getWorker(slot).postMessage({ ...msg, id, model } as ToWorker);
   });
 }
 
@@ -189,11 +189,11 @@ export async function embedConcepts(labels: string[], onProgress?: (done: number
 }
 
 /** Text der Suche → Vektor. Lädt das Textmodell beim ersten Mal (im eigenen Such-Worker). */
-export async function embedText(text: string): Promise<{ vec: Float32Array; english: string; kvecs: Float32Array[] }> {
+export async function embedText(text: string, model?: ModelId): Promise<{ vec: Float32Array; english: string; kvecs: Float32Array[] }> {
   await readyForText();
   const english = toEnglish(text) || text;
   const keywords = keywordsOf(text);
-  const m = await send({ type: "text", groups: [searchPrompts(english), ...keywords.map(keywordPrompts)] }, TEXT);
+  const m = await send({ type: "text", groups: [searchPrompts(english), ...keywords.map(keywordPrompts)] }, TEXT, model);
   if (m.type !== "vec") throw new Error("Unerwartete Antwort");
   const [vec, ...kvecs] = m.vecs;
   return { vec, english, kvecs };

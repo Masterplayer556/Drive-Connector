@@ -23,6 +23,7 @@ import { allNames, removeName } from "./search";
 import { usedBytes, wipeEverything } from "./store";
 
 const TrainSheet = lazy(() => import("./TrainSheet"));
+const CompareSheet = lazy(() => import("./CompareSheet"));
 
 const mb = (b: number) => `${Math.round(b / 1e6).toLocaleString("de-CH")} MB`;
 
@@ -221,7 +222,7 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
               <TrainSheet accounts={accounts} onClose={() => setTraining(false)} />
             </Suspense>
           )}
-          <ModelChoice />
+          <ModelChoice accounts={accounts} />
           <LearnedNames />
           <button className="link small ai-wipe" onClick={() => void wipe()} disabled={busy}>
             KI-Daten von diesem Gerät löschen
@@ -292,8 +293,9 @@ function shares4(a: string, b: string): boolean {
 }
 
 /** Modell wählen: Standard oder MobileCLIP (Test, nur in Testordnern). */
-function ModelChoice() {
+function ModelChoice({ accounts }: { accounts: Account[] }) {
   const model = useAiModel();
+  const [comparing, setComparing] = useState(false);
   const folders = useTestFolders();
   const [counts, setCounts] = useState<Map<string, number> | null>(null);
   const [allDirs, setAllDirs] = useState<string[]>([]);
@@ -406,6 +408,17 @@ function ModelChoice() {
             </button>
           </form>
         </>
+      )}
+      <button className="btn small" onClick={() => setComparing(true)}>
+        <Icon name="search" size={16} /> Modelle vergleichen
+      </button>
+      <span className="faint small">
+        Gleiche Suche mit beiden Modellen nebeneinander (nur Testordner). MobileCLIP lernt nur, solange es oben gewählt ist.
+      </span>
+      {comparing && (
+        <Suspense fallback={null}>
+          <CompareSheet accounts={accounts} onClose={() => setComparing(false)} />
+        </Suspense>
       )}
     </div>
   );

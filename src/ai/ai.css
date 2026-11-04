@@ -414,3 +414,59 @@
 .ai-name-chip.missing {
   background: rgba(239, 68, 68, 0.16);
 }
+
+/* ---------- Vergleich der Modelle ---------- */
+.cmp-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.cmp-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cmp-col + .cmp-col {
+  border-left: 1px solid rgba(var(--tint-rgb), 0.1);
+  padding-left: 10px;
+}
+.cmp-head {
+  display: flex;
+  flex-direction: column;
+}
+.cmp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.cmp-grid .cell .thumb-wrap {
+  border-radius: 8px;
+}
+.cmp-rank {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cmp-vote {
+  position: sticky;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  margin-top: 8px;
+  border-radius: 16px;
+  background: rgba(var(--surface-rgb), 0.95);
+}

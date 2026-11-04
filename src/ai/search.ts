@@ -2,7 +2,7 @@
 // Dazu: Feedback (👍/👎), „Ähnliche Fotos“ und Gruppen fast gleicher Fotos – alles nur mit dem Index, ohne Modell.
 import type { Item } from "../lib/types";
 import { catalog } from "./catalog";
-import { aiModel } from "./flag";
+import { aiModel, inTestFolders, testFolders } from "./flag";
 import { embedConcepts, embedText } from "./engine";
 import { conceptVocabulary, nameWords, toEnglish } from "./dict";
 import { expandNameKeys, FOLDER_KEY, folderKey, isFolderKey, learnedNames, prototypeOf, rankByName } from "./names";
@@ -396,4 +396,30 @@ async function tagExamples(text: string, items: Map<string, Item>): Promise<{ na
       return { name: low, label: h.tag, keys };
     })
     .filter((t) => t.keys.length);
+}
+
+// ---- Vergleich der Modelle (nur Testordner, ohne 👍/👎, Namen und Tags – reiner Modellvergleich) ----
+
+export interface CompareSide {
+  items: Item[];
+  /** So viele Fotos aus den Testordnern hat dieses Modell schon gelernt */
+  learned: number;
+}
+
+export async function compareModels(query: string, { exclude }: { exclude?: Set<string> } = {}): Promise<{ english: string; clip: CompareSide; mobileclip: CompareSide }> {
+  const folders = testFolders();
+  const items = await catalog();
+  const inTest = new Set([...items].filter(([, it]) => inTestFolders(it.path, folders)).map(([k]) => k));
+  const side = async (model: "clip" | "mobileclip"): Promise<CompareSide & { english: string }> => {
+    const all = without(await allVectors(model), exclude);
+    const map = new Map([...all].filter(([k]) => inTest.has(k)));
+    if (!map.size) return { items: [], learned: 0, english: "" };
+    const { vec, english, kvecs } = await embedText(query, model);
+    const hits = rank(vec, map, { limit: 12, keywords: kvecs });
+    return { items: hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x), learned: map.size, english };
+  };
+  // Nacheinander, nicht gleichzeitig (Arbeitsspeicher)
+  const clip = await side("clip");
+  const mobileclip = await side("mobileclip");
+  return { english: clip.english || mobileclip.english, clip, mobileclip };
 }
