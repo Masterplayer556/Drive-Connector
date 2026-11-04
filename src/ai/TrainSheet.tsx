@@ -149,7 +149,7 @@ export default function TrainSheet({ accounts, start, onClose }: { accounts: Acc
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Begriff eingeben, z. B. Hund"
+          placeholder="Begriff auf Englisch, z. B. dog"
           enterKeyHint="go"
           autoCorrect="off"
           autoFocus={picking}

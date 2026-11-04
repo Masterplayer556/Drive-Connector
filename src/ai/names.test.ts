@@ -11,15 +11,14 @@ describe("KI-Suche: Namen", () => {
   it("erkennt Namen", () => {
     expect(isNameWord("Luca")).toBe(true);
     expect(isNameWord("Pikachu")).toBe(true);
-    expect(isNameWord("Hund")).toBe(false);
     expect(isNameWord("dog")).toBe(false);
-    expect(isNameWord("im")).toBe(false);
+    expect(isNameWord("the")).toBe(false);
     expect(isNameWord("2024")).toBe(false);
     expect(nameWords("Luca at the beach")).toEqual(["luca"]);
   });
   it("Namen zählen nicht als Stichwort", () => {
-    expect(keywordsOf("Luca Strand")).toEqual([]);
-    expect(keywordsOf("Luca Strand Sonne")).toEqual(["beach", "sun"]);
+    expect(keywordsOf("Luca beach")).toEqual([]);
+    expect(keywordsOf("Luca beach sun")).toEqual(["beach", "sun"]);
   });
   it("sammelt 👍-Fotos je Name, 👎 zählt nicht", () => {
     const names = learnedNames([
@@ -50,7 +49,7 @@ describe("KI-Suche: Namen", () => {
 
 describe("KI-Suche: mehrteilige Namen", () => {
   it("aufeinanderfolgende Namenswörter sind ein Name", () => {
-    expect(nameWords("Darth Vader am Strand")).toEqual(["darth vader"]);
+    expect(nameWords("Darth Vader at the beach")).toEqual(["darth vader"]);
     expect(nameWords("Luca, Mia")).toEqual(["luca", "mia"]);
     const names = learnedNames([{ english: "Darth Vader", key: "a", vote: 1 }]);
     expect(names.get("darth vader")?.label).toBe("Darth Vader");

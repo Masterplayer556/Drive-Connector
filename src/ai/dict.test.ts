@@ -1,99 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { conceptVocabulary, keywordsOf, looksEnglish, toEnglish } from "./dict";
+import { conceptVocabulary, isNameWord, keywordsOf, nameWords } from "./dict";
 
-describe("KI-Suche: Wörterbuch", () => {
-  it("übersetzt typische Suchen", () => {
-    expect(toEnglish("Hund im Schnee")).toBe("dog in the snow");
-    expect(toEnglish("Arbeitsblatt mit Tabelle")).toBe("worksheet with table chart");
-    expect(toEnglish("rotes Auto vor dem Haus")).toBe("red car in front of house");
-  });
-  it("lässt Unbekanntes stehen (Namen, Englisch, Zahlen)", () => {
-    expect(toEnglish("Luca am Strand 2024")).toBe("Luca at the beach 2024");
-    expect(toEnglish("dog on beach")).toBe("dog on beach");
-  });
-  it("Gross/klein und Satzzeichen", () => {
-    expect(toEnglish("  KATZE,  Sofa! ")).toBe("cat, sofa!");
-  });
-});
-
-describe("KI-Suche: Wörterbuch – Endungen, zusammengesetzt, Englisch", () => {
-  it("Mehrzahl und Endungen", () => {
-    expect(toEnglish("Bergen")).toBe("mountain");
-    expect(toEnglish("Rosen im Garten")).toBe("roses in the garden");
-  });
-  it("zusammengesetzte Wörter", () => {
-    expect(toEnglish("Schneeberg")).toBe("snow mountain");
-    expect(toEnglish("Hundespielzeug")).toBe("dogs toy");
-  });
-  it("deutsch bleibt deutsch, auch bei mehrdeutigen Wörtern", () => {
-    expect(toEnglish("See")).toBe("lake");
-    expect(toEnglish("rot")).toBe("red");
-    expect(toEnglish("Bad")).toBe("bathroom");
-  });
-  it("englische Suche wird erkannt und nicht verfälscht", () => {
-    expect(looksEnglish("sunset at the beach")).toBe(true);
-    expect(looksEnglish("Hund im Schnee")).toBe(false);
-    expect(toEnglish("view of the sea")).toBe("view of the sea");
-    expect(toEnglish("I see the lake")).toBe("I see the lake");
-    expect(toEnglish("dog on the beach")).toBe("dog on the beach");
-  });
-  it("gemischt: deutsche Wörter in englischer Suche werden trotzdem übersetzt", () => {
-    expect(toEnglish("Hund on the beach")).toBe("dog on the beach");
-  });
-  it("Schweizer Wörter", () => {
-    expect(toEnglish("Velo")).toBe("bicycle");
-    expect(toEnglish("Gipfeli")).toBe("croissant");
-  });
-});
-
-describe("KI-Suche: Englisch besser erkennen", () => {
-  it("einzelne englische Wörter und Suchen ohne Füllwörter", () => {
-    expect(looksEnglish("dog")).toBe(true);
-    expect(looksEnglish("sunset beach")).toBe(true);
-    expect(looksEnglish("red car snow")).toBe(true);
-    expect(toEnglish("dog")).toBe("dog");
-    expect(toEnglish("red car snow")).toBe("red car snow");
-  });
-  it("deutsche Suchen bleiben deutsch", () => {
-    expect(looksEnglish("Hund")).toBe(false);
-    expect(looksEnglish("Hund Schnee")).toBe(false);
-    expect(looksEnglish("See")).toBe(false);
-    expect(looksEnglish("Velo")).toBe(false);
-    expect(toEnglish("Kind am See")).toBe("child at the lake");
-  });
-  it("englische Wörter, die auch deutsch sind, behalten in englischen Suchen ihre Bedeutung", () => {
-    expect(toEnglish("kind dog")).toBe("kind dog");
-    expect(toEnglish("rock concert")).toBe("rock concert");
-    expect(toEnglish("birthday gift")).toBe("birthday gift");
-  });
-});
-
-describe("KI-Suche: Stichwörter", () => {
-  it("erkennt Stichwort-Suchen und übersetzt jedes Stichwort", () => {
-    expect(keywordsOf("Hund Schnee")).toEqual(["dog", "snow"]);
+describe("KI-Suche: Stichwörter (Englisch)", () => {
+  it("erkennt Stichwort-Suchen", () => {
+    expect(keywordsOf("dog snow")).toEqual(["dog", "snow"]);
     expect(keywordsOf("dog, snow, mountains")).toEqual(["dog", "snow", "mountains"]);
-    expect(keywordsOf("Glace Strand 2024")).toEqual(["ice cream", "beach"]);
-    expect(keywordsOf("rotes Auto")).toEqual(["red", "car"]);
+    expect(keywordsOf("ice beach 2024")).toEqual(["ice", "beach"]);
   });
   it("Sätze und einzelne Wörter sind keine Stichwort-Suche", () => {
-    expect(keywordsOf("Hund im Schnee")).toEqual([]);
     expect(keywordsOf("dog in the snow")).toEqual([]);
-    expect(keywordsOf("Hund")).toEqual([]);
-    expect(keywordsOf("Strand 2024")).toEqual([]);
+    expect(keywordsOf("dog")).toEqual([]);
+    expect(keywordsOf("beach 2024")).toEqual([]);
+  });
+});
+
+describe("KI-Suche: Namen nur aus unbekannten Wörtern", () => {
+  it("englische Wörter und ihre Formen sind keine Namen", () => {
+    for (const w of ["dogs", "jumping", "standing", "holding", "painted", "cats", "puppies", "with", "selfie"]) {
+      expect(isNameWord(w), w).toBe(false);
+    }
+  });
+  it("Namen bleiben Namen", () => {
+    expect(nameWords("Luca holding a dog")).toEqual(["luca"]);
+    expect(nameWords("Darth Vader at the beach")).toEqual(["darth vader"]);
   });
 });
 
 describe("Begriffe zum Trainieren", () => {
   it("nur Motive, keine Füllwörter/Farben, keine doppelte Mehrzahl", () => {
-    const v = conceptVocabulary();
-    const en = new Set(v.map((c) => c.en));
+    const en = new Set(conceptVocabulary().map((c) => c.en));
     expect(en.has("dog")).toBe(true);
     expect(en.has("dogs")).toBe(false);
     expect(en.has("potatoes")).toBe(false);
     expect(en.has("strawberries")).toBe(false);
     expect(en.has("red")).toBe(false);
     expect(en.has("in the")).toBe(false);
-    expect(v.find((c) => c.en === "dog")?.de).toBe("Hund");
-    expect(v.length).toBeGreaterThan(400);
+    expect(en.size).toBeGreaterThan(400);
   });
 });

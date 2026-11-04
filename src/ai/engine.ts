@@ -1,8 +1,8 @@
 // KI-SUCHE (Test): Verbindung zu den Workern.
 // Auf dem iPhone teilen sich App und alle Worker denselben Arbeitsspeicher – darum sparsam:
 // ein Bild-Worker (lernt) und ein Such-Worker, nie beide gleichzeitig. Beides läuft auf dem Prozessor.
-// Suchbegriffe übersetzt ein kleines Wörterbuch statt eines Übersetzungsmodells.
-import { keywordsOf, toEnglish } from "./dict";
+// Suchbegriffe gehen auf Englisch unverändert ans Modell.
+import { keywordsOf } from "./dict";
 import { keywordPrompts, searchPrompts, typographicPrompts } from "./prompts";
 import { setRisk, takeCrash, type Risk } from "./guard";
 import { MODEL_CACHE } from "./store";
@@ -39,10 +39,14 @@ async function dropModelFiles(part: string) {
 void dropModelFiles("vision_model_fp16");
 void dropModelFiles("opus-mt");
 void dropModelFiles("mobileclip_s2"); // MobileCLIP-S2 wurde durch MobileCLIP2-B ersetzt
-try {
-  indexedDB.deleteDatabase("drivepool-ai-mobileclip-s2");
-} catch {
-  /* ignorieren */
+// MobileCLIP-B entfernt: seine Modellteile (Tokenizer/Vorverarbeitung braucht MobileCLIP2-B weiter) und sein Index
+void dropModelFiles("mobileclip_blt/resolve/main/onnx/");
+for (const db of ["drivepool-ai-mobileclip-s2", "drivepool-ai-mobileclip-blt"]) {
+  try {
+    indexedDB.deleteDatabase(db);
+  } catch {
+    /* ignorieren */
+  }
 }
 forgetOldSettings();
 
@@ -234,7 +238,7 @@ export async function embedText(
   model?: ModelId,
 ): Promise<{ vec: Float32Array; english: string; kvecs: Float32Array[]; nvec?: Float32Array }> {
   await readyForText();
-  const english = toEnglish(text) || text;
+  const english = text.trim().replace(/\s+/g, " "); // Suche auf Englisch – geht unverändert ans Modell
   const keywords = keywordsOf(text);
   // Modelle mit eigener Skala (MobileCLIP-B): zusätzlich „das Wort als Text“ – wird später abgezogen
   const typo = MODELS[model ?? aiModel()].autoFloor ? typographicPrompts(english) : [];

@@ -23,9 +23,7 @@ import { MODEL_IDS, MODELS, type ModelId } from "./protocol";
 const MODEL_INFO: Record<ModelId, string> = {
   clip: "OpenAI CLIP (2021) – lernt alle Fotos, auch auf dem iPhone",
   mobileclip2b:
-    "Apple MobileCLIP2-B (2025) – Nachfolger von B, laut Apple nochmals genauer. Nur am PC lernbar (ca. 350 MB); das iPhone sucht mit einem kleinen Textteil (65 MB)",
-  mobileclipB:
-    "Apple MobileCLIP-B (2024) – grösser, laut Apple genauer als Standard. Nur am PC lernbar (ca. 350 MB); das iPhone sucht mit einem kleinen Textteil (64 MB)",
+    "Apple MobileCLIP2-B (2025) – laut Apple genauer als Standard. Nur am PC lernbar (ca. 350 MB); das iPhone sucht mit einem kleinen Textteil (65 MB)",
 };
 import {
   cloudLearning,
@@ -269,7 +267,7 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
             KI-Daten von diesem Gerät löschen
           </button>
           <p className="faint small" style={{ margin: 0 }}>
-            Tipp: In der Suche einfach beschreiben, z. B. „Hund im Schnee“ oder „Arbeitsblatt mit Tabelle“.
+            Tipp: In der Suche einfach beschreiben, auf Englisch, z. B. „dog in the snow“ oder „worksheet with a table“.
           </p>
         </div>
       )}

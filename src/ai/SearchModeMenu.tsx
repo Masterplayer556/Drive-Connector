@@ -64,7 +64,7 @@ export default function SearchModeMenu({
             <input type="radio" name="ai-mode" checked={mode === "ki"} onChange={() => onMode("ki")} />
             <span>
               <strong>KI</strong>
-              <small className="faint">Foto beschreiben, z. B. „Hund im Schnee“</small>
+              <small className="faint">Foto auf Englisch beschreiben, z. B. „dog in the snow“</small>
             </span>
           </label>
           <label className="ai-mode-opt">
