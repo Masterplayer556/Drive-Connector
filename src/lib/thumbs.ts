@@ -1,6 +1,6 @@
 // Vorschaubilder: Speicher → Cache auf dem Gerät → im Paket vom Server.
 // Jedes Bild wird nur einmal übers Netz geladen; danach kommt es sofort aus dem Gerätespeicher.
-import { callFunction } from "./supabase";
+import { fetchThumbBlobs } from "./thumbSource";
 import type { Item } from "./types";
 
 export const GRID_SIZE = 320;
@@ -91,15 +91,6 @@ export function getThumb(item: Item, size = GRID_SIZE): Promise<string> {
   return p;
 }
 
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [head, b64] = dataUrl.split(",", 2);
-  const type = /data:([^;]+)/.exec(head)?.[1] ?? "image/jpeg";
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new Blob([bytes], { type });
-}
-
 function flush() {
   timer = null;
   pump();
@@ -130,20 +121,14 @@ async function runBatch(batch: Pending[]) {
   const { item, size } = batch[0];
   const ids = [...new Set(batch.map((b) => b.item.drive_id))];
   try {
-    const r = await callFunction<{ thumbs: Record<string, string>; missing: string[] }>("thumb", {
-      account_id: item.account_id,
-      folder_id: item.parent_drive_id,
-      ids,
-      size,
-    });
+    const blobs = await fetchThumbBlobs(item.account_id, item.parent_drive_id ?? null, ids, size);
     const cache = await deviceCache();
     for (const b of batch) {
-      const data = r.thumbs[b.item.drive_id];
-      if (!data) {
+      const blob = blobs.get(b.item.drive_id);
+      if (!blob) {
         b.reject(new Error("Keine Vorschau"));
         continue;
       }
-      const blob = dataUrlToBlob(data);
       const key = keyOf(b.item, size);
       const url = mem.get(key)?.url ?? URL.createObjectURL(blob);
       remember(key, url, blob.size);

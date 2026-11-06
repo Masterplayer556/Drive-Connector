@@ -1,7 +1,8 @@
 // KI-SUCHE: welche Fotos/Videos es gibt (aus dem bestehenden Index in Postgres – nur lesen)
 // und deren Vorschaubilder fürs Modell.
 import { GRID_SIZE } from "../lib/thumbs";
-import { callFunction, supabase } from "../lib/supabase";
+import { supabase } from "../lib/supabase";
+import { fetchThumbBlobs } from "../lib/thumbSource";
 import type { Item } from "../lib/types";
 import { itemKey } from "./store";
 
@@ -41,15 +42,6 @@ export function catalog(force = false): Promise<Map<string, Item>> {
 const THUMB_CACHE = "drivepool-thumbs-v1";
 const cacheUrl = (it: Item) => new URL(`./__thumbs/${it.account_id}/${it.drive_id}/${GRID_SIZE}`, document.baseURI).toString();
 
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [head, b64] = dataUrl.split(",", 2);
-  const type = /data:([^;]+)/.exec(head)?.[1] ?? "image/jpeg";
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new Blob([bytes], { type });
-}
-
 /**
  * Vorschaubilder für mehrere Fotos desselben Ordners (max. 30).
  * Anders als getThumb() bleibt hier nichts im Arbeitsspeicher liegen – wichtig bei tausenden Fotos.
@@ -68,15 +60,12 @@ export async function thumbsFor(items: Item[]): Promise<Map<string, Blob>> {
   }
   if (missing.length) {
     const first = missing[0];
-    const r = await callFunction<{ thumbs: Record<string, string>; missing: string[] }>("thumb", {
-      account_id: first.account_id,
-      folder_id: first.parent_drive_id,
-      ids: missing.map((m) => m.drive_id),
-      size: GRID_SIZE,
-    }, { timeout: THUMB_TIMEOUT });
+    const blobs = await fetchThumbBlobs(first.account_id, first.parent_drive_id ?? null, missing.map((m) => m.drive_id), GRID_SIZE, {
+      timeout: THUMB_TIMEOUT,
+    });
     for (const it of missing) {
-      const data = r.thumbs[it.drive_id];
-      if (data) out.set(itemKey(it), dataUrlToBlob(data));
+      const blob = blobs.get(it.drive_id);
+      if (blob) out.set(itemKey(it), blob);
     }
   }
   return out;
