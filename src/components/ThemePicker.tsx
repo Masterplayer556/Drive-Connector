@@ -1,10 +1,15 @@
 import { useState } from "react";
-import { readPrefs, resolveTheme, savePrefs, THEMES, type ThemeId, type ThemePrefs } from "../lib/theme";
+import { BLEND_MAX, readFolderBlend, readPrefs, resolveTheme, saveFolderBlend, savePrefs, THEMES, type ThemeId, type ThemePrefs } from "../lib/theme";
 import Icon from "./Icon";
 
 /** Design-Auswahl mit Live-Vorschau-Kacheln und „Automatisch hell/dunkel“. */
 export default function ThemePicker() {
   const [prefs, setPrefs] = useState<ThemePrefs>(readPrefs);
+  const [blend, setBlend] = useState(readFolderBlend);
+  const changeBlend = (v: number) => {
+    setBlend(v);
+    saveFolderBlend(v);
+  };
 
   const update = (next: ThemePrefs) => {
     setPrefs(next);
@@ -83,6 +88,37 @@ export default function ThemePicker() {
           <span />
         </span>
       </label>
+
+      <div className="slider-row glass" style={{ margin: "12px 18px 0" }}>
+        <div className="slider-head">
+          <span className="blend-preview" aria-hidden="true">
+            {[200, 330].map((h) => (
+              <span key={h} className="folder-icon" style={{ ["--h" as string]: h }}>
+                <Icon name="folder" size={15} />
+              </span>
+            ))}
+          </span>
+          <span>
+            <strong>Ordnerfarben-Verlauf</strong>
+            <div className="muted small">{blend === 0 ? "Aus – einfarbig" : `Übergang in einen zweiten Farbton (${blend}°)`}</div>
+          </span>
+          <span className="switch">
+            <input type="checkbox" checked={blend > 0} onChange={(e) => changeBlend(e.target.checked ? 45 : 0)} aria-label="Verlauf ein/aus" />
+            <span />
+          </span>
+        </div>
+        <input
+          type="range"
+          className="slider"
+          min={0}
+          max={BLEND_MAX}
+          step={5}
+          value={blend}
+          style={{ ["--fill" as string]: `${(blend / BLEND_MAX) * 100}%` }}
+          onChange={(e) => changeBlend(Number(e.target.value))}
+          aria-label="Stärke des Ordnerfarben-Verlaufs"
+        />
+      </div>
     </>
   );
 }

@@ -9,7 +9,6 @@ import LockScreen from "./components/LockScreen";
 import { lockEnabled, watchRelock } from "./lib/lock";
 import { clearLocalCaches, readCachedAccounts, writeCachedAccounts } from "./lib/cache";
 import { fetchAccounts } from "./lib/db";
-import { updatePhotoHues } from "./lib/folderColors";
 import { clearTokens, loadTokens } from "./lib/google";
 import { navigate, useRoute, type RouteName } from "./lib/route";
 import { supabase } from "./lib/supabase";
@@ -147,13 +146,6 @@ function Shell() {
     const t = setTimeout(() => setAiLater(true), 8_000);
     return () => clearTimeout(t);
   }, [phase, aiLater]);
-
-  // Ordnerfarben aus den Fotos: kurz nach dem Start nebenbei nachrechnen (nur Neues/Verändertes)
-  useEffect(() => {
-    if (phase !== "ready") return;
-    const t = setTimeout(() => void updatePhotoHues(), 15_000);
-    return () => clearTimeout(t);
-  }, [phase]);
 
   if (locked && session && phase !== "login") return <LockScreen onUnlock={() => setLocked(false)} />;
   if (phase === "loading") return <Splash />;

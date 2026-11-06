@@ -121,6 +121,7 @@ export function savePrefs(prefs: ThemePrefs) {
 /** Beim Start aufrufen: Design setzen und auf Hell/Dunkel-Wechsel des iPhones reagieren. */
 export function initTheme() {
   applyTheme(readPrefs());
+  applyFolderBlend(readFolderBlend());
   lightQuery()?.addEventListener?.("change", () => {
     const prefs = readPrefs();
     if (prefs.auto) applyTheme(prefs, true);
@@ -139,4 +140,33 @@ export function folderHue(name: string): number {
   let h = 0;
   for (const c of name.toLowerCase()) h = (h * 31 + c.charCodeAt(0)) % 360;
   return h;
+}
+
+// Ordnerfarben-Verlauf: wie stark das Ordner-Symbol in einen zweiten Farbton übergeht (0 = aus, einfarbig).
+// Gilt nur auf diesem Gerät, wie das Design.
+const BLEND_KEY = "drivepool.folderBlend";
+export const BLEND_DEFAULT = 45;
+export const BLEND_MAX = 120;
+
+export function readFolderBlend(): number {
+  try {
+    const v = Number(localStorage.getItem(BLEND_KEY));
+    if (localStorage.getItem(BLEND_KEY) !== null && Number.isFinite(v)) return Math.min(BLEND_MAX, Math.max(0, v));
+  } catch {
+    /* ignorieren */
+  }
+  return BLEND_DEFAULT;
+}
+
+export function applyFolderBlend(deg: number) {
+  document.documentElement.style.setProperty("--folder-blend", String(deg));
+}
+
+export function saveFolderBlend(deg: number) {
+  try {
+    localStorage.setItem(BLEND_KEY, String(deg));
+  } catch {
+    /* ignorieren */
+  }
+  applyFolderBlend(deg);
 }
