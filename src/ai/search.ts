@@ -253,10 +253,13 @@ export async function namesOf(item: Item): Promise<string[]> {
   const key = itemKey(item);
   const fb = await allFeedback();
   const names = learnedNames(fb.filter((f) => f.key === key));
-  return [...names.values()].map((n) => n.label);
+  return [...names.values()].map((n) => n.label).sort(byLabel);
 }
 
-/** Alle gelernten Namen mit Anzahl Fotos (neueste zuletzt). */
+/** Namen alphabetisch (ohne Rücksicht auf Gross/Klein, „Ä“ wie „A“). */
+const byLabel = (a: string, b: string) => a.localeCompare(b, "de", { sensitivity: "base" });
+
+/** Alle gelernten Namen mit Anzahl Fotos (alphabetisch). */
 export async function allNames(): Promise<{ name: string; label: string; count: number; folders: string[] }[]> {
   const [names, items] = await Promise.all([allFeedback().then(learnedNames), catalog().catch(() => new Map<string, Item>())]);
   const files = filesOf(items);
@@ -265,7 +268,7 @@ export async function allNames(): Promise<{ name: string; label: string; count: 
     label: n.label,
     count: expandNameKeys(n.keys, files).length,
     folders: n.keys.filter(isFolderKey).map((k) => k.slice(FOLDER_KEY.length)),
-  }));
+  })).sort((a, b) => byLabel(a.label, b.label));
 }
 
 /** [Schlüssel, Pfad] aller Fotos – zum Auflösen verknüpfter Ordner. */
@@ -279,7 +282,7 @@ function filesOf(items: Map<string, Item>): [string, string | null][] {
 export async function folderNames(path: string): Promise<string[]> {
   const key = folderKey(path).toLowerCase();
   const fb = (await allFeedback()).filter((f) => f.key.toLowerCase() === key && f.vote === 1);
-  return [...new Set(fb.map((f) => f.english))];
+  return [...new Set(fb.map((f) => f.english))].sort(byLabel);
 }
 
 /** Ordner mit einem Namen verknüpfen: alle Fotos darin (auch spätere) zählen für die Suche nach dem Namen. */
@@ -329,7 +332,7 @@ export async function namesOfMany(items: Item[]): Promise<Map<string, string[]>>
   const keys = new Set(items.map(itemKey));
   const fb = (await allFeedback()).filter((f) => keys.has(f.key));
   const out = new Map<string, string[]>();
-  for (const k of keys) out.set(k, [...learnedNames(fb.filter((f) => f.key === k)).values()].map((n) => n.label));
+  for (const k of keys) out.set(k, [...learnedNames(fb.filter((f) => f.key === k)).values()].map((n) => n.label).sort(byLabel));
   return out;
 }
 
@@ -387,7 +390,7 @@ const DAY = 24 * 3600_000;
  */
 export async function trainingTerms(onProgress?: (msg: string) => void): Promise<Term[]> {
   const [fb, all] = await Promise.all([allFeedback(), loadVectors()]);
-  const names: Term[] = [...learnedNames(fb).values()].map((n) => ({ label: n.label, source: "name", note: "Gelernter Name" }));
+  const names: Term[] = [...learnedNames(fb).values()].map((n) => ({ label: n.label, source: "name" as const, note: "Gelernter Name" })).sort((a, b) => byLabel(a.label, b.label));
 
   type Ranked = { en: string; share: number };
   const cached = await getMeta<{ at: number; photos: number; terms: Ranked[] }>(RANK_KEY).catch(() => undefined);

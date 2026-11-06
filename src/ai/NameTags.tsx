@@ -63,7 +63,7 @@ export default function NameTags({ item, items: many }: { item?: Item; items?: I
     await load();
   };
 
-  const present = [...(counts?.values() ?? [])];
+  const present = [...(counts?.values() ?? [])].sort((a, b) => a.label.localeCompare(b.label, "de", { sensitivity: "base" }));
   const suggestions = known
     .filter((k) => countOf(k.label) === 0)
     .filter((k) => !text || k.label.toLowerCase().startsWith(text.trim().toLowerCase()))

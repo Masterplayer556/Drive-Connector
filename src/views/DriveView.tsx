@@ -16,7 +16,8 @@ import { haptic } from "../lib/haptic";
 import { useKeepAwake } from "../lib/wakelock";
 import { movePathPrefs } from "../lib/folders";
 import { cachedFolder, invalidateAll, invalidateFolder, loadFolder, patchFolder, prefetchFolder } from "../lib/cache";
-import { countSubtreeFiles, fetchBigFolders, fetchStats, fetchSubtreeFiles, syncAccounts, writeLog } from "../lib/db";
+import { countSubtreeFiles, fetchBigFolders, fetchDuplicates, fetchStats, fetchSubtreeFiles, syncAccounts, writeLog } from "../lib/db";
+import { suggestRemoval } from "../lib/duplicates";
 import { createLogicalFolder, trashFiles, trashLogicalFolder } from "../lib/folders";
 import { formatBytes } from "../lib/format";
 import { renameItem } from "../lib/google";
@@ -1050,7 +1051,13 @@ function useInsights(accounts: Account[]): Insight[] {
     // Erst die Ordner laden lassen, dann die Hinweise (beim Start zählt jede Anfrage)
     const t = setTimeout(() => {
       Promise.all([fetchStats(), fetchBigFolders(13.5 * 1024 ** 3)])
-        .then(([stats, big]) => {
+        .then(async ([stats, big]) => {
+          // Hinweis nur für Duplikate, die die Duplikate-Ansicht auch aufräumen würde (gleicher Ordner,
+          // Random-Kopien) – nicht für Fotos, die bewusst in mehreren Ordnern liegen oder behalten wurden
+          if (stats.duplicates > 0) {
+            const groups = await fetchDuplicates().catch(() => null);
+            if (groups) stats = { ...stats, duplicates: groups.filter((g) => !g.ignored).reduce((n, g) => n + suggestRemoval(g.items).size, 0) };
+          }
           insightCache = { at: Date.now(), stats, big };
           setData(insightCache);
         })
