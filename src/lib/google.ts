@@ -90,6 +90,40 @@ async function driveJson<T>(accountId: string, url: string, init: RequestInit = 
 
 const FIELDS = "id,name,mimeType,parents,size,md5Checksum";
 
+/**
+ * Vorschau-Links (thumbnailLink) direkt bei Google: ein Aufruf für den ganzen Ordner, Rest einzeln.
+ * Die Links gelten nur ein paar Stunden.
+ */
+export async function thumbnailLinks(accountId: string, folderId: string | null, ids: string[]): Promise<Map<string, string>> {
+  const links = new Map<string, string>();
+  const wanted = new Set(ids);
+  if (folderId) {
+    let pageToken: string | undefined;
+    do {
+      const p = new URLSearchParams({
+        q: `'${folderId}' in parents and trashed = false`,
+        fields: "nextPageToken,files(id,thumbnailLink)",
+        pageSize: "1000",
+      });
+      if (pageToken) p.set("pageToken", pageToken);
+      const r = await driveJson<{ nextPageToken?: string; files: { id: string; thumbnailLink?: string }[] }>(accountId, `${DRIVE}/files?${p}`);
+      for (const f of r.files) if (f.thumbnailLink) links.set(f.id, f.thumbnailLink);
+      pageToken = r.nextPageToken;
+    } while (pageToken && [...wanted].some((id) => !links.has(id)));
+  }
+  const rest = ids.filter((id) => !links.has(id));
+  for (let i = 0; i < rest.length; i += 6) {
+    await Promise.all(
+      rest.slice(i, i + 6).map((id) =>
+        driveJson<{ thumbnailLink?: string }>(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?fields=thumbnailLink`)
+          .then((m) => void (m.thumbnailLink && links.set(id, m.thumbnailLink)))
+          .catch(() => undefined),
+      ),
+    );
+  }
+  return links;
+}
+
 export function createFolder(accountId: string, name: string, parentId: string): Promise<DriveFile> {
   return driveJson(accountId, `${DRIVE}/files?fields=${FIELDS}`, {
     method: "POST",
