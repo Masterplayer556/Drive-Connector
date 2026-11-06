@@ -58,10 +58,31 @@ export default function App() {
   );
 }
 
+/**
+ * Gespeicherte Anmeldung direkt aus dem Gerätespeicher – ohne auf Supabase zu warten (die erneuert einen
+ * abgelaufenen Schlüssel erst übers Netz, das hielt den Start oft Sekunden auf). Nur wenn die 2FA darin schon
+ * erledigt ist (bzw. keine eingerichtet ist). Die echte Prüfung läuft danach im Hintergrund und kann immer
+ * noch zur Anmeldung/2FA umschalten.
+ */
+function storedSession(): Session | null {
+  try {
+    const key = Object.keys(localStorage).find((k) => /^sb-.+-auth-token$/.test(k));
+    const s = key ? (JSON.parse(localStorage.getItem(key) ?? "null") as Session | null) : null;
+    if (!s?.access_token || !s.user?.id) return null;
+    const b64 = s.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const aal = JSON.parse(atob(b64 + "===".slice((b64.length + 3) % 4)))?.aal;
+    const needs2fa = (s.user.factors ?? []).some((f) => f.status === "verified");
+    return !needs2fa || aal === "aal2" ? s : null;
+  } catch {
+    return null;
+  }
+}
+
 function Shell() {
   const { toast } = useUI();
-  const [session, setSession] = useState<Session | null>(null);
-  const [phase, setPhase] = useState<Phase>("loading");
+  const [session, setSession] = useState<Session | null>(storedSession);
+  // Gespeicherte Anmeldung + Konten → sofort loslegen statt Startbildschirm
+  const [phase, setPhase] = useState<Phase>(() => (session && readCachedAccounts()?.length ? "ready" : "loading"));
   const [error, setError] = useState<string | null>(null);
   const [accounts, setAccountsState] = useState<Account[]>(() => readCachedAccounts() ?? []);
   const [tokenErrors, setTokenErrors] = useState<{ email: string; error: string }[]>([]);
