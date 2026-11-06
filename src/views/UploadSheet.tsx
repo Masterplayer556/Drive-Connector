@@ -57,7 +57,6 @@ export default function UploadSheet({
   const [orderMode, setOrderMode] = useState(false);
   const [order, setOrder] = useState<string[]>([]);
   const [conflictMode, setConflictMode] = useState<"skip" | "rename">("skip");
-  const [allowDup, setAllowDup] = useState(false);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [result, setResult] = useState<{ upload: UploadResult; plan: PlanEntry[]; folders: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -120,14 +119,15 @@ export default function UploadSheet({
       startNumber: maxNumber((content?.files ?? []).map((f) => f.name)) + 1,
       existingNames: (content?.files ?? []).map((f) => f.name),
       knownMd5: known,
-      allowPoolDuplicates: allowDup,
+      // Duplikate nur im gewählten Ordner suchen (gleiches Foto in anderen Ordnern ist erlaubt)
+      allowPoolDuplicates: true,
       folderMd5: new Set((content?.files ?? []).map((f) => f.md5).filter((m): m is string => !!m)),
       folderBytes: (content?.files ?? []).reduce((s, f) => s + (f.size ?? 0), 0),
       folderHasSubfolders: (content?.folders.length ?? 0) > 0,
       conflictMode,
       now: new Date(),
     }),
-    [planFiles, orderMode, order, content, known, conflictMode, allowDup],
+    [planFiles, orderMode, order, content, known, conflictMode],
   );
   const plan = useMemo(() => planUpload(baseInput), [baseInput]);
   const sum = summarize(plan);
@@ -152,7 +152,6 @@ export default function UploadSheet({
     setKnown(new Set());
     setOrderMode(false);
     setOrder([]);
-    setAllowDup(false);
     setShowNames(false);
     setPicking(true); // gleich den Zielordner wählen – die Prüfung läuft solange im Hintergrund
   };
@@ -427,20 +426,6 @@ export default function UploadSheet({
                 })}
               </div>
 
-              {(sum.duplicate > 0 || allowDup) && (
-                <label className="switch-row glass">
-                  <span>
-                    <strong>Duplikate trotzdem hochladen</strong>
-                    <div className="muted small">
-                      Für Fotos, die thematisch auch hierhin gehören. Was schon in diesem Ordner liegt, wird nie doppelt hochgeladen.
-                    </div>
-                  </span>
-                  <span className="switch">
-                    <input type="checkbox" checked={allowDup} onChange={(e) => setAllowDup(e.target.checked)} />
-                    <span />
-                  </span>
-                </label>
-              )}
 
               {conflictsWithoutRename > 0 && !orderMode && (
                 <div className="card glass stack" style={{ margin: 0 }}>
