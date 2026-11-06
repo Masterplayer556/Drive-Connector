@@ -1,8 +1,8 @@
 // Service Worker: App startet aus dem Speicher.
 // - Dateien mit Hash im Namen (assets/) ändern sich nie → direkt aus dem Cache
-// - Startseite: sofort die gespeicherte Version, die neue wird nebenbei geholt und gilt ab dem nächsten Start
-//   (immer unter "./" gespeichert). Nur ohne gespeicherte Version wird aufs Netz gewartet.
-const CACHE = "drive-pool-v6";
+// - Startseite: kurz übers Netz versuchen, sonst die zuletzt geladene Version
+//   (immer unter "./" gespeichert – früher konnte eine uralte Kopie von der Installation erscheinen)
+const CACHE = "drive-pool-v5";
 const SHELL = ["./", "./manifest.webmanifest", "./icons/icon-192.png"];
 const SHELL_KEY = new URL("./", self.location).toString();
 
@@ -40,22 +40,41 @@ function cacheFirst(req) {
   );
 }
 
-function refreshShell(req) {
-  return fetch(req).then((res) => {
-    if (res.ok && !res.redirected) {
-      // Jede Seite der App ist dieselbe Startseite → immer unter einem Schlüssel, die neueste gewinnt
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(SHELL_KEY, copy));
-    }
-    return res;
+function networkFirst(req, timeoutMs) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const fallback = () =>
+      caches.match(SHELL_KEY).then((hit) => {
+        if (!settled && hit) {
+          settled = true;
+          resolve(hit);
+        }
+        return hit;
+      });
+    const timer = setTimeout(fallback, timeoutMs);
+    fetch(req)
+      .then((res) => {
+        clearTimeout(timer);
+        if (res.ok && !res.redirected) {
+          // Jede Seite der App ist dieselbe Startseite → immer unter einem Schlüssel, die neueste gewinnt
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(SHELL_KEY, copy));
+        }
+        if (!settled) {
+          settled = true;
+          resolve(res);
+        }
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        fallback().then((hit) => {
+          if (!settled) {
+            settled = true;
+            resolve(hit || Response.error());
+          }
+        });
+      });
   });
-}
-
-/** Startseite: gespeicherte Version sofort, im Hintergrund aktualisieren (kein Warten aufs Netz beim Start). */
-function shellFirst(event) {
-  const update = refreshShell(event.request);
-  event.waitUntil(update.catch(() => undefined));
-  return caches.match(SHELL_KEY).then((hit) => hit || update.catch(() => Response.error()));
 }
 
 // Videos stückweise abspielen: der Player fragt Bereiche (Range) an, der Service Worker
@@ -104,6 +123,6 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.includes("/assets/") || url.pathname.includes("/icons/")) {
     event.respondWith(cacheFirst(req));
   } else if (req.mode === "navigate") {
-    event.respondWith(shellFirst(event));
+    event.respondWith(networkFirst(req, 1200));
   }
 });
