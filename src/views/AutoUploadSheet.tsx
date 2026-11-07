@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { countMedia, mediaCount, type MediaCount } from "../lib/media";
 import Icon from "../components/Icon";
 import Ring from "../components/Ring";
 import { loadFolder } from "../lib/cache";
@@ -52,7 +53,7 @@ export default function AutoUploadSheet({
   const [groups, setGroups] = useState<Group[]>([]);
   const [conflictMode, setConflictMode] = useState<"skip" | "rename">("skip");
   const [done, setDone] = useState(0);
-  const [result, setResult] = useState<{ uploaded: number; failed: string[] } | null>(null);
+  const [result, setResult] = useState<{ uploaded: number; failed: string[]; media: MediaCount } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const background = useRef<Promise<unknown> | null>(null);
@@ -124,6 +125,8 @@ export default function AutoUploadSheet({
 
   const all = planned.flatMap((g) => g.plan);
   const sum = summarize(all);
+  const filesOf = (ids: string[]) => ids.map((id) => byId.get(id)).filter((f): f is File => !!f);
+  const upMedia = countMedia(filesOf(all.filter((e) => e.status === "upload").map((e) => e.id)));
   const conflicts = summarize(
     planned.flatMap((g) =>
       planUpload({
@@ -146,6 +149,7 @@ export default function AutoUploadSheet({
   const start = async () => {
     setPhase("upload");
     let uploaded = 0;
+    const uploadedIds: string[] = [];
     const failed: string[] = [];
     const logs: LogInput[] = [];
     const touched = new Set<string>();
@@ -162,6 +166,7 @@ export default function AutoUploadSheet({
           onProgress: (p) => setDone(uploaded + p.done),
         });
         uploaded += r.uploaded.length;
+        uploadedIds.push(...r.uploaded.map((u) => u.id));
         for (const f of r.failed) failed.push(`${f.entry.originalName}: ${f.error}`);
         for (const id of r.accountIds) touched.add(id);
         accs = accs.map((a) => ({
@@ -169,7 +174,7 @@ export default function AutoUploadSheet({
           quota_usage: (a.quota_usage ?? 0) + r.uploaded.filter((u) => u.accountId === a.id).reduce((s, u) => s + u.size, 0),
         }));
         if (r.uploaded.length) {
-          logs.push({ kind: "upload", message: `${r.uploaded.length} Foto(s) nach „${g.target.path}“ abgelegt (automatisch)` });
+          logs.push({ kind: "upload", message: `${mediaCount(countMedia(filesOf(r.uploaded.map((u) => u.id))), "Fotos/Videos")} nach „${g.target.path}“ abgelegt (automatisch)` });
         }
         for (const u of r.uploaded.filter((x) => x.renamed)) {
           logs.push({ kind: "rename", message: `„${u.originalName}“ → „${u.targetName}“ (${u.renamed === "zahlenschutz" ? "Zahlen-Schutz" : "Namenskonflikt"})`, details: { ordner: g.target.path } });
@@ -182,7 +187,7 @@ export default function AutoUploadSheet({
     background.current = Promise.all([writeLogs(logs), touched.size ? syncAccounts([...touched]) : Promise.resolve()]).catch(
       () => undefined,
     );
-    setResult({ uploaded, failed });
+    setResult({ uploaded, failed, media: countMedia(filesOf(uploadedIds)) });
     setPhase("done");
   };
 
@@ -200,7 +205,7 @@ export default function AutoUploadSheet({
         <div className="sheet-head">
           <div style={{ minWidth: 0 }}>
             <div className="muted small ellipsis">automatisch nach „{AUTO_ROOT}/Jahr/Monat“</div>
-            <h2>{phase === "done" ? "Gesichert" : `${files.length} Foto${files.length === 1 ? "" : "s"} sichern`}</h2>
+            <h2>{phase === "done" ? "Gesichert" : `${mediaCount(countMedia(files))} sichern`}</h2>
           </div>
           {phase !== "upload" && (
             <button className="icon-btn" onClick={close} disabled={closing} aria-label="Schliessen">
@@ -284,7 +289,7 @@ export default function AutoUploadSheet({
               </div>
 
               <button className="btn primary block" disabled={sum.upload === 0} onClick={start}>
-                <Icon name="upload" size={19} /> {sum.upload} Foto{sum.upload === 1 ? "" : "s"} sichern
+                <Icon name="upload" size={19} /> {mediaCount(upMedia)} sichern
               </button>
             </>
           )}
@@ -306,7 +311,7 @@ export default function AutoUploadSheet({
                 </svg>
               </div>
               <h2 style={{ textAlign: "center" }}>
-                {result.uploaded} Foto{result.uploaded === 1 ? "" : "s"} gesichert
+                {mediaCount(result.media)} gesichert
               </h2>
               {sum.duplicate > 0 && (
                 <div className="stat-chips">

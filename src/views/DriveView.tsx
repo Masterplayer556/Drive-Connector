@@ -18,6 +18,7 @@ import { movePathPrefs } from "../lib/folders";
 import { cachedFolder, invalidateAll, invalidateFolder, loadFolder, patchFolder, prefetchFolder } from "../lib/cache";
 import { countSubtreeFiles, fetchBigFolders, fetchDuplicates, fetchStats, fetchSubtreeFiles, syncAccounts, writeLog } from "../lib/db";
 import { suggestRemoval } from "../lib/duplicates";
+import { isScrollLocked } from "../lib/scrollLock";
 import { createLogicalFolder, trashFiles, trashLogicalFolder } from "../lib/folders";
 import { formatBytes } from "../lib/format";
 import { renameItem } from "../lib/google";
@@ -484,7 +485,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   // Ziehen zum Aktualisieren
   const onTouchStart = (e: React.TouchEvent) => {
     if (dragMove.isDragging()) return;
-    if (window.scrollY <= 0 && !refreshing && viewer === null && !uploadFiles) pullStart.current = e.touches[0].clientY;
+    if (window.scrollY <= 0 && !isScrollLocked() && !refreshing && viewer === null && !uploadFiles) pullStart.current = e.touches[0].clientY;
   };
   const pullRef = useRef(0);
   const onTouchMove = (e: React.TouchEvent) => {
