@@ -49,7 +49,7 @@ export interface Crumb {
   key: string;
 }
 
-export type LogKind = "upload" | "rename" | "delete" | "move" | "folder" | "account" | "sync" | "error" | "setup";
+export type LogKind = "upload" | "rename" | "delete" | "move" | "folder" | "account" | "sync" | "error" | "setup" | "app";
 
 export interface LogEntry {
   id: number;

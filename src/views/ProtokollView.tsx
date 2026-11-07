@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Icon, { type IconName } from "../components/Icon";
 import { LineSkeleton } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
+import { withAppChanges } from "../lib/appChanges";
 import { fetchLog } from "../lib/db";
 import { formatDateTime } from "../lib/format";
 import type { LogEntry, LogKind } from "../lib/types";
@@ -15,6 +16,7 @@ const FILTERS: { kind: LogKind | null; label: string }[] = [
   { kind: "setup", label: "Einrichtung" },
   { kind: "account", label: "Konten" },
   { kind: "error", label: "Fehler" },
+  { kind: "app", label: "App-Updates" },
 ];
 
 const STYLE: Record<LogKind, { icon: IconName; bg: string }> = {
@@ -27,6 +29,7 @@ const STYLE: Record<LogKind, { icon: IconName; bg: string }> = {
   sync: { icon: "refresh", bg: "linear-gradient(135deg,#60a5fa,#6366f1)" },
   error: { icon: "alert", bg: "linear-gradient(135deg,#fb7185,#e11d48)" },
   setup: { icon: "compass", bg: "linear-gradient(135deg,#a78bfa,#ec4899)" },
+  app: { icon: "sparkles", bg: "linear-gradient(135deg,#0ea5e9,#22c55e)" },
 };
 
 export default function ProtokollView() {
@@ -37,7 +40,8 @@ export default function ProtokollView() {
 
   useEffect(() => {
     setEntries(null);
-    fetchLog(kind)
+    // App-Updates stehen nicht in der Datenbank, sondern kommen aus der Git-Historie (beim Bauen eingelesen)
+    (kind === "app" ? Promise.resolve(withAppChanges([])) : fetchLog(kind).then((e) => (kind ? e : withAppChanges(e))))
       .then(setEntries)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [kind]);

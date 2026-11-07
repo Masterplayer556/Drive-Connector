@@ -1,5 +1,6 @@
 // Eigene Tags und Merkzeichen (Farben) an Fotos/Videos – wie die Favoriten im Speicher gehalten,
 // damit Punkte im Raster und das Tag-Fenster sofort reagieren. Gespeichert in Supabase (item_tags).
+import { videosLast } from "./media";
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import type { Item } from "./types";
@@ -167,7 +168,7 @@ export function inheritsTag(path: string | null, tag: string, folders: { tag: st
 export async function taggedItems(tag: string): Promise<Item[]> {
   const { data, error } = await supabase.rpc("tagged_items", { p_tag: cleanTag(tag) });
   if (error) throw new Error(error.message);
-  return (data ?? []) as Item[];
+  return videosLast((data ?? []) as Item[]);
 }
 
 /**

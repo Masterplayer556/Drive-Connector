@@ -11,6 +11,7 @@ import { planUpload, summarize, type PlanEntry, type PlanFile, type PlanInput } 
 import { executeUpload, type UploadProgress, type UploadResult } from "../lib/upload";
 import type { Account, Crumb, FolderContent } from "../lib/types";
 import { useKeepAwake } from "../lib/wakelock";
+import { countMedia, mediaCount, mediaWord, videosLast, type MediaCount } from "../lib/media";
 
 type Phase = "analyse" | "review" | "upload" | "done";
 
@@ -22,9 +23,12 @@ interface Batch {
   known: Set<string>;
   /** Anzahl Fotos, die wirklich hochgeladen werden */
   count: number;
+  /** davon Fotos / Videos (für „Fotos“, „Videos“ oder „Dateien“) */
+  media: MediaCount;
 }
 
-const plural = (n: number) => `${n} Foto${n === 1 ? "" : "s"}`;
+const NO_MEDIA: MediaCount = { photos: 0, videos: 0 };
+const addMedia = (a: MediaCount, b: MediaCount): MediaCount => ({ photos: a.photos + b.photos, videos: a.videos + b.videos });
 
 const REASON: Record<string, string> = {
   reihenfolge: "Reihenfolge",
@@ -45,7 +49,7 @@ export default function UploadSheet({
   accounts: Account[];
   onClose: (changed: boolean) => void;
 }) {
-  const [files, setFiles] = useState<File[]>(initialFiles);
+  const [files, setFiles] = useState<File[]>(() => videosLast(initialFiles)); // Videos immer nach den Fotos
   // „Weitere Fotos in andere Ordner“: vorgemerkte Stapel, die beim Hochladen mitkommen
   const [more, setMore] = useState(false);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -58,7 +62,7 @@ export default function UploadSheet({
   const [order, setOrder] = useState<string[]>([]);
   const [conflictMode, setConflictMode] = useState<"skip" | "rename">("skip");
   const [progress, setProgress] = useState<UploadProgress | null>(null);
-  const [result, setResult] = useState<{ upload: UploadResult; plan: PlanEntry[]; folders: number } | null>(null);
+  const [result, setResult] = useState<{ upload: UploadResult; plan: PlanEntry[]; folders: number; media: MediaCount } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNames, setShowNames] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -139,13 +143,17 @@ export default function UploadSheet({
   const toggleOrder = (id: string) =>
     setOrder((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
 
-  const snapshot = (): Batch => ({ byId, target, input: baseInput, known, count: sum.upload });
+  /** Fotos/Videos der Einträge, die hochgeladen werden */
+  const mediaOf = (ids: string[], from: Map<string, File>) => countMedia(ids.map((id) => from.get(id)).filter((f): f is File => !!f));
+  const upMedia = mediaOf(plan.filter((e) => e.status === "upload").map((e) => e.id), byId);
+  const snapshot = (): Batch => ({ byId, target, input: baseInput, known, count: sum.upload, media: upMedia });
+  const allMedia = batches.reduce((m, b) => addMedia(m, b.media), upMedia);
 
   /** „Weiter“: aktuellen Stapel vormerken und mit neuen Fotos von vorne beginnen (anderer Ordner). */
   const next = (list: File[]) => {
     if (!list.length) return;
     if (sum.upload > 0) setBatches((b) => [...b, snapshot()]);
-    setFiles(list);
+    setFiles(videosLast(list));
     setPhase("analyse");
     setAnalysed(0);
     setPlanFiles([]);
@@ -177,7 +185,7 @@ export default function UploadSheet({
       const logs: LogInput[] = [
         {
           kind: "upload",
-          message: `${upload.uploaded.length} Foto(s) nach „${b.target.path}“ hochgeladen`,
+          message: `${mediaCount(mediaOf(upload.uploaded.map((u) => u.id), b.byId), "Fotos/Videos")} nach „${b.target.path}“ hochgeladen`,
           details: {
             duplikate: s.duplicate,
             konflikte: s.conflict,
@@ -201,7 +209,7 @@ export default function UploadSheet({
       if (s.limit > 0) {
         logs.push({
           kind: "error",
-          message: `Ordner „${b.target.path}“ hat 15 GB erreicht – ${s.limit} Foto(s) nicht hochgeladen`,
+          message: `Ordner „${b.target.path}“ hat 15 GB erreicht – ${s.limit} Datei(en) nicht hochgeladen`,
         });
       }
 
@@ -217,7 +225,7 @@ export default function UploadSheet({
       ])
         .catch(() => undefined)
         .finally(() => releaseNumbers(b.target.key, toRelease).catch(() => undefined));
-      return { upload, plan: finalPlan, bg };
+      return { upload, plan: finalPlan, bg, media: mediaOf(upload.uploaded.map((u) => u.id), b.byId) };
     } catch (e) {
       await releaseNumbers(b.target.key, reserved).catch(() => undefined);
       throw e;
@@ -232,6 +240,7 @@ export default function UploadSheet({
     const merged: UploadResult = { uploaded: [], failed: [], accountIds: [], createdFolders: [] };
     const plans: PlanEntry[] = [];
     const bgs: Promise<unknown>[] = [];
+    let media = NO_MEDIA;
     let before = { done: 0, failed: 0 };
     try {
       for (const b of all) {
@@ -242,12 +251,13 @@ export default function UploadSheet({
         merged.createdFolders.push(...r.upload.createdFolders);
         plans.push(...r.plan);
         bgs.push(r.bg);
+        media = addMedia(media, r.media);
         before = { done: merged.uploaded.length, failed: merged.failed.length };
       }
-      setResult({ upload: merged, plan: plans, folders: all.length });
+      setResult({ upload: merged, plan: plans, folders: all.length, media });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      if (merged.uploaded.length || merged.failed.length) setResult({ upload: merged, plan: plans, folders: all.length });
+      if (merged.uploaded.length || merged.failed.length) setResult({ upload: merged, plan: plans, folders: all.length, media });
     } finally {
       background.current = Promise.all(bgs);
       setTargetsDone(all.map((b) => b.target.key));
@@ -309,8 +319,8 @@ export default function UploadSheet({
               </div>
             )}
             <h2>
-              {phase === "analyse" && "Fotos prüfen"}
-              {phase === "review" && plural(files.length)}
+              {phase === "analyse" && `${mediaWord(countMedia(files))} prüfen`}
+              {phase === "review" && mediaCount(countMedia(files))}
               {phase === "upload" && "Lade hoch"}
               {phase === "done" && "Fertig"}
             </h2>
@@ -341,7 +351,7 @@ export default function UploadSheet({
                   <span className="ellipsis small" style={{ flex: 1 }}>
                     {b.target.path}
                   </span>
-                  <span className="faint small">{plural(b.count)}</span>
+                  <span className="faint small">{mediaCount(b.media)}</span>
                   <button
                     className="icon-btn"
                     style={{ width: 28, height: 28 }}
@@ -447,7 +457,7 @@ export default function UploadSheet({
                 <div className="banner warn" style={{ margin: 0, width: "100%" }}>
                   <Icon name="alert" size={18} />
                   <span>
-                    Dieser Ordner hat keine Unterordner und erreicht 15 GB. {sum.limit} Foto(s) werden nicht hochgeladen –
+                    Dieser Ordner hat keine Unterordner und erreicht 15 GB. {sum.limit} Datei(en) werden nicht hochgeladen –
                     bitte teile den Ordner selbst auf.
                   </span>
                 </div>
@@ -513,13 +523,13 @@ export default function UploadSheet({
               ) : (
                 <button
                   className="btn primary block"
-                  disabled={sum.upload + batches.reduce((n, b) => n + b.count, 0) === 0 || !content || usedKeys.has(target.key)}
+                  disabled={allMedia.photos + allMedia.videos === 0 || !content || usedKeys.has(target.key)}
                   onClick={start}
                 >
                   <Icon name="upload" size={19} />{" "}
                   {batches.length
-                    ? `${plural(sum.upload + batches.reduce((n, b) => n + b.count, 0))} in ${batches.length + 1} Ordner hochladen`
-                    : `${plural(sum.upload)} hochladen`}
+                    ? `${mediaCount(allMedia)} in ${batches.length + 1} Ordner hochladen`
+                    : `${mediaCount(upMedia)} hochladen`}
                 </button>
               )}
 
@@ -555,7 +565,7 @@ export default function UploadSheet({
                 </svg>
               </div>
               <h2 style={{ textAlign: "center" }}>
-                {plural(result.upload.uploaded.length)} hochgeladen
+                {mediaCount(result.media)} hochgeladen
                 {result.folders > 1 && <div className="muted small">in {result.folders} Ordner</div>}
               </h2>
               <div className="stat-chips">

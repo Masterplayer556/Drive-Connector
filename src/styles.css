@@ -1587,6 +1587,8 @@ p {
 .sheet-body {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 0 18px calc(24px + var(--safe-bottom));
   display: flex;
   flex-direction: column;
@@ -3991,4 +3993,19 @@ body.drag-moving {
 label.btn.disabled {
   opacity: 0.45;
   pointer-events: none;
+}
+
+/* Inhalt eines Fensters nie zusammendrücken (z. B. Ordnerwahl beim Hochladen) – lieber scrollen */
+.sheet-body > * {
+  flex-shrink: 0;
+}
+/* Wischen auf dem abgedunkelten Hintergrund bewegt nichts */
+.sheet-backdrop,
+.modal-backdrop,
+.menu-backdrop {
+  touch-action: none;
+}
+.menu,
+.modal {
+  overscroll-behavior: contain;
 }

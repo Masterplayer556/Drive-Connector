@@ -1,4 +1,5 @@
 // Lesen aus dem Index (Postgres) und Schreiben ins Protokoll.
+import { videosLast } from "./media";
 import type { Plan, Step, Unit } from "./rebalance";
 import type { BigFolder, PoolStats } from "./insights";
 import { childKey, naturalCompare } from "./naming";
@@ -68,7 +69,7 @@ export async function fetchFolder(key: string): Promise<FolderContent> {
   files.sort((a, b) => naturalCompare(a.name, b.name) || a.account_id.localeCompare(b.account_id));
   return {
     folders: [...folders.values()].sort((a, b) => naturalCompare(a.name, b.name)),
-    files,
+    files: videosLast(files),
   };
 }
 
@@ -274,7 +275,7 @@ export async function countSubtreeFiles(path: string): Promise<number | null> {
 export async function searchItems(query: string, limit = 200): Promise<Item[]> {
   const { data, error } = await supabase.rpc("search_items", { p_query: query, p_limit: limit });
   if (error) throw new Error(error.message);
-  return (data ?? []) as Item[];
+  return videosLast((data ?? []) as Item[]);
 }
 
 export async function fetchFavoriteKeys(): Promise<Set<string>> {
@@ -286,7 +287,7 @@ export async function fetchFavoriteKeys(): Promise<Set<string>> {
 export async function fetchFavoriteItems(): Promise<Item[]> {
   const { data, error } = await supabase.rpc("favorite_items");
   if (error) throw new Error(error.message);
-  return (data ?? []) as Item[];
+  return videosLast((data ?? []) as Item[]);
 }
 
 export async function setFavorite(item: Item, on: boolean): Promise<void> {
