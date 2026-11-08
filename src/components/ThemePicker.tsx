@@ -1,11 +1,26 @@
 import { useState } from "react";
-import { autoPair, BLEND_MAX, readFolderBlend, readPrefs, resolveTheme, saveFolderBlend, savePrefs, THEMES, type ThemeId, type ThemeInfo, type ThemePrefs } from "../lib/theme";
+import {
+  autoPair,
+  BLEND_DEFAULT,
+  BLEND_MAX,
+  readFolderBlend,
+  readPrefs,
+  readStillBackground,
+  resolveTheme,
+  saveFolderBlend,
+  savePrefs,
+  saveStillBackground,
+  THEMES,
+  type ThemeId,
+  type ThemeInfo,
+  type ThemePrefs,
+} from "../lib/theme";
 import Icon from "./Icon";
 
 const nameOf = (id: ThemeId) => THEMES.find((t) => t.id === id)?.name ?? id;
 
 /** Kleine Ansicht der Startseite im jeweiligen Design: Titel, Speicher-Karte mit Ring, Archiv & Privat. */
-function ThemePreview({ t }: { t: ThemeInfo }) {
+export function ThemePreview({ t }: { t: ThemeInfo }) {
   const p = t.preview;
   const r = p.radius;
   return (
@@ -31,10 +46,11 @@ function ThemePreview({ t }: { t: ThemeInfo }) {
   );
 }
 
-/** Design-Auswahl mit Live-Vorschau-Kacheln und „Automatisch hell/dunkel“. */
+/** Alles zu Design & Farbe: Design-Kacheln, Automatisch hell/dunkel, Ordnerfarben, Hintergrund-Bewegung. */
 export default function ThemePicker() {
   const [prefs, setPrefs] = useState<ThemePrefs>(readPrefs);
   const [blend, setBlend] = useState(readFolderBlend);
+  const [still, setStill] = useState(readStillBackground);
   const changeBlend = (v: number) => {
     setBlend(v);
     saveFolderBlend(v);
@@ -45,14 +61,19 @@ export default function ThemePicker() {
     savePrefs(next);
   };
   // Mit „Automatisch hell/dunkel“ würde ein angetipptes Design oft gar nicht erscheinen (iPhone hell → immer
-  // Polar). Darum: Design antippen = genau dieses zeigen, Automatik aus – ausser es passt gerade zur Automatik.
+  // das helle Design). Darum: Design antippen = genau dieses zeigen, Automatik aus – ausser es passt gerade zur Automatik.
   const choose = (theme: ThemeId) => {
     const next = { ...prefs, theme };
     update(next.auto && resolveTheme(next) !== theme ? { ...next, auto: false } : next);
   };
+  const pair = autoPair(prefs.theme);
 
   return (
     <>
+      <div className="section-title">
+        <span>Designs</span>
+        <span className="faint">{THEMES.length}</span>
+      </div>
       <div className="theme-grid stagger">
         {THEMES.map((t, i) => {
           const on = prefs.theme === t.id;
@@ -78,11 +99,14 @@ export default function ThemePicker() {
         })}
       </div>
 
-      <label className="switch-row glass" style={{ margin: "12px 18px 0" }}>
+      <div className="section-title">
+        <span>Hell & Dunkel</span>
+      </div>
+      <label className="switch-row glass" style={{ margin: "4px 18px 0" }}>
         <span>
           <strong>Automatisch hell/dunkel</strong>
           <div className="muted small">
-            Hell am iPhone → {nameOf(autoPair(prefs.theme).light)}, dunkel → {nameOf(autoPair(prefs.theme).dark)}
+            Hell am iPhone → {nameOf(pair.light)}, dunkel → {nameOf(pair.dark)}
           </div>
         </span>
         <span className="switch">
@@ -91,7 +115,10 @@ export default function ThemePicker() {
         </span>
       </label>
 
-      <div className="slider-row glass" style={{ margin: "12px 18px 0" }}>
+      <div className="section-title">
+        <span>Farben</span>
+      </div>
+      <div className="slider-row glass" style={{ margin: "4px 18px 0" }}>
         <div className="slider-head">
           <span className="blend-preview" aria-hidden="true">
             {[200, 330].map((h) => (
@@ -105,7 +132,12 @@ export default function ThemePicker() {
             <div className="muted small">{blend === 0 ? "Aus – einfarbig" : `Übergang in einen zweiten Farbton (${blend}°)`}</div>
           </span>
           <span className="switch">
-            <input type="checkbox" checked={blend > 0} onChange={(e) => changeBlend(e.target.checked ? 45 : 0)} aria-label="Verlauf ein/aus" />
+            <input
+              type="checkbox"
+              checked={blend > 0}
+              onChange={(e) => changeBlend(e.target.checked ? BLEND_DEFAULT : 0)}
+              aria-label="Verlauf ein/aus"
+            />
             <span />
           </span>
         </div>
@@ -121,6 +153,30 @@ export default function ThemePicker() {
           aria-label="Stärke des Ordnerfarben-Verlaufs"
         />
       </div>
+      <p className="faint small design-hint">
+        <Icon name="info" size={14} /> Einzelne Ordner einfärben: Ordner gedrückt halten → Farbe.
+      </p>
+
+      <div className="section-title">
+        <span>Bewegung</span>
+      </div>
+      <label className="switch-row glass" style={{ margin: "4px 18px 0" }}>
+        <span>
+          <strong>Hintergrund bewegen</strong>
+          <div className="muted small">Nordlicht, Sonne, Raster … – aus spart etwas Akku</div>
+        </span>
+        <span className="switch">
+          <input
+            type="checkbox"
+            checked={!still}
+            onChange={(e) => {
+              setStill(!e.target.checked);
+              saveStillBackground(!e.target.checked);
+            }}
+          />
+          <span />
+        </span>
+      </label>
     </>
   );
 }
