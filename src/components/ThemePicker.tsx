@@ -1,6 +1,35 @@
 import { useState } from "react";
-import { BLEND_MAX, readFolderBlend, readPrefs, resolveTheme, saveFolderBlend, savePrefs, THEMES, type ThemeId, type ThemePrefs } from "../lib/theme";
+import { autoPair, BLEND_MAX, readFolderBlend, readPrefs, resolveTheme, saveFolderBlend, savePrefs, THEMES, type ThemeId, type ThemeInfo, type ThemePrefs } from "../lib/theme";
 import Icon from "./Icon";
+
+const nameOf = (id: ThemeId) => THEMES.find((t) => t.id === id)?.name ?? id;
+
+/** Kleine Ansicht der Startseite im jeweiligen Design: Titel, Speicher-Karte mit Ring, Archiv & Privat. */
+function ThemePreview({ t }: { t: ThemeInfo }) {
+  const p = t.preview;
+  const r = p.radius;
+  return (
+    <div className={`theme-preview tp-${t.id}`} style={{ background: p.bg }}>
+      <i style={{ width: 70, height: 70, left: -14, top: -20, background: p.blobs[0] }} />
+      <i style={{ width: 60, height: 60, right: -10, top: 0, background: p.blobs[1] }} />
+      <i style={{ width: 60, height: 60, left: 40, bottom: -30, background: p.blobs[2] }} />
+      {p.overlay && <span className="tp-overlay" style={{ background: p.overlay }} />}
+      <span className="tp-title" style={{ background: p.title }} />
+      <span className="tp-card" style={{ background: p.card, boxShadow: p.cardShadow, borderRadius: r + 2 }}>
+        <span className="tp-ring" style={{ background: p.ring }} />
+        <span className="tp-lines">
+          <span style={{ background: p.line, width: "70%" }} />
+          <span style={{ background: p.line, width: "45%", opacity: 0.7 }} />
+        </span>
+      </span>
+      <span className="tp-areas">
+        {p.areas.map((a, i) => (
+          <span key={i} style={{ background: a, boxShadow: p.areaShadow, borderRadius: r }} />
+        ))}
+      </span>
+    </div>
+  );
+}
 
 /** Design-Auswahl mit Live-Vorschau-Kacheln und „Automatisch hell/dunkel“. */
 export default function ThemePicker() {
@@ -34,34 +63,7 @@ export default function ThemePicker() {
               style={{ ["--i" as string]: i }}
               onClick={() => choose(t.id as ThemeId)}
             >
-              <div className="theme-preview" style={{ background: t.preview.bg }}>
-                <i style={{ width: 70, height: 70, left: -14, top: -20, background: t.preview.blobs[0] }} />
-                <i style={{ width: 60, height: 60, right: -10, top: 0, background: t.preview.blobs[1] }} />
-                <i style={{ width: 60, height: 60, left: 40, bottom: -30, background: t.preview.blobs[2] }} />
-                {t.id === "neon" && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      backgroundImage:
-                        "linear-gradient(rgba(163,230,53,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(163,230,53,.12) 1px,transparent 1px)",
-                      backgroundSize: "12px 12px",
-                    }}
-                  />
-                )}
-                <span className="tp-pill" style={{ background: t.preview.pill }} />
-                <span
-                  className="tp-card"
-                  style={{
-                    background: t.preview.card,
-                    boxShadow: t.light
-                      ? "inset 0 1px 0 #fff, 0 4px 12px rgba(42,54,110,.12)"
-                      : t.id === "neon"
-                        ? "inset 0 0 0 1px rgba(163,230,53,.7), 0 0 12px rgba(163,230,53,.35)"
-                        : "inset 0 1px 0 rgba(255,255,255,.35)",
-                  }}
-                />
-              </div>
+              <ThemePreview t={t} />
               <div className="theme-meta">
                 <strong>{t.name}</strong>
                 <span>{t.description}</span>
@@ -80,7 +82,7 @@ export default function ThemePicker() {
         <span>
           <strong>Automatisch hell/dunkel</strong>
           <div className="muted small">
-            Hell am iPhone → Polar, dunkel → {prefs.theme === "polar" ? "Aurora" : THEMES.find((t) => t.id === prefs.theme)?.name}
+            Hell am iPhone → {nameOf(autoPair(prefs.theme).light)}, dunkel → {nameOf(autoPair(prefs.theme).dark)}
           </div>
         </span>
         <span className="switch">
