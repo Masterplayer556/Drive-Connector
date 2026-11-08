@@ -638,7 +638,7 @@ p {
   position: absolute;
   inset: -10px;
   border-radius: 34px;
-  background: conic-gradient(from 0deg, #8b5cf6, #22d3ee, #f472b6, #8b5cf6);
+  background: conic-gradient(from 0deg, #0f766e, #f2c14e, #fff1d6, #0f766e);
   filter: blur(14px);
   opacity: 0.7;
   animation: spin 3s linear infinite;
@@ -2489,28 +2489,45 @@ p {
 
 /* ---------- Sunset: warm, Orange / Pink / Magenta ---------- */
 :root[data-theme="sunset"] {
-  --bg: #0e0507;
-  --bg-rgb: 14, 5, 7;
-  --surface-rgb: 34, 12, 22;
-  --scrim-rgb: 10, 3, 6;
-  --text: #fbeff3;
-  --muted: #c9a3b0;
-  --faint: #8c6a76;
-  --glow-rgb: 236, 72, 153;
-  --accent-rgb: 249, 115, 22;
+  --bg: #12060c;
+  --bg-rgb: 18, 6, 12;
+  --surface-rgb: 38, 13, 24;
+  --scrim-rgb: 12, 3, 7;
+  --tint-rgb: 255, 236, 226;
+  --text: #fff2ec;
+  --muted: #d3a9b2;
+  --faint: #93707a;
+  --glow-rgb: 244, 63, 94;
+  --accent-rgb: 251, 146, 60;
   --accent2-rgb: 236, 72, 153;
-  --accent3-rgb: 168, 85, 247;
+  --accent3-rgb: 244, 63, 94;
   --violet: #ec4899;
-  --cyan: #fb923c;
-  --grad: linear-gradient(135deg, #fb923c 0%, #ec4899 55%, #a855f7 100%);
-  --grad-text: linear-gradient(100deg, #fdba74 0%, #f9a8d4 50%, #d8b4fe 100%);
-  --aurora-top: #3b0f1f;
+  --cyan: #fdba74;
+  --grad: linear-gradient(135deg, #fbbf24 0%, #f97316 30%, #ec4899 70%, #a855f7 100%);
+  --grad-text: linear-gradient(100deg, #fde68a 0%, #fdba74 35%, #f9a8d4 75%, #e9d5ff 100%);
+  --aurora-top: #3a0d22;
   --blob1: #f97316;
   --blob2: #db2777;
   --blob3: #7c3aed;
-  --blob-opacity: 0.5;
-  --area-archiv: linear-gradient(140deg, #ea580c 0%, #db2777 100%);
-  --area-privat: linear-gradient(140deg, #9333ea 0%, #c026d3 60%, #f43f5e 100%);
+  --blob-opacity: 0.42;
+  --area-archiv: linear-gradient(150deg, #fbbf24 0%, #f97316 42%, #e11d48 100%);
+  --area-privat: linear-gradient(150deg, #6d28d9 0%, #c026d3 55%, #fb7185 100%);
+  /* Glas mit warmem Schimmer */
+  --lg-fill: linear-gradient(
+    165deg,
+    rgba(255, 228, 214, 0.17) 0%,
+    rgba(255, 214, 200, 0.06) 38%,
+    rgba(255, 190, 170, 0.04) 62%,
+    rgba(255, 170, 150, 0.11) 100%
+  );
+  --lg-rim: linear-gradient(
+    140deg,
+    rgba(255, 236, 214, 0.8) 0%,
+    rgba(255, 200, 170, 0.14) 28%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(251, 113, 133, 0.14) 72%,
+    rgba(253, 186, 116, 0.55) 100%
+  );
 }
 
 /* ---------- Polar: hell, Eisblau / Indigo, weiche Schatten ---------- */
@@ -2744,6 +2761,614 @@ p {
   box-shadow: 0 0 16px hsl(var(--h) 85% 55% / 0.6);
 }
 
+/* =========================================================================
+   Stimmungs-Ebene hinter allem (.aurora::before) – pro Design ein eigenes Motiv
+   ========================================================================= */
+
+/* Aurora: wehender Nordlicht-Vorhang oben */
+.aurora::before {
+  content: "";
+  position: absolute;
+  left: -30%;
+  right: -30%;
+  top: -6vh;
+  height: 58vh;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(94, 234, 212, 0) 0 4vw,
+      rgba(94, 234, 212, 0.22) 6.5vw,
+      rgba(94, 234, 212, 0) 9vw,
+      rgba(167, 139, 250, 0.16) 12vw,
+      rgba(167, 139, 250, 0) 15vw
+    ),
+    linear-gradient(100deg, transparent 8%, rgba(45, 212, 191, 0.34) 30%, rgba(129, 140, 248, 0.32) 55%, rgba(236, 72, 153, 0.18) 74%, transparent 94%);
+  -webkit-mask: linear-gradient(180deg, transparent 0%, #000 30%, #000 50%, transparent 100%);
+  mask: linear-gradient(180deg, transparent 0%, #000 30%, #000 50%, transparent 100%);
+  filter: blur(10px);
+  mix-blend-mode: screen;
+  opacity: 0.8;
+  transform-origin: 50% 0;
+  animation: curtain 21s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes curtain {
+  from {
+    transform: skewX(-7deg) translateX(-6%) scaleY(0.9);
+  }
+  50% {
+    transform: skewX(3deg) translateX(1%) scaleY(1.05);
+  }
+  to {
+    transform: skewX(8deg) translateX(6%) scaleY(1.14);
+  }
+}
+
+/* Sunset: tief stehende Sonne mit Streifen, die über dem Horizont flimmert */
+:root[data-theme="sunset"] .aurora::before {
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: -34vmin;
+  width: 92vmin;
+  height: 92vmin;
+  margin-left: -46vmin;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fde68a 0%, #fb923c 38%, #f43f5e 68%, #be185d 100%);
+  mix-blend-mode: normal;
+  opacity: 0.32;
+  filter: blur(0.5px);
+  box-shadow: 0 0 140px 50px rgba(249, 115, 22, 0.4);
+  animation: sunrise 9s ease-in-out infinite alternate;
+}
+
+:root[data-theme="sunset"] .aurora::before {
+  /* Streifen werden nach unten dichter (Retro-Sonne) */
+  -webkit-mask: linear-gradient(180deg, #000 0 46%, transparent 46% 49%, #000 49% 57%, transparent 57% 61%, #000 61% 67%, transparent 67% 72%, #000 72% 77%, transparent 77% 83%, #000 83% 87%, transparent 87%);
+  mask: linear-gradient(180deg, #000 0 46%, transparent 46% 49%, #000 49% 57%, transparent 57% 61%, #000 61% 67%, transparent 67% 72%, #000 72% 77%, transparent 77% 83%, #000 83% 87%, transparent 87%);
+}
+
+@keyframes sunrise {
+  from {
+    transform: translateY(4vmin) scale(0.98);
+    opacity: 0.26;
+  }
+  to {
+    transform: translateY(-2vmin) scale(1.02);
+    opacity: 0.4;
+  }
+}
+
+/* Polar: weiche Lichtstrahlen von oben, wie Sonne durch Eis */
+:root[data-theme="polar"] .aurora::before {
+  left: -40%;
+  right: -40%;
+  top: -60vh;
+  height: 140vh;
+  background: repeating-conic-gradient(
+    from 0deg at 50% 0%,
+    rgba(255, 255, 255, 0.95) 0deg 2.5deg,
+    rgba(255, 255, 255, 0) 5deg 8deg,
+    rgba(129, 140, 248, 0.16) 9.5deg 11deg,
+    rgba(255, 255, 255, 0) 13deg 15deg
+  );
+  -webkit-mask: radial-gradient(70% 50% at 50% 46%, #000 0%, transparent 72%);
+  mask: radial-gradient(70% 50% at 50% 46%, #000 0%, transparent 72%);
+  filter: blur(3px);
+  mix-blend-mode: normal;
+  opacity: 0.85;
+  transform-origin: 50% 0;
+  animation: rays 40s linear infinite alternate;
+}
+
+@keyframes rays {
+  from {
+    transform: rotate(-8deg);
+  }
+  to {
+    transform: rotate(8deg);
+  }
+}
+
+/* Neon: Fluchtpunkt-Raster am Boden, das langsam auf einen zufährt */
+:root[data-theme="neon"] .aurora::before {
+  left: -50%;
+  right: -50%;
+  top: auto;
+  bottom: -20vh;
+  height: 70vh;
+  background:
+    linear-gradient(rgba(217, 70, 239, 0.55) 1.5px, transparent 1.5px) 0 0 / 60px 60px,
+    linear-gradient(90deg, rgba(217, 70, 239, 0.55) 1.5px, transparent 1.5px) 0 0 / 60px 60px;
+  -webkit-mask: linear-gradient(180deg, transparent 0%, #000 60%);
+  mask: linear-gradient(180deg, transparent 0%, #000 60%);
+  mix-blend-mode: normal;
+  filter: none;
+  opacity: 0.45;
+  transform: perspective(40vh) rotateX(62deg);
+  transform-origin: 50% 0;
+  animation: gridRun 3.2s linear infinite;
+}
+
+@keyframes gridRun {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 0 60px, 0 0;
+  }
+}
+
+/* ---------- Neon: noch mehr Leuchtreklame ---------- */
+:root[data-theme="neon"] {
+  --radius: 16px;
+  --radius-sm: 10px;
+  --pink: #e879f9;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --aurora-top: #000;
+}
+
+:root[data-theme="neon"] .aurora {
+  background: radial-gradient(120% 45% at 50% 108%, rgba(192, 38, 211, 0.28), transparent 70%), #000;
+}
+
+:root[data-theme="neon"] .topbar-title h1 .grad-text,
+:root[data-theme="neon"] .splash h1 {
+  filter: drop-shadow(0 0 10px rgba(163, 230, 53, 0.55));
+}
+
+:root[data-theme="neon"] .topbar-title .eyebrow,
+:root[data-theme="neon"] .section-title,
+:root[data-theme="neon"] .folder-meta,
+:root[data-theme="neon"] .donut-center span {
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+}
+
+:root[data-theme="neon"] .topbar-title .eyebrow::before,
+:root[data-theme="neon"] .section-title > span:first-child::before {
+  content: "> ";
+  color: rgb(var(--accent-rgb));
+}
+
+:root[data-theme="neon"] .donut-center strong {
+  text-shadow: 0 0 14px rgba(163, 230, 53, 0.55);
+}
+
+:root[data-theme="neon"] .area-card strong {
+  text-shadow: 0 0 12px currentColor;
+}
+
+:root[data-theme="neon"] .area-card.archiv {
+  color: #d9f99d;
+}
+
+:root[data-theme="neon"] .area-card.privat {
+  color: #f5d0fe;
+  border-color: rgba(232, 121, 249, 0.65);
+  box-shadow:
+    0 0 24px rgba(232, 121, 249, 0.25),
+    inset 0 0 30px rgba(232, 121, 249, 0.08);
+}
+
+:root[data-theme="neon"] .area-card .area-icon {
+  background: transparent;
+  box-shadow:
+    inset 0 0 0 1px currentColor,
+    0 0 12px currentColor;
+}
+
+:root[data-theme="neon"] .banner {
+  border-color: rgba(34, 211, 238, 0.55);
+  background: rgba(34, 211, 238, 0.06);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.15);
+}
+
+/* =========================================================================
+   Riso: Druckfarbe auf Papier. Kein Glas – Tinte, Rasterpunkte, harte Schatten.
+   ========================================================================= */
+:root[data-theme="riso"] {
+  color-scheme: light;
+  --ink: #1b1a17;
+  --ink-rgb: 27, 26, 23;
+  --paper: #fffaf0;
+  --riso-pink: #ff48b0;
+  --riso-blue: #0078bf;
+  --riso-yellow: #ffd400;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --bg: #f3ecdc;
+  --bg-rgb: 243, 236, 220;
+  --surface-rgb: 255, 250, 240;
+  --scrim-rgb: 27, 26, 23;
+  --tint-rgb: 27, 26, 23;
+  --shadow-rgb: 27, 26, 23;
+  --shadow-k: 0.25;
+  --text: #1b1a17;
+  --muted: #5f584c;
+  --faint: #91897a;
+  --glow-rgb: 255, 72, 176;
+  --accent-rgb: 255, 72, 176;
+  --accent2-rgb: 0, 120, 191;
+  --accent3-rgb: 255, 212, 0;
+  --violet: #ff48b0;
+  --blue: #0078bf;
+  --cyan: #0078bf;
+  --pink: #ff48b0;
+  --green: #00a95c;
+  --red: #e4002b;
+  --amber: #b07d00;
+  --grad: linear-gradient(#ff48b0, #ff48b0);
+  --grad-text: linear-gradient(#1b1a17, #1b1a17);
+  --on-accent: #1b1a17;
+  --tab-active: #1b1a17;
+  --inset-bg: rgba(27, 26, 23, 0.06);
+  --glass-border: #1b1a17;
+  --aurora-top: #f3ecdc;
+  --blob-opacity: 0;
+  --grain-opacity: 1;
+  --seg-glow: none;
+  --radius: 18px;
+  --area-archiv: radial-gradient(rgba(255, 255, 255, 0.2) 1.2px, transparent 1.6px) 0 0 / 10px 10px, #0078bf;
+  --area-privat: radial-gradient(rgba(27, 26, 23, 0.12) 1.2px, transparent 1.6px) 0 0 / 10px 10px, #ff48b0;
+  --lg-fill: linear-gradient(var(--paper), var(--paper));
+  --lg-blur: none;
+  --lg-shadow: inset 0 0 0 2px var(--ink), 4px 4px 0 var(--ink);
+  --lg-rim: none;
+}
+
+/* Papier: Faserkorn + grosse Rasterpunkte in Pink und Blau, die sich überlagern */
+:root[data-theme="riso"] .aurora {
+  background: var(--bg);
+}
+
+:root[data-theme="riso"] .aurora::before {
+  inset: 0;
+  height: auto;
+  background:
+    radial-gradient(circle, rgba(255, 72, 176, 0.55) 2.4px, transparent 2.9px) 0 0 / 14px 14px,
+    radial-gradient(circle, rgba(0, 120, 191, 0.45) 2.4px, transparent 2.9px) 7px 7px / 14px 14px;
+  -webkit-mask:
+    radial-gradient(55vmax 40vmax at 105% -5%, #000 0%, transparent 70%),
+    radial-gradient(50vmax 40vmax at -10% 108%, #000 0%, transparent 70%);
+  mask:
+    radial-gradient(55vmax 40vmax at 105% -5%, #000 0%, transparent 70%),
+    radial-gradient(50vmax 40vmax at -10% 108%, #000 0%, transparent 70%);
+  mix-blend-mode: multiply;
+  filter: none;
+  opacity: 0.75;
+  transform: none;
+  animation: none;
+}
+
+:root[data-theme="riso"] .aurora::after {
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .09 0 0 0 0 .07 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* Fehldruck: Titel in Tinte, Pink leicht versetzt dahinter */
+:root[data-theme="riso"] .grad-text {
+  background: none;
+  color: var(--ink);
+  text-shadow: 2.5px 2px 0 rgba(255, 72, 176, 0.9);
+}
+
+:root[data-theme="riso"] .topbar-title h1,
+:root[data-theme="riso"] .auth-card h1,
+:root[data-theme="riso"] .splash h1,
+:root[data-theme="riso"] .hero-big,
+:root[data-theme="riso"] .area-card strong {
+  font-family: "Avenir Next Condensed", "Arial Narrow", -apple-system, system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+:root[data-theme="riso"] .topbar-title .eyebrow,
+:root[data-theme="riso"] .section-title,
+:root[data-theme="riso"] .folder-meta,
+:root[data-theme="riso"] .donut-center span,
+:root[data-theme="riso"] .theme-meta span {
+  font-family: var(--mono);
+  letter-spacing: 0.02em;
+}
+
+:root[data-theme="riso"] .section-title {
+  color: var(--ink);
+}
+
+:root[data-theme="riso"] .section-title > span:first-child {
+  background: var(--riso-yellow);
+  padding: 2px 6px;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+:root[data-theme="riso"] .topbar {
+  background: linear-gradient(180deg, rgba(var(--bg-rgb), 0.97) 0%, rgba(var(--bg-rgb), 0.75) 70%, rgba(var(--bg-rgb), 0) 100%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-theme="riso"] .glass::before,
+:root[data-theme="riso"] .icon-btn::before,
+:root[data-theme="riso"] .folder::before,
+:root[data-theme="riso"] .glass::after,
+:root[data-theme="riso"] .icon-btn::after {
+  display: none;
+}
+
+:root[data-theme="riso"] .icon-btn {
+  box-shadow: inset 0 0 0 2px var(--ink), 2px 2px 0 var(--ink);
+}
+
+:root[data-theme="riso"] .folder {
+  box-shadow: inset 0 0 0 2px var(--ink), 3px 3px 0 var(--ink);
+}
+
+/* Drücken: Fläche rutscht in ihren Schatten */
+:root[data-theme="riso"] .icon-btn:active,
+:root[data-theme="riso"] .folder:active,
+:root[data-theme="riso"] .btn:active,
+:root[data-theme="riso"] .fab:active,
+:root[data-theme="riso"] .area-card:active,
+:root[data-theme="riso"] .list-item:active {
+  transform: translate(2px, 2px);
+  filter: none;
+}
+
+:root[data-theme="riso"] .icon-btn:active,
+:root[data-theme="riso"] .folder:active,
+:root[data-theme="riso"] .btn:active {
+  box-shadow: inset 0 0 0 2px var(--ink), 1px 1px 0 var(--ink);
+}
+
+:root[data-theme="riso"] .btn.primary,
+:root[data-theme="riso"] .fab {
+  background: var(--riso-pink);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--ink), 4px 4px 0 var(--ink);
+  animation: none;
+}
+
+:root[data-theme="riso"] .fab {
+  animation: popIn 0.5s var(--spring) both;
+}
+
+:root[data-theme="riso"] .btn.danger-solid {
+  background: var(--red);
+  color: #fff;
+  box-shadow: inset 0 0 0 2px var(--ink), 3px 3px 0 var(--ink);
+}
+
+:root[data-theme="riso"] .btn.ghost {
+  box-shadow: none;
+}
+
+:root[data-theme="riso"] .area-card {
+  color: #fff;
+  border: 0;
+  box-shadow: inset 0 0 0 2.5px var(--ink), 5px 5px 0 var(--ink);
+}
+
+:root[data-theme="riso"] .area-card.privat {
+  color: var(--ink);
+}
+
+/* Gelbe Scheibe, überdruckt (multiply) – wie ein zweiter Farbdurchgang */
+:root[data-theme="riso"] .area-card::after {
+  width: 120px;
+  height: 120px;
+  right: -36px;
+  top: -44px;
+  background: var(--riso-yellow);
+  filter: none;
+  mix-blend-mode: multiply;
+  opacity: 0.95;
+}
+
+:root[data-theme="riso"] .area-card .area-icon {
+  position: relative;
+  z-index: 1;
+  color: var(--ink);
+  background: var(--paper);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: inset 0 0 0 2px var(--ink), 2px 2px 0 var(--ink);
+}
+
+:root[data-theme="riso"] .area-card > span:last-child {
+  position: relative;
+  z-index: 1;
+}
+
+:root[data-theme="riso"] .folder-icon {
+  color: var(--ink);
+  background: hsl(var(--h) 90% 66%);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+:root[data-theme="riso"] .dot {
+  box-shadow: 0 0 0 1.5px var(--ink);
+}
+
+:root[data-theme="riso"] .donut-track {
+  stroke: rgba(var(--ink-rgb), 0.1);
+}
+
+:root[data-theme="riso"] .tabbar {
+  background: var(--paper);
+  box-shadow: inset 0 0 0 2px var(--ink), 4px 4px 0 var(--ink);
+}
+
+:root[data-theme="riso"] .tab {
+  color: var(--muted);
+}
+
+:root[data-theme="riso"] .tab-indicator,
+:root[data-theme="riso"] .segmented .seg-thumb {
+  background: var(--riso-yellow);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+:root[data-theme="riso"] .segmented {
+  background: var(--paper);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+:root[data-theme="riso"] .segmented button.on {
+  color: var(--ink);
+}
+
+:root[data-theme="riso"] .chip,
+:root[data-theme="riso"] .crumb,
+:root[data-theme="riso"] .stat-chip {
+  background: var(--paper);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+
+:root[data-theme="riso"] .chip.on,
+:root[data-theme="riso"] .stat-chip.on {
+  background: var(--riso-pink);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+
+:root[data-theme="riso"] .crumb.current {
+  background: var(--riso-yellow);
+  color: var(--ink);
+}
+
+:root[data-theme="riso"] .switch span {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+:root[data-theme="riso"] .switch input:checked + span {
+  background: var(--riso-pink);
+}
+
+:root[data-theme="riso"] .switch span::after {
+  background: var(--paper);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+:root[data-theme="riso"] .banner {
+  border: 0;
+  background: #fff1a8;
+  box-shadow: inset 0 0 0 2px var(--ink), 3px 3px 0 var(--ink);
+}
+
+:root[data-theme="riso"] .banner.warn {
+  background: #ffe28a;
+}
+
+:root[data-theme="riso"] .banner.error {
+  background: #ffc2cf;
+}
+
+:root[data-theme="riso"] .banner.ok {
+  background: #bdf0d2;
+}
+
+:root[data-theme="riso"] .modal,
+:root[data-theme="riso"] .menu,
+:root[data-theme="riso"] .toast,
+:root[data-theme="riso"] .actionbar {
+  background: var(--paper);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: inset 0 0 0 2px var(--ink), 5px 5px 0 var(--ink);
+}
+
+:root[data-theme="riso"] .sheet {
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-bottom: 0;
+  box-shadow: 0 -6px 0 rgba(var(--ink-rgb), 0.12);
+}
+
+:root[data-theme="riso"] .modal-backdrop,
+:root[data-theme="riso"] .sheet-backdrop {
+  background: rgba(var(--scrim-rgb), 0.35);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-theme="riso"] .list-item {
+  border-bottom-color: rgba(var(--ink-rgb), 0.18);
+}
+
+:root[data-theme="riso"] .list-item .li-icon {
+  color: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+:root[data-theme="riso"] .input {
+  background: var(--paper);
+  border: 2px solid var(--ink);
+}
+
+:root[data-theme="riso"] .input:focus {
+  border-color: var(--ink);
+  box-shadow: 3px 3px 0 var(--riso-pink);
+  background: var(--paper);
+}
+
+:root[data-theme="riso"] .bar {
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+
+:root[data-theme="riso"] .bar-fill {
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+
+:root[data-theme="riso"] .status-pill {
+  background: rgba(0, 169, 92, 0.14);
+}
+
+:root[data-theme="riso"] .status-pill.err {
+  background: rgba(228, 0, 43, 0.12);
+}
+
+:root[data-theme="riso"] .donut-center strong.lvl-warn {
+  color: #b07d00;
+}
+
+:root[data-theme="riso"] .theme-card {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+:root[data-theme="riso"] .theme-card.on {
+  box-shadow: inset 0 0 0 3px var(--ink), 4px 4px 0 var(--riso-pink);
+}
+
+:root[data-theme="riso"] .theme-meta {
+  background: var(--paper);
+  border-top: 2px solid var(--ink);
+}
+
+:root[data-theme="riso"] .splash-logo::before {
+  display: none;
+}
+
+:root[data-theme="riso"] .splash-logo img,
+:root[data-theme="riso"] .auth-card .logo {
+  box-shadow: 0 0 0 2.5px var(--ink), 5px 5px 0 var(--ink);
+}
+
+/* ---------- Aurora & Sunset: Titel leuchtet leicht ---------- */
+:root:not([data-theme="polar"]):not([data-theme="riso"]):not([data-theme="neon"]) .topbar-title h1 .grad-text {
+  filter: drop-shadow(0 0 16px rgba(var(--glow-rgb), 0.35));
+}
+
+:root[data-theme="sunset"] .area-card.archiv {
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(124, 45, 18, 0.35);
+}
+
 /* ---------- Design-Auswahl unter „Mehr“ ---------- */
 .theme-grid {
   display: grid;
@@ -2777,7 +3402,7 @@ p {
 
 .theme-preview {
   position: relative;
-  height: 96px;
+  height: 112px;
   overflow: hidden;
 }
 
@@ -2787,24 +3412,78 @@ p {
   filter: blur(14px);
 }
 
-.theme-preview .tp-card {
+.theme-preview > span {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  height: 30px;
-  border-radius: 12px;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
 }
 
-.theme-preview .tp-pill {
-  position: absolute;
-  left: 12px;
-  top: 12px;
-  width: 44px;
-  height: 14px;
+.theme-preview .tp-overlay {
+  inset: 0;
+}
+
+.theme-preview .tp-title {
+  left: 10px;
+  top: 11px;
+  width: 46px;
+  height: 9px;
   border-radius: 999px;
+}
+
+.theme-preview .tp-card {
+  left: 10px;
+  right: 10px;
+  top: 30px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.theme-preview .tp-ring {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  -webkit-mask: radial-gradient(circle, transparent 7px, #000 7.5px);
+  mask: radial-gradient(circle, transparent 7px, #000 7.5px);
+}
+
+.theme-preview .tp-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.theme-preview .tp-lines span {
+  height: 4px;
+  border-radius: 99px;
+}
+
+.theme-preview .tp-areas {
+  left: 10px;
+  right: 10px;
+  top: 74px;
+  height: 28px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+/* Riso: Archiv/Privat mit Rasterpunkten, Gelb überdruckt */
+.tp-riso .tp-areas span {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.35) 0.8px, transparent 1.1px) !important;
+  background-size: 4px 4px !important;
+}
+
+.tp-riso .tp-title {
+  box-shadow: 2px 2px 0 #ff48b0;
+}
+
+/* Fünftes Design: über die ganze Breite */
+.theme-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .theme-meta {

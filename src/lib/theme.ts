@@ -1,6 +1,22 @@
-// Designs: Aurora (Standard), Sunset, Polar (hell), Neon. Farben stehen in styles.css unter [data-theme].
+// Designs: Aurora (Standard), Sunset, Polar (hell), Neon, Riso (hell). Farben stehen in styles.css unter [data-theme].
 
-export type ThemeId = "aurora" | "sunset" | "polar" | "neon";
+export type ThemeId = "aurora" | "sunset" | "polar" | "neon" | "riso";
+
+/** Mini-Ansicht der App für die Design-Kachel unter „Mehr“ (Titel, Speicher-Karte mit Ring, Archiv/Privat). */
+export interface ThemePreview {
+  bg: string;
+  blobs: [string, string, string];
+  /** Muster über dem Hintergrund (Raster, Punkte …) */
+  overlay?: string;
+  title: string;
+  card: string;
+  cardShadow: string;
+  ring: string;
+  line: string;
+  areas: [string, string];
+  areaShadow: string;
+  radius: number;
+}
 
 export interface ThemeInfo {
   id: ThemeId;
@@ -8,9 +24,10 @@ export interface ThemeInfo {
   description: string;
   light: boolean;
   themeColor: string;
-  /** Vorschau-Kachel */
-  preview: { bg: string; blobs: [string, string, string]; card: string; pill: string };
+  preview: ThemePreview;
 }
+
+const INK = "#1b1a17";
 
 export const THEMES: ThemeInfo[] = [
   {
@@ -20,23 +37,35 @@ export const THEMES: ThemeInfo[] = [
     light: false,
     themeColor: "#060913",
     preview: {
-      bg: "#060913",
+      bg: "radial-gradient(120% 80% at 50% -10%, #111a3a, #060913 60%)",
       blobs: ["#7c3aed", "#0ea5e9", "#db2777"],
-      card: "rgba(255,255,255,0.12)",
-      pill: "linear-gradient(135deg,#8b5cf6,#3b82f6,#22d3ee)",
+      title: "linear-gradient(100deg,#c4b5fd,#93c5fd,#67e8f9)",
+      card: "linear-gradient(165deg,rgba(255,255,255,.2),rgba(255,255,255,.06))",
+      cardShadow: "inset 0 1px 0 rgba(255,255,255,.45), inset 0 0 0 .5px rgba(255,255,255,.2)",
+      ring: "conic-gradient(#8b5cf6 0 18%,transparent 0 20%,#0891b2 0 32%,transparent 0 34%,#d97706 0 42%,rgba(255,255,255,.12) 0)",
+      line: "rgba(255,255,255,.35)",
+      areas: ["linear-gradient(140deg,#6d28d9,#2563eb 60%,#0891b2)", "linear-gradient(140deg,#db2777,#e11d48 45%,#f97316)"],
+      areaShadow: "inset 0 1px 0 rgba(255,255,255,.5)",
+      radius: 9,
     },
   },
   {
     id: "sunset",
     name: "Sunset",
-    description: "Warm – Orange, Pink, Magenta",
+    description: "Goldene Stunde über dem Meer",
     light: false,
-    themeColor: "#0e0507",
+    themeColor: "#12060c",
     preview: {
-      bg: "#0e0507",
+      bg: "radial-gradient(90% 60% at 50% 120%, #c2410c 0%, #4a0f24 45%, #12060c 75%)",
       blobs: ["#f97316", "#db2777", "#7c3aed"],
-      card: "rgba(255,255,255,0.12)",
-      pill: "linear-gradient(135deg,#fb923c,#ec4899,#a855f7)",
+      title: "linear-gradient(100deg,#fde68a,#fdba74,#f9a8d4)",
+      card: "linear-gradient(165deg,rgba(255,228,214,.2),rgba(255,228,214,.06))",
+      cardShadow: "inset 0 1px 0 rgba(255,236,224,.5), inset 0 0 0 .5px rgba(255,220,200,.22)",
+      ring: "conic-gradient(#fbbf24 0 18%,transparent 0 20%,#f43f5e 0 32%,transparent 0 34%,#a855f7 0 42%,rgba(255,230,220,.14) 0)",
+      line: "rgba(255,226,214,.38)",
+      areas: ["linear-gradient(150deg,#fbbf24,#f97316 45%,#e11d48)", "linear-gradient(150deg,#7c3aed,#c026d3 55%,#fb7185)"],
+      areaShadow: "inset 0 1px 0 rgba(255,255,255,.5)",
+      radius: 9,
     },
   },
   {
@@ -46,30 +75,65 @@ export const THEMES: ThemeInfo[] = [
     light: true,
     themeColor: "#eef2fb",
     preview: {
-      bg: "#eef2fb",
+      bg: "radial-gradient(120% 80% at 50% -10%, #dde5ff, #eef2fb 60%)",
       blobs: ["#a5b4fc", "#7dd3fc", "#f9a8d4"],
-      card: "rgba(255,255,255,0.75)",
-      pill: "linear-gradient(135deg,#6366f1,#3b82f6,#06b6d4)",
+      title: "linear-gradient(100deg,#4f46e5,#2563eb,#0891b2)",
+      card: "rgba(255,255,255,.82)",
+      cardShadow: "inset 0 1px 0 #fff, 0 4px 12px rgba(42,54,110,.12)",
+      ring: "conic-gradient(#8b5cf6 0 18%,transparent 0 20%,#0891b2 0 32%,transparent 0 34%,#d97706 0 42%,rgba(15,23,42,.08) 0)",
+      line: "rgba(15,23,42,.18)",
+      areas: ["linear-gradient(140deg,#6366f1,#3b82f6 60%,#06b6d4)", "linear-gradient(140deg,#ec4899,#fb7185 50%,#fb923c)"],
+      areaShadow: "0 4px 10px rgba(99,102,241,.25)",
+      radius: 9,
     },
   },
   {
     id: "neon",
     name: "Neon",
-    description: "Schwarz mit leuchtenden Kanten",
+    description: "Schwarz, Raster, leuchtende Kanten",
     light: false,
     themeColor: "#000000",
     preview: {
-      bg: "#000",
+      bg: "radial-gradient(100% 50% at 50% 115%, rgba(217,70,239,.35), #000 70%)",
       blobs: ["transparent", "transparent", "transparent"],
-      card: "rgba(163,230,53,0.12)",
-      pill: "linear-gradient(135deg,#a3e635,#22d3ee)",
+      overlay:
+        "linear-gradient(rgba(163,230,53,.13) 1px,transparent 1px) 0 0/12px 12px,linear-gradient(90deg,rgba(163,230,53,.13) 1px,transparent 1px) 0 0/12px 12px",
+      title: "linear-gradient(100deg,#d9f99d,#a3e635,#22d3ee)",
+      card: "rgba(163,230,53,.06)",
+      cardShadow: "inset 0 0 0 1px rgba(163,230,53,.7), 0 0 12px rgba(163,230,53,.35)",
+      ring: "conic-gradient(#a3e635 0 18%,transparent 0 20%,#22d3ee 0 32%,transparent 0 34%,#e879f9 0 42%,rgba(163,230,53,.12) 0)",
+      line: "rgba(163,230,53,.45)",
+      areas: ["#040805", "#080406"],
+      areaShadow: "inset 0 0 0 1px rgba(163,230,53,.7), 0 0 10px rgba(163,230,53,.3)",
+      radius: 5,
+    },
+  },
+  {
+    id: "riso",
+    name: "Riso",
+    description: "Druckfarbe auf Papier – Pink, Blau, Gelb, harte Kanten",
+    light: true,
+    themeColor: "#f3ecdc",
+    preview: {
+      bg: "#f3ecdc",
+      blobs: ["transparent", "transparent", "transparent"],
+      overlay:
+        "radial-gradient(circle at 100% 0, rgba(255,72,176,.55) 1.4px, transparent 1.8px) 0 0/7px 7px",
+      title: `linear-gradient(${INK},${INK})`,
+      card: "#fffaf0",
+      cardShadow: `inset 0 0 0 1.5px ${INK}, 3px 3px 0 ${INK}`,
+      ring: "conic-gradient(#ff48b0 0 18%,transparent 0 20%,#0078bf 0 32%,transparent 0 34%,#ffd400 0 42%,rgba(27,26,23,.12) 0)",
+      line: "rgba(27,26,23,.35)",
+      areas: ["#0078bf", "#ff48b0"],
+      areaShadow: `inset 0 0 0 1.5px ${INK}, 3px 3px 0 ${INK}`,
+      radius: 7,
     },
   },
 ];
 
 export interface ThemePrefs {
   theme: ThemeId;
-  /** Hell/Dunkel vom iPhone übernehmen: hell → Polar, dunkel → gewähltes dunkles Design */
+  /** Hell/Dunkel vom iPhone übernehmen (siehe autoPair) */
   auto: boolean;
 }
 
@@ -88,10 +152,17 @@ export function readPrefs(): ThemePrefs {
 
 const lightQuery = () => window.matchMedia?.("(prefers-color-scheme: light)");
 
+export const isLight = (id: ThemeId) => THEMES.find((t) => t.id === id)?.light ?? false;
+
+/** Mit Automatik: helles iPhone → gewähltes helles Design (sonst Polar), dunkles → gewähltes dunkles (sonst Aurora). */
+export function autoPair(theme: ThemeId): { light: ThemeId; dark: ThemeId } {
+  return isLight(theme) ? { light: theme, dark: "aurora" } : { light: "polar", dark: theme };
+}
+
 export function resolveTheme(prefs: ThemePrefs): ThemeId {
   if (!prefs.auto) return prefs.theme;
-  if (lightQuery()?.matches) return "polar";
-  return prefs.theme === "polar" ? "aurora" : prefs.theme;
+  const pair = autoPair(prefs.theme);
+  return lightQuery()?.matches ? pair.light : pair.dark;
 }
 
 export function applyTheme(prefs: ThemePrefs, animate = false) {
