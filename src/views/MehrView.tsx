@@ -1,7 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { lazy, Suspense, useEffect, useState } from "react";
 import Icon, { type IconName } from "../components/Icon";
-import ThemePicker from "../components/ThemePicker";
+import { ThemePreview } from "../components/ThemePicker";
 import { disableLock, enableLock, lockEnabled, lockError, lockSupported } from "../lib/lock";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
@@ -10,6 +10,8 @@ import { syncAccounts } from "../lib/db";
 import { navigate } from "../lib/route";
 import { supabase } from "../lib/supabase";
 import type { Account } from "../lib/types";
+import { THEMES } from "../lib/theme";
+import { useThemeId } from "../lib/useTheme";
 
 const AiSettings = lazy(() => import("../ai/AiSettings")); // KI-SUCHE
 const AiWipeSheet = lazy(() => import("../ai/AiWipeSheet")); // KI-SUCHE
@@ -47,6 +49,24 @@ function Item({
         {sub && <small>{sub}</small>}
       </span>
       {right ?? (onClick && <Icon name="chevronRight" size={18} className="faint" />)}
+    </button>
+  );
+}
+
+/** Kachel zur Design-Seite: zeigt das aktive Design als Mini-Startseite. */
+function DesignTile() {
+  const id = useThemeId();
+  const t = THEMES.find((x) => x.id === id) ?? THEMES[0];
+  return (
+    <button className="design-tile glass enter" onClick={() => navigate("design")}>
+      <span className="design-tile-preview">
+        <ThemePreview t={t} />
+      </span>
+      <span className="design-tile-text">
+        <strong>{t.name}</strong>
+        <small>{THEMES.length} Designs · Hell & Dunkel · Ordnerfarben · Bewegung</small>
+      </span>
+      <Icon name="chevronRight" size={18} className="faint" />
     </button>
   );
 }
@@ -258,7 +278,7 @@ export default function MehrView({ session, accounts }: { session: Session; acco
       <div className="section-title">
         <span>Design</span>
       </div>
-      <ThemePicker />
+      <DesignTile />
 
       {/* KI-SUCHE */}
       <div className="section-title">

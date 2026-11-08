@@ -743,7 +743,7 @@ p {
 }
 
 .donut svg {
-  transform: rotate(-90deg);
+  position: relative;
   /* Leuchten und runde Enden nicht abschneiden */
   overflow: visible;
 }
@@ -3184,7 +3184,7 @@ p {
 
 :root[data-theme="riso"] .folder-icon {
   color: var(--ink);
-  background: hsl(var(--h) 90% 66%);
+  background: linear-gradient(135deg, hsl(var(--h) 90% 66%), hsl(calc(var(--h) + var(--folder-blend, 45)) 90% 60%));
   box-shadow: inset 0 0 0 2px var(--ink);
 }
 
@@ -3357,6 +3357,460 @@ p {
 :root[data-theme="riso"] .splash-logo img,
 :root[data-theme="riso"] .auth-card .logo {
   box-shadow: 0 0 0 2.5px var(--ink), 5px 5px 0 var(--ink);
+}
+
+/* =========================================================================
+   Tinte: Tusche auf schwarzem Grund, Serifen, ein roter Stempel als einzige Farbe
+   ========================================================================= */
+:root[data-theme="tinte"] {
+  --sumi: #0c0b0a;
+  --washi: #f2efe8;
+  --shu: #e63b2e;
+  --serif: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+  --bg: #0c0b0a;
+  --bg-rgb: 12, 11, 10;
+  --surface-rgb: 22, 21, 19;
+  --scrim-rgb: 0, 0, 0;
+  --tint-rgb: 242, 239, 232;
+  --shadow-rgb: 0, 0, 0;
+  --shadow-k: 0.6;
+  --text: #f2efe8;
+  --muted: #a29d93;
+  --faint: #6d6961;
+  --glow-rgb: 230, 59, 46;
+  --accent-rgb: 230, 59, 46;
+  --accent2-rgb: 242, 239, 232;
+  --accent3-rgb: 200, 48, 38;
+  --violet: #e63b2e;
+  --blue: #f2efe8;
+  --cyan: #ff7a6b;
+  --pink: #ff7a6b;
+  --red: #ff5a4a;
+  --grad: linear-gradient(#e63b2e, #e63b2e);
+  --grad-text: linear-gradient(#f2efe8, #f2efe8);
+  --on-accent: #fff7f0;
+  --tab-active: #f2efe8;
+  --inset-bg: rgba(242, 239, 232, 0.05);
+  --glass-border: rgba(242, 239, 232, 0.12);
+  --aurora-top: #0c0b0a;
+  --blob-opacity: 0;
+  --grain-opacity: 0.35;
+  --seg-glow: none;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --area-archiv: #f2efe8;
+  --area-privat: #e63b2e;
+  --lg-fill: linear-gradient(#141311, #141311);
+  --lg-blur: none;
+  --lg-shadow: inset 0 0 0 1px rgba(242, 239, 232, 0.12);
+  --lg-rim: none;
+}
+
+:root[data-theme="tinte"] .aurora {
+  background: var(--bg);
+}
+
+/* Grosser Pinselkreis (Ensō), kaum sichtbar, dreht sich ganz langsam */
+:root[data-theme="tinte"] .aurora::before {
+  left: auto;
+  right: -38vmin;
+  top: -30vmin;
+  width: 120vmin;
+  height: 120vmin;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='b' x='-10%25' y='-10%25' width='120%25' height='120%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.02 .45' numOctaves='2' seed='3'/%3E%3CfeDisplacementMap in='SourceGraphic' scale='16'/%3E%3C/filter%3E%3Cpath d='M318 132 A150 150 0 1 1 222 54' fill='none' stroke='%23f2efe8' stroke-width='30' stroke-linecap='round' filter='url(%23b)'/%3E%3C/svg%3E") center / contain no-repeat;
+  -webkit-mask: none;
+  mask: none;
+  filter: none;
+  mix-blend-mode: normal;
+  opacity: 0.07;
+  transform-origin: 50% 50%;
+  animation: spin 160s linear infinite;
+}
+
+:root[data-theme="tinte"] .glass::after,
+:root[data-theme="tinte"] .icon-btn::after,
+:root[data-theme="tinte"] .area-card::after {
+  display: none;
+}
+
+:root[data-theme="tinte"] .topbar-title h1,
+:root[data-theme="tinte"] .auth-card h1,
+:root[data-theme="tinte"] .splash h1,
+:root[data-theme="tinte"] .hero-big,
+:root[data-theme="tinte"] .area-card strong,
+:root[data-theme="tinte"] .modal h3,
+:root[data-theme="tinte"] .theme-meta strong,
+:root[data-theme="tinte"] .design-tile-text strong {
+  font-family: var(--serif);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+:root[data-theme="tinte"] .grad-text {
+  background: none;
+  color: var(--washi);
+}
+
+:root[data-theme="tinte"] .topbar-title h1 .grad-text {
+  font-style: italic;
+}
+
+:root[data-theme="tinte"] .topbar-title .eyebrow,
+:root[data-theme="tinte"] .section-title {
+  letter-spacing: 0.18em;
+}
+
+/* Roter Pinselstrich vor jeder Überschrift */
+:root[data-theme="tinte"] .section-title > span:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  margin-right: 8px;
+  vertical-align: middle;
+  background: var(--shu);
+}
+
+:root[data-theme="tinte"] .area-card {
+  border: 0;
+  box-shadow: none;
+}
+
+:root[data-theme="tinte"] .area-card.archiv {
+  color: var(--sumi);
+}
+
+:root[data-theme="tinte"] .area-card.privat {
+  color: #fff7f0;
+}
+
+:root[data-theme="tinte"] .area-card .area-icon {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+:root[data-theme="tinte"] .folder-icon {
+  color: hsl(var(--h) 80% 74%);
+  background: linear-gradient(135deg, hsl(var(--h) 45% 24%), hsl(calc(var(--h) + var(--folder-blend, 45)) 45% 16%));
+  box-shadow: inset 0 0 0 1px hsl(var(--h) 60% 62% / 0.35);
+}
+
+:root[data-theme="tinte"] .dot {
+  box-shadow: none;
+}
+
+:root[data-theme="tinte"] .btn.primary,
+:root[data-theme="tinte"] .fab {
+  background: var(--shu);
+  color: #fff7f0;
+  box-shadow: 0 8px 22px rgba(230, 59, 46, 0.28);
+  animation: none;
+}
+
+:root[data-theme="tinte"] .fab {
+  animation: popIn 0.5s var(--spring) both;
+}
+
+:root[data-theme="tinte"] .tabbar {
+  background: #141311;
+  box-shadow:
+    inset 0 0 0 1px rgba(242, 239, 232, 0.12),
+    0 14px 34px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme="tinte"] .tab-indicator {
+  background: rgba(242, 239, 232, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(242, 239, 232, 0.16);
+}
+
+:root[data-theme="tinte"] .tab.active .icon {
+  color: var(--shu);
+}
+
+:root[data-theme="tinte"] .segmented .seg-thumb {
+  background: var(--washi);
+  box-shadow: none;
+}
+
+:root[data-theme="tinte"] .segmented button.on,
+:root[data-theme="tinte"] .chip.on,
+:root[data-theme="tinte"] .stat-chip.on {
+  color: var(--sumi);
+}
+
+:root[data-theme="tinte"] .chip.on,
+:root[data-theme="tinte"] .stat-chip.on {
+  background: var(--washi);
+}
+
+:root[data-theme="tinte"] .switch input:checked + span {
+  background: var(--shu);
+}
+
+:root[data-theme="tinte"] .banner {
+  border: 1px solid rgba(242, 239, 232, 0.12);
+  border-left: 3px solid var(--shu);
+  background: rgba(242, 239, 232, 0.04);
+}
+
+:root[data-theme="tinte"] .modal,
+:root[data-theme="tinte"] .menu,
+:root[data-theme="tinte"] .toast,
+:root[data-theme="tinte"] .actionbar {
+  background: #161513;
+  box-shadow:
+    inset 0 0 0 1px rgba(242, 239, 232, 0.12),
+    0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme="tinte"] .sheet {
+  background: #121110;
+}
+
+:root[data-theme="tinte"] .input:focus {
+  border-color: var(--shu);
+  box-shadow: 0 0 0 3px rgba(230, 59, 46, 0.2);
+}
+
+:root[data-theme="tinte"] .theme-card.on {
+  box-shadow: inset 0 0 0 2px var(--shu);
+}
+
+/* =========================================================================
+   Speicher-Diagramm: eine Form pro Design
+   ========================================================================= */
+.donut-seg,
+.enso-seg {
+  fill: none;
+  stroke-linecap: round;
+  transition:
+    stroke-dasharray 1.1s var(--ease),
+    opacity 0.15s;
+}
+
+.donut:not(.shown) .donut-seg,
+.donut:not(.shown) .enso-seg {
+  opacity: 0;
+}
+
+/* Aurora: Nordlicht wandert hinter dem Ring */
+.donut-shimmer {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #2dd4bf, #818cf8, #ec4899, #22d3ee, #2dd4bf);
+  -webkit-mask: radial-gradient(circle closest-side, transparent 58%, #000 67%, #000 84%, transparent 95%);
+  mask: radial-gradient(circle closest-side, transparent 58%, #000 67%, #000 84%, transparent 95%);
+  filter: blur(7px);
+  opacity: 0.4;
+  animation: spin 10s linear infinite;
+}
+
+/* Sunset: Sonne am Horizont */
+.sun-svg .donut-track,
+.sun-svg .donut-seg {
+  stroke-width: 10;
+}
+
+.sun-disc {
+  opacity: 0.32;
+}
+
+.sun-horizon {
+  stroke: rgba(var(--tint-rgb), 0.32);
+  stroke-width: 1.2;
+}
+
+.sun-reflection {
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.donut-sunset .donut-center {
+  bottom: auto;
+  height: 64%;
+  justify-content: flex-end;
+  padding-bottom: 3px;
+}
+
+/* Polar: Kompass */
+.compass-inner {
+  fill: none;
+  stroke: rgba(var(--tint-rgb), 0.1);
+  stroke-width: 1;
+}
+
+.tick {
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  transition: stroke 0.35s ease;
+}
+
+.tick:not(.on) {
+  stroke: rgba(var(--tint-rgb), 0.13);
+}
+
+.tick.major {
+  stroke-width: 3.2;
+}
+
+.compass-needle {
+  fill: rgb(var(--accent-rgb));
+}
+
+/* Neon: Arcade-Anzeige */
+.led {
+  fill: none;
+  stroke-width: 11;
+  transition:
+    stroke 0.15s,
+    filter 0.15s;
+}
+
+.led:not(.on) {
+  stroke: rgba(var(--accent-rgb), 0.1);
+}
+
+.led.on {
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
+.donut-neon .donut-center span {
+  position: absolute;
+  bottom: 2%;
+}
+
+/* Riso: gedruckte Torte */
+.pie-shadow {
+  fill: var(--ink, #1b1a17);
+}
+
+.pie-paper {
+  fill: var(--paper, #fffaf0);
+}
+
+.pie-ink {
+  fill: none;
+  stroke: var(--ink, #1b1a17);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.pie-outline {
+  fill: none;
+  stroke: var(--ink, #1b1a17);
+  stroke-width: 2.5;
+}
+
+.pie-label {
+  fill: var(--paper, #fffaf0);
+  stroke: var(--ink, #1b1a17);
+  stroke-width: 2.5;
+}
+
+.donut-riso .donut-center strong {
+  font-size: 1.15rem;
+}
+
+.donut-riso .donut-center span {
+  font-size: 0.6rem;
+}
+
+/* Tinte: Pinselkreis mit rotem Stempel */
+.enso-track {
+  fill: none;
+  stroke: rgba(var(--tint-rgb), 0.1);
+  stroke-width: 1.2;
+}
+
+.enso-seg {
+  stroke-width: 13;
+  transition:
+    stroke-dasharray 1.3s cubic-bezier(0.6, 0, 0.2, 1),
+    opacity 0.15s;
+}
+
+.donut-tinte .donut-center strong {
+  font-family: var(--serif, Georgia, serif);
+  font-weight: 600;
+  font-size: 1.7rem;
+}
+
+.donut-tinte .donut-center span {
+  margin-top: 4px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #e63b2e;
+  color: #fff7f0;
+  font-size: 0.64rem;
+  font-weight: 700;
+  transform: rotate(-4deg);
+}
+
+/* ---------- Kachel „Design“ unter „Mehr“ ---------- */
+.design-tile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: calc(100% - 36px);
+  margin: 4px 18px 0;
+  padding: 10px 14px 10px 10px;
+  border-radius: var(--radius);
+  color: var(--text);
+  text-align: left;
+}
+
+.design-tile-preview {
+  position: relative;
+  flex-shrink: 0;
+  width: 96px;
+  height: 72px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(var(--tint-rgb), 0.12);
+}
+
+.design-tile-preview .theme-preview {
+  width: 150px;
+  transform: scale(0.64);
+  transform-origin: 0 0;
+}
+
+.design-tile-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.design-tile-text strong {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.design-tile-text small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+:root[data-theme="riso"] .design-tile-preview {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+.design-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 22px 0;
+}
+
+/* ---------- Hintergrund still (unter „Design → Bewegung“) ---------- */
+.still-bg .aurora i,
+.still-bg .aurora::before,
+.still-bg .donut-shimmer {
+  animation-play-state: paused;
 }
 
 /* ---------- Aurora & Sunset: Titel leuchtet leicht ---------- */

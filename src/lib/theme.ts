@@ -1,6 +1,6 @@
-// Designs: Aurora (Standard), Sunset, Polar (hell), Neon, Riso (hell). Farben stehen in styles.css unter [data-theme].
+// Designs: Aurora (Standard), Sunset, Polar (hell), Neon, Riso (hell), Tinte. Farben stehen in styles.css unter [data-theme].
 
-export type ThemeId = "aurora" | "sunset" | "polar" | "neon" | "riso";
+export type ThemeId = "aurora" | "sunset" | "polar" | "neon" | "riso" | "tinte";
 
 /** Mini-Ansicht der App für die Design-Kachel unter „Mehr“ (Titel, Speicher-Karte mit Ring, Archiv/Privat). */
 export interface ThemePreview {
@@ -23,6 +23,8 @@ export interface ThemeInfo {
   name: string;
   description: string;
   light: boolean;
+  /** Gegenstück für „Automatisch hell/dunkel“ (hell ↔ dunkel) */
+  pair: ThemeId;
   themeColor: string;
   preview: ThemePreview;
 }
@@ -32,6 +34,7 @@ const INK = "#1b1a17";
 export const THEMES: ThemeInfo[] = [
   {
     id: "aurora",
+    pair: "polar",
     name: "Aurora",
     description: "Nordlicht in Violett & Türkis",
     light: false,
@@ -51,6 +54,7 @@ export const THEMES: ThemeInfo[] = [
   },
   {
     id: "sunset",
+    pair: "polar",
     name: "Sunset",
     description: "Goldene Stunde über dem Meer",
     light: false,
@@ -70,6 +74,7 @@ export const THEMES: ThemeInfo[] = [
   },
   {
     id: "polar",
+    pair: "aurora",
     name: "Polar",
     description: "Hell & klar, ideal bei Sonne",
     light: true,
@@ -89,6 +94,7 @@ export const THEMES: ThemeInfo[] = [
   },
   {
     id: "neon",
+    pair: "polar",
     name: "Neon",
     description: "Schwarz, Raster, leuchtende Kanten",
     light: false,
@@ -110,6 +116,7 @@ export const THEMES: ThemeInfo[] = [
   },
   {
     id: "riso",
+    pair: "tinte",
     name: "Riso",
     description: "Druckfarbe auf Papier – Pink, Blau, Gelb, harte Kanten",
     light: true,
@@ -127,6 +134,28 @@ export const THEMES: ThemeInfo[] = [
       areas: ["#0078bf", "#ff48b0"],
       areaShadow: `inset 0 0 0 1.5px ${INK}, 3px 3px 0 ${INK}`,
       radius: 7,
+    },
+  },
+  {
+    id: "tinte",
+    pair: "riso",
+    name: "Tinte",
+    description: "Tusche, Serifen, ein roter Stempel",
+    light: false,
+    themeColor: "#0c0b0a",
+    preview: {
+      bg: "#0c0b0a",
+      blobs: ["transparent", "transparent", "transparent"],
+      overlay:
+        "radial-gradient(circle at 88% 30%, transparent 25px, rgba(242,239,232,.14) 26px, rgba(242,239,232,.1) 31px, transparent 32px)",
+      title: "linear-gradient(#f2efe8,#f2efe8)",
+      card: "#161513",
+      cardShadow: "inset 0 0 0 1px rgba(242,239,232,.16)",
+      ring: "conic-gradient(#f2efe8 0 18%,transparent 0 20%,#a29d93 0 32%,transparent 0 34%,#e63b2e 0 42%,rgba(242,239,232,.1) 0)",
+      line: "rgba(242,239,232,.3)",
+      areas: ["#f2efe8", "#e63b2e"],
+      areaShadow: "none",
+      radius: 4,
     },
   },
 ];
@@ -154,15 +183,24 @@ const lightQuery = () => window.matchMedia?.("(prefers-color-scheme: light)");
 
 export const isLight = (id: ThemeId) => THEMES.find((t) => t.id === id)?.light ?? false;
 
-/** Mit Automatik: helles iPhone → gewähltes helles Design (sonst Polar), dunkles → gewähltes dunkles (sonst Aurora). */
+/** Mit Automatik: das gewählte Design plus sein Gegenstück (Riso ↔ Tinte, sonst Polar ↔ Aurora bzw. das dunkle Design). */
 export function autoPair(theme: ThemeId): { light: ThemeId; dark: ThemeId } {
-  return isLight(theme) ? { light: theme, dark: "aurora" } : { light: "polar", dark: theme };
+  const pair = THEMES.find((t) => t.id === theme)?.pair ?? "aurora";
+  return isLight(theme) ? { light: theme, dark: pair } : { light: pair, dark: theme };
 }
 
 export function resolveTheme(prefs: ThemePrefs): ThemeId {
   if (!prefs.auto) return prefs.theme;
   const pair = autoPair(prefs.theme);
   return lightQuery()?.matches ? pair.light : pair.dark;
+}
+
+/** Wird bei jedem Designwechsel ausgelöst (z. B. für das Speicher-Diagramm). */
+export const THEME_EVENT = "drivepool:theme";
+
+export function currentTheme(): ThemeId {
+  const id = document.documentElement.dataset.theme as ThemeId | undefined;
+  return id && THEMES.some((t) => t.id === id) ? id : "aurora";
 }
 
 export function applyTheme(prefs: ThemePrefs, animate = false) {
@@ -173,6 +211,7 @@ export function applyTheme(prefs: ThemePrefs, animate = false) {
     setTimeout(() => root.classList.remove("theme-switching"), 600);
   }
   root.dataset.theme = id;
+  window.dispatchEvent(new CustomEvent(THEME_EVENT, { detail: id }));
   const info = THEMES.find((t) => t.id === id)!;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", info.themeColor);
   document
@@ -193,6 +232,7 @@ export function savePrefs(prefs: ThemePrefs) {
 export function initTheme() {
   applyTheme(readPrefs());
   applyFolderBlend(readFolderBlend());
+  applyStillBackground(readStillBackground());
   lightQuery()?.addEventListener?.("change", () => {
     const prefs = readPrefs();
     if (prefs.auto) applyTheme(prefs, true);
@@ -240,4 +280,28 @@ export function saveFolderBlend(deg: number) {
     /* ignorieren */
   }
   applyFolderBlend(deg);
+}
+
+// Hintergrund-Bewegung (Nordlicht, Sonne, Raster …) – aus spart etwas Akku. Gilt nur auf diesem Gerät.
+const STILL_KEY = "drivepool.stillBg";
+
+export function readStillBackground(): boolean {
+  try {
+    return localStorage.getItem(STILL_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function applyStillBackground(still: boolean) {
+  document.documentElement.classList.toggle("still-bg", still);
+}
+
+export function saveStillBackground(still: boolean) {
+  try {
+    localStorage.setItem(STILL_KEY, still ? "1" : "0");
+  } catch {
+    /* ignorieren */
+  }
+  applyStillBackground(still);
 }

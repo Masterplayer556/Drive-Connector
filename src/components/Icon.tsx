@@ -24,6 +24,14 @@ const P: Record<string, ReactNode> = {
   ),
   cloud: <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />,
   activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
+  palette: (
+    <>
+      <path d="M12 22a10 10 0 1 1 10-10c0 2.2-1.8 3.5-4 3.5h-2a2 2 0 0 0-1.5 3.3c.4.5.5 1 .5 1.4 0 1-.9 1.8-3 1.8Z" />
+      <circle cx="7.5" cy="10.5" r="1.2" />
+      <circle cx="11" cy="6.5" r="1.2" />
+      <circle cx="16" cy="8" r="1.2" />
+    </>
+  ),
   sliders: <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />,
   grid: (
     <>
