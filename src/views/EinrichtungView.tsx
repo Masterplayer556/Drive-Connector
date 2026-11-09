@@ -4,7 +4,7 @@ import Segmented from "../components/Segmented";
 import { LineSkeleton } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
-import { AREA_FOLDER, AREA_KEYS } from "../lib/areas";
+import { AREA_FOLDER, AREA_KEYS, AREA_LABEL, ROLES } from "../lib/areas";
 import { invalidateAll } from "../lib/cache";
 import { rootLevelItems, syncAccounts, writeLogs, type LogInput } from "../lib/db";
 import { PathResolver } from "../lib/folders";
@@ -87,7 +87,8 @@ export default function EinrichtungView({ accounts, reload }: { accounts: Accoun
         }
       />
       <p className="muted pad small">
-        Ordne jeden Ordner der obersten Ebene „Archiv“ oder „Privat“ zu. Er wird innerhalb seines Kontos verschoben.
+        Ordne jeden Ordner der obersten Ebene „Archiv“, „Privat“ oder „Claude“ zu. Er wird innerhalb seines Kontos
+        verschoben; liegt er im falschen Konto, holt ihn das Rebalancing ins richtige.
       </p>
 
       {folders === null ? (
@@ -105,12 +106,11 @@ export default function EinrichtungView({ accounts, reload }: { accounts: Accoun
       ) : (
         <>
           <div className="row pad" style={{ marginTop: 12 }}>
-            <button className="btn small" onClick={() => setAll("schule")}>
-              Alle → Archiv
-            </button>
-            <button className="btn small" onClick={() => setAll("privat")}>
-              Alle → Privat
-            </button>
+            {ROLES.map((r) => (
+              <button key={r} className="btn small" onClick={() => setAll(r)}>
+                Alle → {AREA_LABEL[r]}
+              </button>
+            ))}
             <button className="btn small ghost" onClick={() => setAll(null)}>
               Keine
             </button>
@@ -135,10 +135,7 @@ export default function EinrichtungView({ accounts, reload }: { accounts: Accoun
                 <Segmented
                   value={choices[key(f)] ?? null}
                   onChange={(r) => setChoices((o) => ({ ...o, [key(f)]: o[key(f)] === r ? null : r }))}
-                  options={[
-                    { value: "schule", label: "Archiv" },
-                    { value: "privat", label: "Privat" },
-                  ]}
+                  options={ROLES.map((r) => ({ value: r, label: AREA_LABEL[r] }))}
                 />
               </section>
             ))}

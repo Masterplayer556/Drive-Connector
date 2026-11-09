@@ -36,11 +36,12 @@ type Log = (msg: string) => void;
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
 const isLocked = (key: string, locks: string[]) => locks.some((l) => key === l || key.startsWith(l + "/"));
-/** Gehört der Pfad ins Gebiet Privat? (ohne Bereich: wie das Quellkonto) */
-const privatPath = (path: string): boolean | null => {
+/** Gebiet des Pfads: "privat", "claude" oder "schule" (Archiv) – ohne Bereich null (dann wie das Quellkonto) */
+const zoneOfPath = (path: string): string | null => {
   const top = path.split("/")[0]?.toLowerCase();
-  if (top === "privat") return true;
-  if (top === "archiv" || top === "schule") return false;
+  if (top === "privat") return "privat";
+  if (top === "claude") return "claude";
+  if (top === "archiv" || top === "schule") return "schule";
   return null;
 };
 
@@ -58,15 +59,15 @@ async function expandPlan(admin: SupabaseClient, plan: { id: string; owner_id: s
   if (!claimed?.length) return 0; // ein anderer Lauf reiht gerade ein
   const { data: lockRows } = await admin.from("folder_locks").select("path_key").eq("owner_id", plan.owner_id);
   const locks = (lockRows ?? []).map((l) => l.path_key as string);
-  // Privat ist abgeschottet: nie zwischen Privat- und Archiv-Konten verschieben
+  // Privat und Claude sind abgeschottet: nie zwischen Konten verschiedener Gebiete verschieben
   const { data: accRows } = await admin.from("accounts").select("id, role").eq("owner_id", plan.owner_id);
-  const privatAcc = new Map((accRows ?? []).map((a) => [a.id as string, a.role === "privat"]));
+  const roleOf = new Map((accRows ?? []).map((a) => [a.id as string, (a.role as string) ?? "schule"]));
   let total = 0;
   for (const step of plan.steps) {
     for (const u of step.units) {
       if (isLocked(u.parent_key, locks)) continue;
-      const zone = privatPath(u.path) ?? privatAcc.get(step.from) ?? false;
-      if ((privatAcc.get(step.to) ?? false) !== zone) continue;
+      const zone = zoneOfPath(u.path) ?? roleOf.get(step.from) ?? "schule";
+      if ((roleOf.get(step.to) ?? "schule") !== zone) continue;
       for (let from = 0; ; from += 1000) {
         const { data, error } = await admin
           .from("items")

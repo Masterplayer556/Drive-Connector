@@ -99,9 +99,9 @@ function without(map: Map<string, Float32Array>, accounts?: Set<string>): Map<st
   return new Map([...map].filter(([k]) => !accounts.has(k.slice(0, k.indexOf("/")))));
 }
 
-/** Konten mit der Rolle „Privat“. */
-export const privateAccounts = (accounts: { id: string; role: string }[]) =>
-  new Set(accounts.filter((a) => a.role === "privat").map((a) => a.id));
+/** Konten der abgeschotteten Bereiche (Privat, Claude) – ausser dem Bereich `keep`. */
+export const privateAccounts = (accounts: { id: string; role: string }[], keep?: string | null) =>
+  new Set(accounts.filter((a) => (a.role === "privat" || a.role === "claude") && a.role !== keep).map((a) => a.id));
 
 export async function aiSearch(query: string, { exclude }: { exclude?: Set<string> } = {}): Promise<AiResult> {
   const { text, folder, video, tag } = parseQuery(query);

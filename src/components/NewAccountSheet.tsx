@@ -3,7 +3,7 @@
 // mit Kopier-Knöpfen in der Reihenfolge, in der Google fragt, und verbindet das neue Konto danach gleich
 // mit dem gewählten Bereich.
 import { useEffect, useState } from "react";
-import { AREA_LABEL } from "../lib/areas";
+import { AREA_LABEL, ROLES } from "../lib/areas";
 import { PENDING_KEY, splitBirthday, suggestUsername, usernameError } from "../lib/newaccount";
 import type { Account, Role } from "../lib/types";
 import Icon from "./Icon";
@@ -139,10 +139,7 @@ export default function NewAccountSheet({
                 <Segmented
                   value={d.role}
                   onChange={(r) => set("role", r)}
-                  options={[
-                    { value: "schule", label: AREA_LABEL.schule },
-                    { value: "privat", label: AREA_LABEL.privat },
-                  ]}
+                  options={ROLES.map((r) => ({ value: r, label: AREA_LABEL[r] }))}
                 />
               </div>
               <button type="submit" className="btn primary block" disabled={!d.first.trim() || !bday}>

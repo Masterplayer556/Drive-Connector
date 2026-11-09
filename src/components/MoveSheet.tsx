@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invalidateAll, invalidateFolder, loadFolder, patchFolder } from "../lib/cache";
 import { fetchFolderParts, syncAccounts, writeLogs, type LogInput } from "../lib/db";
-import { moveLogicalFolder, PathResolver, pathSegments, PRIVAT_SEALED } from "../lib/folders";
-import { crossesPrivat } from "../lib/placement";
+import { moveLogicalFolder, PathResolver, pathSegments, SEALED_MESSAGE } from "../lib/folders";
+import { crossesSealed } from "../lib/placement";
 import { moveWithin } from "../lib/google";
 import { planMove } from "../lib/move";
 import { childKey, childPath } from "../lib/naming";
@@ -66,11 +66,11 @@ export default function MoveSheet({
   const parentOf = (k: string) => k.split("/").slice(0, -1).join("/");
   const folderTodo = folders.filter((f) => parentOf(f.key) !== current.key);
   const merging = folderTodo.filter((f) => content?.folders.some((x) => x.key === childKey(current.key, f.name)));
-  // Privat ist abgeschottet: keine Fotos oder Ordner hinein oder heraus
+  // Privat und Claude sind abgeschottet: keine Fotos oder Ordner hinein oder heraus
   const sealed =
     !!current.key &&
-    (items.some((i) => crossesPrivat(i.path ?? "", current.path)) ||
-      folders.some((f) => crossesPrivat(f.path, childPath(current.path, f.name))));
+    (items.some((i) => crossesSealed(i.path ?? "", current.path)) ||
+      folders.some((f) => crossesSealed(f.path, childPath(current.path, f.name))));
   const total = count("move") + folderTodo.length;
   const what = [
     items.length ? `${items.length} Foto${items.length === 1 ? "" : "s"}` : "",
@@ -259,7 +259,7 @@ export default function MoveSheet({
                   {sealed && (
                     <div className="banner warn" style={{ margin: 0, width: "100%" }}>
                       <Icon name="lock" size={18} />
-                      <span>{PRIVAT_SEALED}.</span>
+                      <span>{SEALED_MESSAGE}.</span>
                     </div>
                   )}
                   {merging.length > 0 && !sealed && (

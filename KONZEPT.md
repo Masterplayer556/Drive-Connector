@@ -16,7 +16,7 @@ Die Dateien bleiben in den einzelnen Google-Konten gespeichert – die App ist n
 
 | Ebene | Verhalten |
 |---|---|
-| **Frontend (was ich sehe)** | Eine einzige Ordnerstruktur, als wäre alles in einem Drive. Ganz oben: `Privat/` und `Archiv/`. |
+| **Frontend (was ich sehe)** | Eine einzige Ordnerstruktur, als wäre alles in einem Drive. Ganz oben: `Archiv/`, `Privat/` und `Claude/`. |
 | **Backend (wo es liegt)** | Egal. Ein Ordner kann in einem Konto liegen oder auf mehrere Konten verteilt sein. |
 | **Fix** | Ein Foto bleibt immer in dem Ordner, dem es zugeteilt wurde. Die App ändert nur das *Konto*, nie den *Ordner*. |
 
@@ -47,6 +47,8 @@ Konto B:  Archiv/Mathe/   41.png … 60.png   ┴─►  Frontend:  Archiv/Mathe
 4 × 15 GB = **60 GB**. Google Fotos belegt überall 0 GB.
 **Privat ist ein abgeschottetes Gebiet:** Nichts kommt hinein oder heraus. Privat-Ordner liegen nur in Konten, die als Privat markiert sind, und ziehen nur zwischen diesen um. Archiv-Ordner bleiben ebenso in Archiv-Konten. Auch Verschieben (Fotos oder Ordner) zwischen `Privat/` und dem Rest ist gesperrt.
 
+**Claude ist genauso abgeschottet:** `Claude/` liegt nur in Konten mit dem Bereich Claude, zieht nur zwischen diesen um, und nichts wird zwischen `Claude/` und dem Rest (auch nicht `Privat/`) verschoben. Ordner ohne Bereich (oberste Ebene) landen nie in Privat- oder Claude-Konten. Die KI-Suche zeigt Claude-Fotos nur, wenn man aus Claude heraus sucht.
+
 **Einmalige Einrichtung:** Ein Assistent fragt für jeden bestehenden Ordner „Archiv oder Privat?“ und verschiebt ihn innerhalb seines Kontos unter `Archiv/` bzw. `Privat/` (kein Kopieren, kein Umbenennen).
 
 ---
@@ -56,7 +58,7 @@ Konto B:  Archiv/Mathe/   41.png … 60.png   ┴─►  Frontend:  Archiv/Mathe
 > Hinweis: Der Bereich „Schule“ wurde in „Archiv“ umbenannt.
 
 ### Regel 1 – Ein Drive im Frontend
-Ordner verschiedener Konten werden über den Pfad zusammengeführt. Oberste Ebene: `Privat/` und `Archiv/`.
+Ordner verschiedener Konten werden über den Pfad zusammengeführt. Oberste Ebene: `Archiv/`, `Privat/` und `Claude/`.
 
 ### Regel 2 – Dateien bleiben in ihrem Ordner, kein automatisches Umbenennen
 - Die App benennt **nie von sich aus** um. Ausnahmen sind nur Regel 11, 12 und 14.
@@ -81,7 +83,7 @@ Jede Gruppe ist eine Einheit und liegt möglichst komplett in einem Konto. Neue 
 ### Regel 6 – Rebalancing (nur Vorschläge)
 - Die App erstellt **Pläne**, z. B. „`Archiv/Reisen/` von Konto 2 nach Konto 3 → 4,2 GB frei“. Ich tippe auf **Ausführen** oder **Ablehnen**.
 - Einheit = ein Ordner mit seinen direkten Dateien (Unterordner sind eigene Einheiten).
-- Nie über die Grenze von Privat: Privat-Ordner nur zwischen Privat-Konten, alles andere nur zwischen Archiv-Konten (auch der Server prüft das beim Ausführen).
+- Nie über die Grenze eines Gebiets: Privat-Ordner nur zwischen Privat-Konten, Claude-Ordner nur zwischen Claude-Konten, alles andere nur zwischen Archiv-Konten (auch der Server prüft das beim Ausführen).
 - Liegt ein Ordner im falschen Gebiet (z. B. `Privat/…` in einem Archiv-Konto), schlägt die App vor, ihn ins richtige Gebiet zu holen („Ins richtige Gebiet“).
 - Ziel: möglichst viele Einheiten ganz in einem Konto, möglichst grosse freie Blöcke.
 - Ein Vorschlag kommt erst, wenn er **mehr als 1 GB** frei macht (Ausnahme: Ordner im falschen Gebiet). Die Grenze ist in der Regal-Ansicht einstellbar (Immer, 0,5 – 10 GB), gespeichert in `settings.min_plan_gb`.
@@ -196,7 +198,7 @@ Die App führt ein einsehbares Protokoll (filterbar) über Uploads, Umbenennunge
 | Kosten | ~0 CHF (Gratis-Stufen), optional eigene Domain |
 
 ### Grobes Datenmodell
-- `accounts` – Google-Konto, Rolle (Archiv/Privat; intern `schule` = Archiv), Token (verschlüsselt), Quota, Status
+- `accounts` – Google-Konto, Rolle (Archiv/Privat/Claude; intern `schule` = Archiv), Token (verschlüsselt), Quota, Status
 - `files` – Google-ID, Konto, logischer Pfad, Name, Grösse, MD5, Aufnahmedatum, Originalname
 - `folders` – logischer Pfad, Konto(en), gesperrt ja/nein, Gruppenregel
 - `rebalance_plans` – Vorschläge mit Schritten und Status

@@ -7,7 +7,7 @@ export const PENDING_KEY = "drivepool.newaccount.pending";
 export function readPending(): { email: string; role: Role } | null {
   try {
     const p = JSON.parse(localStorage.getItem(PENDING_KEY) ?? "null");
-    return p && typeof p.email === "string" && (p.role === "schule" || p.role === "privat") ? p : null;
+    return p && typeof p.email === "string" && (p.role === "schule" || p.role === "privat" || p.role === "claude") ? p : null;
   } catch {
     return null;
   }

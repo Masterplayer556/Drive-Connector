@@ -239,7 +239,13 @@ function Chrome({ activeIndex, active, children }: { activeIndex: number; active
   useEffect(() => {
     let last = window.scrollY;
     let ticking = false;
+    let idle = 0;
+    const root = document.documentElement;
     const onScroll = () => {
+      // Hintergrund-Animationen pausieren, solange gescrollt wird (siehe .is-scrolling)
+      root.classList.add("is-scrolling");
+      clearTimeout(idle);
+      idle = window.setTimeout(() => root.classList.remove("is-scrolling"), 160);
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
@@ -251,7 +257,10 @@ function Chrome({ activeIndex, active, children }: { activeIndex: number; active
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      clearTimeout(idle);
+    };
   }, []);
 
   useEffect(() => {

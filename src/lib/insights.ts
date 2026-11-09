@@ -1,5 +1,6 @@
 // Hinweise auf der Startseite (statt Push-Nachrichten): Füllstand, Prognose, volle Konten,
 // Ordner nahe 15 GB (Regel 4), Duplikate.
+import { AREA_LABEL, ROLES } from "./areas";
 import { formatBytes } from "./format";
 import type { Account } from "./types";
 
@@ -48,11 +49,11 @@ export function computeInsights(accounts: Account[], stats: PoolStats | null, bi
   }
 
 
-  // Privat ist abgeschottet: ausgewichen wird nur auf Konten desselben Gebiets
+  // Jeder Bereich ist abgeschottet: ausgewichen wird nur auf Konten desselben Gebiets
   const isFull = (a: (typeof active)[number]) => !!a.quota_limit && (a.quota_usage ?? 0) / a.quota_limit >= 0.98;
-  for (const role of ["schule", "privat"] as const) {
+  for (const role of ROLES) {
     const area = active.filter((a) => a.role === role);
-    const label = role === "privat" ? "Privat" : "Archiv";
+    const label = AREA_LABEL[role];
     if (area.length && area.every(isFull)) {
       out.push({ id: `area-${role}`, level: "warn", title: `${label} ist voll`, text: `Kein ${label}-Konto hat mehr Platz – Uploads nach ${label} gehen erst mit einem neuen ${label}-Konto.` });
       continue;
