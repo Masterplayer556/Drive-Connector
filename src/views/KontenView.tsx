@@ -14,8 +14,36 @@ import { clearParams } from "../lib/route";
 import { callFunction } from "../lib/supabase";
 import { accountColor } from "../lib/theme";
 import type { Account, Role } from "../lib/types";
+import { fetchGrowth, healthOf } from "../lib/health";
 
 const NewAccountSheet = lazy(() => import("../components/NewAccountSheet"));
+
+/** Ampel pro Konto: Zugriff, letzter Abgleich, Füllstand und wann es beim aktuellen Tempo voll ist. */
+function HealthLight({ account, added30, ready }: { account: Account; added30: number; ready: boolean }) {
+  const [open, setOpen] = useState(false);
+  const h = healthOf(account, added30);
+  const label = h.level === "ok" ? "Alles gut" : h.level === "warn" ? "Achtung" : "Problem";
+  const forecast = h.daysToFull === null ? "Wächst gerade nicht" : `Beim aktuellen Tempo in ~${h.daysToFull} Tagen voll`;
+  return (
+    <button
+      type="button"
+      className={`health-light ${h.level} ${ready ? "" : "pending"}`}
+      onClick={() => setOpen((o) => !o)}
+      aria-label={`Gesundheit: ${label}`}
+    >
+      <span className="lamp" />
+      {open && (
+        <span className="health-pop glass">
+          <strong>{label}</strong>
+          {(h.reasons.length ? h.reasons : ["Zugriff gültig, Abgleich aktuell"]).map((r) => (
+            <span key={r}>{r}</span>
+          ))}
+          <span className="faint">{forecast}</span>
+        </span>
+      )}
+    </button>
+  );
+}
 
 export default function KontenView({
   accounts,
@@ -29,6 +57,10 @@ export default function KontenView({
   const ui = useUI();
   const [busy, setBusy] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
+  const [growth, setGrowth] = useState<Map<string, number> | null>(null);
+  useEffect(() => {
+    fetchGrowth().then(setGrowth).catch(() => setGrowth(new Map()));
+  }, [accounts]);
   const handled = useRef(false);
 
   const sync = async (ids?: string[]) => {
@@ -155,6 +187,7 @@ export default function KontenView({
                   {a.status === "error" ? "Fehler" : `Sync ${formatDateTime(a.last_sync_at)}`}
                 </span>
               </div>
+              <HealthLight account={a} added30={growth?.get(a.id) ?? 0} ready={!!growth} />
             </div>
             <StorageBar used={a.quota_usage ?? 0} total={a.quota_limit ?? 0} color={accountColor(i)} />
             <div className="row between">

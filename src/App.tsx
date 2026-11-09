@@ -3,8 +3,10 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import Icon, { type IconName } from "./components/Icon";
 import { LineSkeleton } from "./components/Skeleton";
 import Splash from "./components/Splash";
+import UndoBar from "./components/UndoBar";
 import { UIProvider, useUI } from "./components/ui";
 import { autoPurgeIfDue } from "./lib/trash";
+import { sealCheckIfDue } from "./lib/health";
 import LockScreen from "./components/LockScreen";
 import { lockEnabled, watchRelock } from "./lib/lock";
 import { clearLocalCaches, readCachedAccounts, writeCachedAccounts } from "./lib/cache";
@@ -29,6 +31,9 @@ const StatistikView = lazy(() => import("./views/StatistikView"));
 const RegalView = lazy(() => import("./views/RegalView"));
 const LinksView = lazy(() => import("./views/LinksView"));
 const DesignView = lazy(() => import("./views/DesignView"));
+const AbschottungView = lazy(() => import("./views/AbschottungView"));
+const PlatzView = lazy(() => import("./views/PlatzView"));
+const TeilenView = lazy(() => import("./views/TeilenView"));
 const AiIndexer = lazy(() => import("./ai/AiIndexer")); // KI-SUCHE
 
 type Phase = "loading" | "login" | "mfa" | "ready" | "error";
@@ -120,6 +125,10 @@ function Shell() {
         void Promise.all([refreshTokens(), reloadAccounts()])
           .then(([, list]) => autoPurgeIfDue(list))
           .then((r) => r?.count && toast(`Papierkorb: ${r.count} alte Einträge gelöscht`, "info"))
+          .catch(() => undefined)
+          // Einmal pro Woche: liegt etwas im falschen Bereich (Privat / Claude)?
+          .then(() => sealCheckIfDue())
+          .then((r) => r?.total && toast(`${r.total} Einträge liegen im falschen Bereich – Mehr → Abschottung`, "error"))
           .catch(() => undefined);
       } else {
         // Erster Start: Besitzer-Prüfung abwarten
@@ -169,7 +178,7 @@ function Shell() {
     );
   }
 
-  const active = ["einrichtung", "duplikate", "papierkorb", "favoriten", "statistik", "links", "regal", "design"].includes(route.name)
+  const active = ["einrichtung", "duplikate", "papierkorb", "favoriten", "statistik", "links", "regal", "design", "pruefung", "platz", "teilen"].includes(route.name)
     ? "mehr"
     : route.name;
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.name === active));
@@ -224,6 +233,9 @@ function Shell() {
           {route.name === "regal" && <RegalView accounts={accounts} />}
           {route.name === "links" && <LinksView accounts={accounts} />}
           {route.name === "design" && <DesignView />}
+          {route.name === "pruefung" && <AbschottungView />}
+          {route.name === "platz" && <PlatzView />}
+          {route.name === "teilen" && <TeilenView />}
         </Suspense>
       </>
     );
@@ -268,6 +280,7 @@ function Chrome({ activeIndex, active, children }: { activeIndex: number; active
   return (
     <div className={`app ${compact ? "compact" : ""}`}>
       <main className="main">{children}</main>
+      <UndoBar />
       <nav className={`tabbar glass ${compact ? "compact" : ""}`}>
         <span
           className={`tab-indicator ${stretch ? "stretch" : ""} ${

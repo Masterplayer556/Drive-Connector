@@ -1,5 +1,6 @@
 // Auswahl umbenennen: mehrere Fotos und/oder Ordner auf einmal („Name 1“, „Name 2“ …).
 import { useEffect, useMemo, useRef, useState } from "react";
+import { offerUndo, undoAll, undoFileRenames, undoFolderRename } from "../lib/undo";
 import { syncAccounts, writeLogs, type LogInput } from "../lib/db";
 import { renameLogicalFolder } from "../lib/folders";
 import { updateItem } from "../lib/google";
@@ -82,11 +83,14 @@ export default function RenameSheet({
     const accounts = new Set<string>();
     const byKey = new Map(items.map((i) => [key(i), i]));
     const folderBy = new Map(folders.map((f) => [f.key, f]));
+    const undos: (() => Promise<void>)[] = [];
+    const renamedFiles: Item[] = [];
     for (const s of folderPlan) {
       const f = folderBy.get(s.id)!;
       if (s.from === s.to) continue;
       try {
         await renameLogicalFolder(f, s.to); // schreibt selbst ins Protokoll und gleicht ab
+        undos.push(undoFolderRename(f, s.to));
       } catch (e) {
         errors.push(`${s.from}: ${e instanceof Error ? e.message : String(e)}`);
       }
@@ -99,6 +103,7 @@ export default function RenameSheet({
         await updateItem(it.account_id, it.drive_id, { name: s.to, description: `Originalname: ${s.from}` });
         logs.push({ kind: "rename", message: `„${s.from}“ → „${s.to}“`, details: { ordner: folderPath } });
         accounts.add(it.account_id);
+        renamedFiles.push(it);
       } catch (e) {
         errors.push(`${s.from}: ${e instanceof Error ? e.message : String(e)}`);
       }
@@ -108,6 +113,9 @@ export default function RenameSheet({
     if (accounts.size) await syncAccounts([...accounts]).catch(() => undefined);
     setFailed(errors);
     setPhase("done");
+    if (renamedFiles.length) undos.push(undoFileRenames(renamedFiles));
+    const n = renamedFiles.length + folderPlan.filter((s) => s.from !== s.to).length;
+    if (undos.length) offerUndo(`${n} ${n === 1 ? "Eintrag" : "Einträge"} umbenannt`, undoAll(undos));
   };
 
   const preview = steps.slice(0, PREVIEW);

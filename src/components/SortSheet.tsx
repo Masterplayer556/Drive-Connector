@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { offerUndo, undoFileRenames } from "../lib/undo";
 import { syncAccounts, writeLogs } from "../lib/db";
 import { updateItem } from "../lib/google";
 import { planSort } from "../lib/sortplan";
@@ -56,12 +57,14 @@ export default function SortSheet({
     setPhase("run");
     const errors: string[] = [];
     const logs = [];
+    const renamed: Item[] = [];
     for (const step of plan) {
       const item = byKey.get(step.id)!;
       try {
         if (step.from !== step.to) {
           await updateItem(item.account_id, item.drive_id, { name: step.to, description: `Originalname: ${step.from}` });
           logs.push({ kind: "rename" as const, message: `„${step.from}“ → „${step.to}“ (Sortieren)`, details: { ordner: folderPath } });
+          renamed.push(item);
         }
       } catch (e) {
         errors.push(`${step.from}: ${e instanceof Error ? e.message : String(e)}`);
@@ -72,6 +75,7 @@ export default function SortSheet({
     await writeLogs(logs);
     await syncAccounts([...new Set(selected.map((i) => i.account_id))]).catch(() => undefined);
     setPhase("done");
+    if (renamed.length) offerUndo(`${renamed.length} Foto${renamed.length === 1 ? "" : "s"} sortiert`, undoFileRenames(renamed));
   };
 
   return (

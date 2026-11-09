@@ -22,3 +22,7 @@ verify_jwt = false
 
 [functions.rebalance]
 verify_jwt = true
+
+# Teilen-Menü (iOS-Kurzbefehl): geprüft wird über den persönlichen Schlüssel (Hash in share_tokens)
+[functions.share-upload]
+verify_jwt = false
