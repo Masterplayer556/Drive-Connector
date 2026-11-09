@@ -6,7 +6,7 @@ import Segmented from "../components/Segmented";
 import StorageBar from "../components/StorageBar";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
-import { AREA_LABEL } from "../lib/areas";
+import { AREA_LABEL, ROLES } from "../lib/areas";
 import { invalidateAll } from "../lib/cache";
 import { fetchAccounts, setAccountRole, syncAccounts } from "../lib/db";
 import { formatBytes, formatDateTime } from "../lib/format";
@@ -162,10 +162,7 @@ export default function KontenView({
               <Segmented
                 value={a.role}
                 onChange={(r) => changeRole(a, r)}
-                options={[
-                  { value: "schule", label: AREA_LABEL.schule },
-                  { value: "privat", label: AREA_LABEL.privat },
-                ]}
+                options={ROLES.map((r) => ({ value: r, label: AREA_LABEL[r] }))}
               />
             </div>
             {a.status === "error" && (

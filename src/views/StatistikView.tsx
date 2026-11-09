@@ -20,6 +20,7 @@ function areaName(a: string): string {
   if (!a) return "Oberste Ebene";
   if (k === "archiv" || k === "schule") return AREA_LABEL.schule;
   if (k === "privat") return AREA_LABEL.privat;
+  if (k === "claude") return AREA_LABEL.claude;
   return a;
 }
 

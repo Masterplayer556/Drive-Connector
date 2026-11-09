@@ -49,9 +49,10 @@ export default function FolderAiSheet({ folder, accounts, onClose }: { folder: L
   useEffect(() => {
     setSimilar(undefined);
     // Private Fotos nur, wenn der Ordner selbst privat ist
-    const priv = privateAccounts(accounts);
-    const isPrivate = folder.parts.length > 0 && folder.parts.every((p) => priv.has(p.account_id));
-    similarToFolder(folder.path, { exclude: isPrivate ? undefined : priv })
+    // Ähnliche Fotos nur aus dem Bereich des Ordners (Privat und Claude bleiben unter sich)
+    const roles = new Set(folder.parts.map((p) => accounts.find((a) => a.id === p.account_id)?.role ?? null));
+    const own = roles.size === 1 ? [...roles][0] : null;
+    similarToFolder(folder.path, { exclude: privateAccounts(accounts, own) })
       .then(setSimilar)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -2,9 +2,9 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
 import { tagsOf, useTags } from "../lib/tags";
 import { customHue, FOLDER_HUES, hueOf, setFolderHue, useFolderColors } from "../lib/folderColors";
-import { moveLogicalFolder, PRIVAT_SEALED, renameLogicalFolder } from "../lib/folders";
+import { moveLogicalFolder, renameLogicalFolder, SEALED_MESSAGE } from "../lib/folders";
 import { childPath, validFolderName } from "../lib/naming";
-import { crossesPrivat } from "../lib/placement";
+import { crossesSealed } from "../lib/placement";
 import type { Account, LogicalFolder } from "../lib/types";
 import Icon from "./Icon";
 import PathPicker from "./PathPicker";
@@ -102,7 +102,7 @@ export default function FolderActions({
         subtitle={`„${folder.name}“ verschieben nach …`}
         exclude={folder.key}
         check={(c) =>
-          c.key === parentKey ? "Liegt schon hier" : crossesPrivat(folder.path, childPath(c.path, folder.name)) ? PRIVAT_SEALED : null
+          c.key === parentKey ? "Liegt schon hier" : crossesSealed(folder.path, childPath(c.path, folder.name)) ? SEALED_MESSAGE : null
         }
         confirmLabel={(c) => `Nach „${c.key ? c.name : "Drive"}“ verschieben`}
         onCancel={() => setPicking(false)}

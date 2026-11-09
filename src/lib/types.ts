@@ -1,5 +1,5 @@
 /** Bereich eines Kontos. "schule" = Archiv (früherer Name, bleibt in der Datenbank so). */
-export type Role = "schule" | "privat";
+export type Role = "schule" | "privat" | "claude";
 
 export interface Account {
   id: string;

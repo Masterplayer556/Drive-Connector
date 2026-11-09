@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Donut from "../components/Donut";
+import PoolCarousel from "../components/PoolCarousel";
 import { DragGhost, useDragToFolder } from "../components/DragToFolder";
 import { FolderTagDots, TagDots } from "../components/TagSheet";
 import { useTags } from "../lib/tags";
@@ -8,7 +8,7 @@ import { FolderSkeleton, GridSkeleton } from "../components/Skeleton";
 import Thumb from "../components/Thumb";
 import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
-import { AREA_KEYS } from "../lib/areas";
+import { AREA_FOLDER, AREA_KEYS } from "../lib/areas";
 import { loadRebalance } from "../lib/rebalanceData";
 import { hueOf, useFolderColors } from "../lib/folderColors";
 import FolderActions from "../components/FolderActions";
@@ -25,9 +25,7 @@ import { renameItem } from "../lib/google";
 import { warmThumbs } from "../lib/thumbs";
 import { childKey, childPath, validFolderName } from "../lib/naming";
 import { navigate } from "../lib/route";
-import { accountColor } from "../lib/theme";
 import type { Account, Crumb, FolderContent, Item, LogicalFolder } from "../lib/types";
-import { useCountUp } from "../lib/useCountUp";
 import { computeInsights, type BigFolder, type Insight, type PoolStats } from "../lib/insights";
 
 const UploadSheet = lazy(() => import("./UploadSheet"));
@@ -1152,18 +1150,26 @@ function RootContent({
 }) {
   const insights = useInsights(accounts);
   const active = accounts.filter((a) => a.status === "active");
-  const total = active.reduce((s, a) => s + (a.quota_limit ?? 0), 0);
-  const used = active.reduce((s, a) => s + (a.quota_usage ?? 0), 0);
-  const free = useCountUp(Math.max(0, total - used) / 1024 ** 3);
-  const segments = accounts
-    .map((a, i) => ({ value: a.status === "active" ? a.quota_usage ?? 0 : 0, color: accountColor(i), label: a.email }))
-    .filter((s) => s.value > 0);
 
   const folders = content?.folders ?? [];
   const archiv = folders.find((f) => f.key === "archiv");
   const legacy = folders.find((f) => f.key === "schule");
   const privat = folders.find((f) => f.key === "privat");
+  const claude = folders.find((f) => f.key === "claude");
   const others = folders.filter((f) => !AREA_KEYS.has(f.key));
+  const ui = useUI();
+  // Claude-Karte erscheint, sobald es ein Claude-Konto gibt – fehlt der Ordner noch, wird er beim Antippen angelegt
+  const openClaude = async () => {
+    if (claude) return onOpen(claude);
+    try {
+      await createLogicalFolder(ROOT, AREA_FOLDER.claude, accounts);
+      invalidateFolder(ROOT.key);
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+      return;
+    }
+    onOpenPath(AREA_FOLDER.claude);
+  };
   const roleCount = (r: string) => accounts.filter((a) => a.role === r).length;
   // Privat ist abgeschottet → freier Platz pro Gebiet zählt mehr als der ganze Pool
   const roleFree = (r: string) =>
@@ -1188,28 +1194,7 @@ function RootContent({
 
   return (
     <>
-      <section className="card glass enter">
-        <div className="hero">
-          <Donut segments={segments} total={total} />
-          <div className="hero-info">
-            <div className="muted small">Frei im Pool</div>
-            <div className="hero-big">
-              {free.toFixed(1)} <span className="muted" style={{ fontSize: "1rem" }}>GB</span>
-            </div>
-            <div className="muted small">
-              von {formatBytes(total)} · {active.length} {active.length === 1 ? "Konto" : "Konten"}
-            </div>
-            <div className="legend">
-              {accounts.map((a, i) => (
-                <div key={a.id} className="legend-row">
-                  <span className="dot" style={{ background: accountColor(i), color: accountColor(i) }} />
-                  <span className="ellipsis">{a.email}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      <PoolCarousel accounts={accounts} />
 
       {legacy && !archiv && (
         <button className="banner pressable" onClick={() => onRenameLegacy(legacy)}>
@@ -1246,6 +1231,18 @@ function RootContent({
               </span>
             </button>
           )}
+          {(claude || roleCount("claude") > 0) && (
+            <button className="area-card claude" style={{ ["--i" as string]: 2 }} onClick={openClaude}>
+              <span className="area-icon">
+                <Icon name="sparkles" />
+              </span>
+              <span>
+                <strong>Claude</strong>
+                <br />
+                <span>{areaLine("claude")} · abgeschottet</span>
+              </span>
+            </button>
+          )}
         </div>
       )}
 
@@ -1264,7 +1261,7 @@ function RootContent({
       {/* Hinweise unter den Ordnern */}
       <Insights items={insights} onOpenPath={onOpenPath} />
 
-      {content && !archiv && !legacy && !privat && others.length === 0 && (
+      {content && !archiv && !legacy && !privat && !claude && others.length === 0 && (
         <div className="empty">
           <div className="empty-icon">
             <Icon name="refresh" size={30} />

@@ -59,7 +59,7 @@ export default function AiSearchResults({
     setBusy(true);
     // Etwas länger warten als die Namenssuche: erst wenn du kurz nicht mehr tippst
     const t = setTimeout(() => {
-      aiSearch(term, { exclude: includePrivate ? undefined : privateAccounts(accounts) })
+      aiSearch(term, { exclude: privateAccounts(accounts, includePrivate ? "privat" : null) })
         .then((r) => n === seq.current && (setResult(r), setVotes(new Map(r.votes)), setError(null)))
         .catch((e) => n === seq.current && setError(e instanceof Error ? e.message : String(e)))
         .finally(() => n === seq.current && setBusy(false));

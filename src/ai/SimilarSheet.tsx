@@ -16,8 +16,9 @@ export default function SimilarSheet({ item, accounts, onClose }: { item: Item; 
 
   useEffect(() => {
     // Private Fotos nur, wenn das Ausgangsfoto selbst privat ist
-    const priv = privateAccounts(accounts);
-    similarTo(item, { exclude: priv.has(item.account_id) ? undefined : priv })
+    // Nur im eigenen Bereich suchen: aus Privat bzw. Claude heraus nichts zeigen, von aussen nichts hinein
+    const own = accounts.find((a) => a.id === item.account_id)?.role ?? null;
+    similarTo(item, { exclude: privateAccounts(accounts, own) })
       .then(setItems)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps

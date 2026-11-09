@@ -1,6 +1,6 @@
-// Designs: Aurora (Standard), Sunset, Polar (hell), Neon, Riso (hell), Tinte. Farben stehen in styles.css unter [data-theme].
+// Designs: Aurora (Standard), Sunset, Polar (hell), Neon, Riso (hell), Tinte, Botanik (hell), Terminal. Farben stehen in styles.css unter [data-theme].
 
-export type ThemeId = "aurora" | "sunset" | "polar" | "neon" | "riso" | "tinte";
+export type ThemeId = "aurora" | "sunset" | "polar" | "neon" | "riso" | "tinte" | "botanik" | "terminal";
 
 /** Mini-Ansicht der App für die Design-Kachel unter „Mehr“ (Titel, Speicher-Karte mit Ring, Archiv/Privat). */
 export interface ThemePreview {
@@ -156,6 +156,49 @@ export const THEMES: ThemeInfo[] = [
       areas: ["#f2efe8", "#e63b2e"],
       areaShadow: "none",
       radius: 4,
+    },
+  },
+  {
+    id: "botanik",
+    pair: "aurora",
+    name: "Botanik",
+    description: "Gewächshaus – Salbei, Creme, Terrakotta",
+    light: true,
+    themeColor: "#e8ede0",
+    preview: {
+      bg: "radial-gradient(110% 70% at 100% 0%, #d3dfc8, #e8ede0 60%)",
+      blobs: ["transparent", "transparent", "transparent"],
+      overlay:
+        "radial-gradient(18px 34px at 92% 18%, rgba(95,127,85,.35) 60%, transparent 62%),radial-gradient(14px 26px at 6% 92%, rgba(95,127,85,.28) 60%, transparent 62%)",
+      title: "linear-gradient(100deg,#2f4a2a,#6f8f63)",
+      card: "#fbf8f0",
+      cardShadow: "0 4px 12px rgba(60,80,50,.14)",
+      ring: "conic-gradient(#c8643b 0 18%,transparent 0 20%,#6f8f63 0 32%,transparent 0 34%,#d9a441 0 42%,rgba(47,74,42,.1) 0)",
+      line: "rgba(47,74,42,.25)",
+      areas: ["linear-gradient(140deg,#5f7f55,#87a878)", "linear-gradient(140deg,#b5532f,#d9895b)"],
+      areaShadow: "0 4px 10px rgba(60,80,50,.2)",
+      radius: 12,
+    },
+  },
+  {
+    id: "terminal",
+    pair: "polar",
+    name: "Terminal",
+    description: "Bernstein-Monitor, Scanlines, blinkender Cursor",
+    light: false,
+    themeColor: "#0b0703",
+    preview: {
+      bg: "radial-gradient(120% 90% at 50% 40%, #1a1206, #0b0703 70%)",
+      blobs: ["transparent", "transparent", "transparent"],
+      overlay: "repeating-linear-gradient(0deg, rgba(0,0,0,.35) 0 1px, transparent 1px 3px)",
+      title: "linear-gradient(#ffb547,#ffb547)",
+      card: "rgba(255,176,0,.04)",
+      cardShadow: "inset 0 0 0 1px rgba(255,181,71,.5), 0 0 10px rgba(255,176,0,.15)",
+      ring: "conic-gradient(#ffb547 0 18%,transparent 0 20%,#ff8c1a 0 32%,transparent 0 34%,#ffd27a 0 42%,rgba(255,181,71,.12) 0)",
+      line: "rgba(255,181,71,.45)",
+      areas: ["#ffb547", "rgba(255,176,0,.05)"],
+      areaShadow: "inset 0 0 0 1px rgba(255,181,71,.6)",
+      radius: 3,
     },
   },
 ];

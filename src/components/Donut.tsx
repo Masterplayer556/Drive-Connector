@@ -1,6 +1,8 @@
 import { useEffect, useId, useState } from "react";
 import { arcPath, colorAt, toRanges, wedgePath, type Range } from "../lib/donutGeometry";
 import { formatBytes } from "../lib/format";
+import { haptic } from "../lib/haptic";
+import type { ThemeId } from "../lib/theme";
 import { useCountUp } from "../lib/useCountUp";
 import { useThemeId } from "../lib/useTheme";
 
@@ -21,23 +23,58 @@ export interface Segment {
 
 interface Shape {
   ranges: Range[];
+  /** belegter Anteil 0 … 1 */
+  usedFrac: number;
   shown: boolean;
   uid: string;
+  size: number;
 }
 
 const TAU = Math.PI * 2;
 const TOP = -Math.PI / 2;
 
 /**
- * Speicher-Diagramm der Startseite: ein Teil pro Konto. Jedes Design hat seine eigene Form –
+ * Speicher-Diagramm: ein Teil pro Konto. Jedes Design hat seine eigene Form –
  * Aurora Ring mit Nordlicht, Sunset Sonne am Horizont, Polar Kompass, Neon Arcade-Anzeige,
- * Riso gedruckte Torte, Tinte Pinselkreis mit Stempel.
+ * Riso gedruckte Torte, Tinte Pinselkreis mit Stempel, Botanik Blüte, Terminal Zeichen-Ring.
+ * Antippen spielt die Animation nochmal ab; `replay` (z. B. beim Hinwischen) ebenso.
  */
-export default function Donut({ segments, total, size = 132 }: { segments: Segment[]; total: number; size?: number }) {
+export default function Donut({
+  segments,
+  total,
+  size = 132,
+  replay = 0,
+}: {
+  segments: Segment[];
+  total: number;
+  size?: number;
+  replay?: number;
+}) {
   const theme = useThemeId();
+  const [taps, setTaps] = useState(0);
+  return (
+    <button
+      type="button"
+      className={`donut donut-${theme}`}
+      style={{ width: size, height: size }}
+      onClick={() => {
+        haptic();
+        setTaps((n) => n + 1);
+      }}
+      aria-label="Speicher-Diagramm – antippen spielt die Animation nochmal ab"
+    >
+      <Stage key={`${theme}-${taps}-${replay}`} theme={theme} segments={segments} total={total} size={size} />
+    </button>
+  );
+}
+
+function Stage({ theme, segments, total, size }: { theme: ThemeId; segments: Segment[]; total: number; size: number }) {
   const [shown, setShown] = useState(false);
   useEffect(() => {
-    const id = requestAnimationFrame(() => setShown(true));
+    // zwei Frames warten, damit der Startzustand sicher gezeichnet ist (sonst springt die Animation)
+    let id = requestAnimationFrame(() => {
+      id = requestAnimationFrame(() => setShown(true));
+    });
     return () => cancelAnimationFrame(id);
   }, []);
   const uid = `d${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -45,68 +82,71 @@ export default function Donut({ segments, total, size = 132 }: { segments: Segme
   const used = segments.reduce((s, x) => s + x.value, 0);
   const pct = total > 0 ? (used / total) * 100 : 0;
   const animatedPct = useCountUp(pct);
-  const shape: Shape = { ranges: toRanges(segments, total), shown, uid };
+  const shape: Shape = { ranges: toRanges(segments, total), usedFrac: total > 0 ? Math.min(1, used / total) : 0, shown, uid, size };
+  const Shape = SHAPES[theme] ?? AuroraRing;
 
   return (
-    <div className={`donut donut-${theme} ${shown ? "shown" : ""}`} style={{ width: size, height: size }}>
-      {theme === "sunset" ? (
-        <SunGauge {...shape} size={size} />
-      ) : theme === "polar" ? (
-        <Compass {...shape} size={size} />
-      ) : theme === "neon" ? (
-        <LedGauge {...shape} size={size} />
-      ) : theme === "riso" ? (
-        <PrintedPie {...shape} size={size} />
-      ) : theme === "tinte" ? (
-        <Enso {...shape} size={size} />
-      ) : (
-        <AuroraRing {...shape} size={size} />
-      )}
-      <div className="donut-center">
+    <span className={`donut-stage ${shown ? "shown" : ""}`}>
+      <Shape {...shape} />
+      <span className="donut-center">
         {/* Kleines Extra: bei genau 69 % leuchtet die Zahl golden */}
         <strong className={levelClass(Math.round(pct), Math.round(animatedPct))}>{Math.round(animatedPct)}%</strong>
         <span>{formatBytes(used)}</span>
-      </div>
-    </div>
+      </span>
+    </span>
   );
 }
 
-/** Verzögerung, damit sich die Teile nacheinander füllen (wie ein Bogen, der wächst). */
+/** Verzögerung, damit sich die Teile nacheinander füllen. */
 const delay = (from: number, total = 1.1) => ({ transitionDelay: `${Math.round(from * total * 1000)}ms` });
 
-/* ---------- Aurora: Ring, dahinter wandert Nordlicht ---------- */
-function AuroraRing({ ranges, shown, size }: Shape & { size: number }) {
+/* ---------- Aurora: Ring, ein Bogen füllt von 0° bis zum Verbrauch, dahinter wandert Nordlicht ---------- */
+function AuroraRing({ ranges, usedFrac, shown, size, uid }: Shape) {
   const r = 52;
+  const c = TAU * r;
   const gap = ranges.length > 1 ? 3 : 0;
+  // Die Maske beginnt etwas vor 0°, damit das runde Ende des ersten Teils nicht abgeschnitten wird
+  const lead = 8;
   return (
     <>
       <span className="donut-shimmer" aria-hidden="true" />
       <svg viewBox="-10 -10 140 140" width={size} height={size}>
+        <defs>
+          <mask id={`${uid}-m`} maskUnits="userSpaceOnUse" x="-40" y="-40" width="200" height="200">
+            <circle
+              className="donut-reveal"
+              cx="60"
+              cy="60"
+              r={r}
+              strokeDasharray={`${shown ? usedFrac * c + 2 * lead : 0} ${c + 2 * lead}`}
+              strokeDashoffset={lead}
+              transform="rotate(-90 60 60)"
+            />
+          </mask>
+        </defs>
         <circle className="donut-track" cx="60" cy="60" r={r} />
-        {ranges.map((s, i) => {
-          const len = Math.max(0.01, (s.to - s.from) * TAU * r - gap);
-          return (
+        <g mask={`url(#${uid}-m)`}>
+          {ranges.map((s, i) => (
             <path
               key={i}
               className="donut-seg"
-              d={arcPath(60, 60, r, TOP + s.from * TAU, TOP + s.to * TAU)}
+              d={arcPath(60, 60, r, TOP + s.from * TAU, TOP + s.from * TAU + Math.max(0.001, (s.to - s.from) * TAU - gap / r))}
               stroke={s.color}
-              strokeDasharray={`${shown ? len : 0} 999`}
-              style={delay(s.from)}
             />
-          );
-        })}
+          ))}
+        </g>
       </svg>
     </>
   );
 }
 
-/* ---------- Sunset: Halbkreis-Sonne auf dem Horizont, Spiegelung im Wasser ---------- */
-function SunGauge({ ranges, shown, size, uid }: Shape & { size: number }) {
+/* ---------- Sunset: Halbkreis-Sonne geht auf, der Bogen füllt von links nach rechts ---------- */
+function SunGauge({ ranges, usedFrac, shown, size, uid }: Shape) {
   const cx = 70;
   const cy = 92;
   const r = 63;
   const gap = ranges.length > 1 ? 3 : 0;
+  const arc = Math.PI * r;
   return (
     <svg viewBox="0 0 140 140" width={size} height={size} className="sun-svg">
       <defs>
@@ -121,24 +161,35 @@ function SunGauge({ ranges, shown, size, uid }: Shape & { size: number }) {
             <rect key={y} x="0" y={y} width="140" height={1.4 + i * 0.7} fill="#000" />
           ))}
         </mask>
-      </defs>
-      {/* Sonnenscheibe mit Retro-Streifen */}
-      <path className="sun-disc" d={`${arcPath(cx, cy, r - 13, Math.PI, TAU)} Z`} fill={`url(#${uid}-sun)`} mask={`url(#${uid}-stripes)`} />
-      <path className="donut-track" d={arcPath(cx, cy, r, Math.PI, TAU)} />
-      {ranges.map((s, i) => {
-        const len = Math.max(0.01, (s.to - s.from) * Math.PI * r - gap);
-        return (
+        {/* Alles über dem Horizont – runde Enden ragen nicht ins Wasser */}
+        <clipPath id={`${uid}-sky`}>
+          <rect x="-10" y="-10" width="160" height={cy + 10} />
+        </clipPath>
+        <mask id={`${uid}-m`} maskUnits="userSpaceOnUse" x="-20" y="-20" width="180" height="180">
           <path
-            key={i}
-            className="donut-seg"
-            d={arcPath(cx, cy, r, Math.PI + s.from * Math.PI, Math.PI + s.to * Math.PI)}
-            stroke={s.color}
-            strokeDasharray={`${shown ? len : 0} 999`}
-            style={delay(s.from)}
+            className="donut-reveal sun-reveal"
+            d={arcPath(cx, cy, r, Math.PI - 0.2, TAU)}
+            strokeDasharray={`${shown ? usedFrac * arc + 0.2 * r + 4 : 0} 999`}
           />
-        );
-      })}
-      <line className="sun-horizon" x1="0" y1={cy + 1} x2="140" y2={cy + 1} />
+        </mask>
+      </defs>
+      <g clipPath={`url(#${uid}-sky)`}>
+        <g mask={`url(#${uid}-stripes)`}>
+          <path className="sun-disc" d={`${arcPath(cx, cy, r - 13, Math.PI, TAU)} Z`} fill={`url(#${uid}-sun)`} />
+        </g>
+        <path className="donut-track" d={arcPath(cx, cy, r, Math.PI, TAU)} />
+        <g mask={`url(#${uid}-m)`}>
+          {ranges.map((s, i) => (
+            <path
+              key={i}
+              className="donut-seg"
+              d={arcPath(cx, cy, r, Math.PI + s.from * Math.PI, Math.PI + s.from * Math.PI + Math.max(0.001, (s.to - s.from) * Math.PI - gap / r))}
+              stroke={s.color}
+            />
+          ))}
+        </g>
+      </g>
+      <line className="sun-horizon" x1="0" y1={cy + 0.6} x2="140" y2={cy + 0.6} />
       {/* Spiegelung */}
       {[
         [70, 103, 0.55],
@@ -152,15 +203,14 @@ function SunGauge({ ranges, shown, size, uid }: Shape & { size: number }) {
   );
 }
 
-/* ---------- Polar: Kompass-Ring aus feinen Strichen, Nordnadel oben ---------- */
-function Compass({ ranges, shown, size }: Shape & { size: number }) {
+/* ---------- Polar: Kompass-Ring aus feinen Strichen, die Nadel dreht sich einmal ein ---------- */
+function Compass({ ranges, shown, size }: Shape) {
   const n = 60;
   return (
     <svg viewBox="-10 -10 140 140" width={size} height={size}>
       <circle className="compass-inner" cx="60" cy="60" r="40" />
       {Array.from({ length: n }, (_, i) => {
-        const t = (i + 0.5) / n;
-        const color = colorAt(ranges, t);
+        const color = colorAt(ranges, (i + 0.5) / n);
         const a = TOP + (i / n) * TAU;
         const major = i % 15 === 0;
         const r0 = major ? 43 : 46;
@@ -183,8 +233,8 @@ function Compass({ ranges, shown, size }: Shape & { size: number }) {
   );
 }
 
-/* ---------- Neon: Arcade-Anzeige über 270°, LED-Blöcke leuchten nacheinander auf ---------- */
-function LedGauge({ ranges, shown, size }: Shape & { size: number }) {
+/* ---------- Neon: Arcade-Anzeige über 270°, LED-Blöcke gehen nacheinander an ---------- */
+function LedGauge({ ranges, shown, size }: Shape) {
   const n = 30;
   const start = (135 * Math.PI) / 180;
   const sweep = (270 * Math.PI) / 180;
@@ -209,8 +259,8 @@ function LedGauge({ ranges, shown, size }: Shape & { size: number }) {
   );
 }
 
-/* ---------- Riso: gedruckte Torte mit Rasterpunkten, Farbe leicht verrutscht, Etikett in der Mitte ---------- */
-function PrintedPie({ ranges, shown, size, uid }: Shape & { size: number }) {
+/* ---------- Riso: gedruckte Torte, Farbe leicht verrutscht, Etikett wird aufgestempelt ---------- */
+function PrintedPie({ ranges, shown, size, uid }: Shape) {
   const r = 54;
   const lead = 8;
   return (
@@ -225,7 +275,6 @@ function PrintedPie({ ranges, shown, size, uid }: Shape & { size: number }) {
             cx="60"
             cy="60"
             r="30"
-            strokeWidth="64"
             strokeDasharray={`${shown ? 2 * Math.PI * 30 + lead : 0} 999`}
             transform="rotate(-90 60 60)"
           />
@@ -254,7 +303,7 @@ function PrintedPie({ ranges, shown, size, uid }: Shape & { size: number }) {
 }
 
 /* ---------- Tinte: Ensō – ein Pinselkreis, der nie ganz geschlossen ist ---------- */
-function Enso({ ranges, shown, size, uid }: Shape & { size: number }) {
+function Enso({ ranges, shown, size, uid }: Shape) {
   const r = 50;
   const gap = ranges.length > 1 ? 4 : 0;
   return (
@@ -287,3 +336,67 @@ function Enso({ ranges, shown, size, uid }: Shape & { size: number }) {
     </svg>
   );
 }
+
+/* ---------- Botanik: eine Blüte – belegte Blätter sind gefärbt, die freien noch Knospe ---------- */
+function Bloom({ ranges, shown, size }: Shape) {
+  const n = 16;
+  // Blütenblatt: Tropfenform von innen (r 27) nach aussen (r 58), zeigt nach oben, wird gedreht
+  const petal = "M60 33 C 52 26, 52 10, 60 2 C 68 10, 68 26, 60 33 Z";
+  return (
+    <svg viewBox="-10 -10 140 140" width={size} height={size}>
+      <path className="bloom-leaf" d="M86 96 C 104 92, 118 104, 124 122 C 104 124, 90 114, 86 96 Z" />
+      <path className="bloom-leaf back" d="M34 98 C 18 96, 4 106, -2 122 C 16 124, 30 116, 34 98 Z" />
+      {Array.from({ length: n }, (_, i) => {
+        const color = colorAt(ranges, (i + 0.5) / n);
+        const deg = (i / n) * 360 + 180 / n;
+        return (
+          <g key={i} transform={`rotate(${deg} 60 60)`}>
+            <path
+              className={`petal ${color && shown ? "on" : ""}`}
+              d={petal}
+              fill={color ?? undefined}
+              style={{ transitionDelay: `${i * 45}ms` }}
+            />
+          </g>
+        );
+      })}
+      <circle className="bloom-heart" cx="60" cy="60" r="27" />
+    </svg>
+  );
+}
+
+/* ---------- Terminal: Ring aus Zeichen, wird wie Text Zeichen für Zeichen getippt ---------- */
+function GlyphRing({ ranges, shown, size }: Shape) {
+  const n = 28;
+  return (
+    <svg viewBox="-10 -10 140 140" width={size} height={size}>
+      {Array.from({ length: n }, (_, i) => {
+        const color = colorAt(ranges, (i + 0.5) / n);
+        const a = TOP + ((i + 0.5) / n) * TAU;
+        return (
+          <text
+            key={i}
+            className={`glyph ${color ? "used" : ""} ${shown ? "on" : ""}`}
+            x={60 + 52 * Math.cos(a)}
+            y={60 + 52 * Math.sin(a)}
+            fill={color ?? undefined}
+            style={{ transitionDelay: `${i * 32}ms` }}
+          >
+            {color ? "█" : "·"}
+          </text>
+        );
+      })}
+    </svg>
+  );
+}
+
+const SHAPES: Partial<Record<ThemeId, (s: Shape) => React.JSX.Element>> = {
+  aurora: AuroraRing,
+  sunset: SunGauge,
+  polar: Compass,
+  neon: LedGauge,
+  riso: PrintedPie,
+  tinte: Enso,
+  botanik: Bloom,
+  terminal: GlyphRing,
+};

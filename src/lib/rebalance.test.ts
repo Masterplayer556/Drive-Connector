@@ -148,6 +148,25 @@ describe("planRebalance", () => {
     expect(p3.steps.every((s) => s.to === "p")).toBe(true);
   });
 
+  it("Claude ist ein eigenes Gebiet: weder zu Archiv noch zu Privat", () => {
+    const cl = (id: string, usedGb: number): AccountCap => ({ ...acc(id, usedGb), role: "claude" });
+    const arch = (id: string, usedGb: number): AccountCap => ({ ...acc(id, usedGb), role: "schule" });
+    const priv = (id: string, usedGb: number): AccountCap => ({ ...acc(id, usedGb), role: "privat" });
+    // Volles Claude-Konto, leere Archiv- und Privat-Konten → Claude-Ordner ziehen nur ins andere Claude-Konto
+    const p = planRebalance({
+      accounts: [cl("c1", 14.6), arch("a", 0), priv("p", 0), cl("c2", 1)],
+      units: [unit("c1", "Claude/A", 4), unit("c1", "Claude/B", 10.6), unit("c2", "Claude/C", 1)],
+    });
+    expect(p.steps.length).toBeGreaterThan(0);
+    for (const s of p.steps) expect(s.to).toBe("c2");
+    // Volles Archiv-Konto zieht nie in ein leeres Claude-Konto
+    const q = planRebalance({ accounts: [arch("a", 14.6), cl("c", 0)], units: [unit("a", "Archiv/X", 4), unit("a", "Archiv/Y", 10.6)] });
+    expect(q.steps).toEqual([]);
+    // Claude-Ordner, der in einem Archiv-Konto liegt, wird ins Claude-Konto eingeordnet
+    const r = planRebalance({ accounts: [arch("a", 6), cl("c", 1)], units: [unit("a", "Claude/Notizen", 2), unit("c", "Claude/A", 1)] });
+    expect(r.steps[0]).toMatchObject({ block: "claude/notizen", from: "a", to: "c", reason: "einordnen" });
+  });
+
   it("holt Ordner aus dem falschen Gebiet ins richtige (Privat-Ordner im Archiv-Konto)", () => {
     const p = planRebalance({
       accounts: [
