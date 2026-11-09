@@ -249,17 +249,31 @@ export const THEMES: ThemeInfo[] = [
 
 export interface ThemePrefs {
   theme: ThemeId;
-  /** Hell/Dunkel vom iPhone übernehmen (siehe autoPair) */
+  /** Hell/Dunkel vom iPhone übernehmen */
   auto: boolean;
+  /** Design bei hellem iPhone (mit Automatik) */
+  light: ThemeId;
+  /** Design bei dunklem iPhone (mit Automatik) */
+  dark: ThemeId;
 }
 
 const KEY = "drivepool.theme";
-const DEFAULT: ThemePrefs = { theme: "aurora", auto: false };
+const DEFAULT: ThemePrefs = { theme: "aurora", auto: false, light: "polar", dark: "aurora" };
+const known = (id: unknown): id is ThemeId => THEMES.some((t) => t.id === id);
 
 export function readPrefs(): ThemePrefs {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? "null");
-    if (raw && THEMES.some((t) => t.id === raw.theme)) return { theme: raw.theme, auto: !!raw.auto };
+    if (raw && known(raw.theme)) {
+      // Ältere Einstellungen ohne eigene Hell/Dunkel-Wahl: Paar aus dem gewählten Design ableiten
+      const pair = autoPair(raw.theme);
+      return {
+        theme: raw.theme,
+        auto: !!raw.auto,
+        light: known(raw.light) ? raw.light : pair.light,
+        dark: known(raw.dark) ? raw.dark : pair.dark,
+      };
+    }
   } catch {
     /* ignorieren */
   }
@@ -270,7 +284,7 @@ const lightQuery = () => window.matchMedia?.("(prefers-color-scheme: light)");
 
 export const isLight = (id: ThemeId) => THEMES.find((t) => t.id === id)?.light ?? false;
 
-/** Mit Automatik: das gewählte Design plus sein Gegenstück (Riso ↔ Tinte, sonst Polar ↔ Aurora bzw. das dunkle Design). */
+/** Vorschlag fürs Paar: das gewählte Design plus sein Gegenstück (Riso ↔ Tinte, sonst Polar ↔ Aurora bzw. das dunkle Design). */
 export function autoPair(theme: ThemeId): { light: ThemeId; dark: ThemeId } {
   const pair = THEMES.find((t) => t.id === theme)?.pair ?? "aurora";
   return isLight(theme) ? { light: theme, dark: pair } : { light: pair, dark: theme };
@@ -278,8 +292,7 @@ export function autoPair(theme: ThemeId): { light: ThemeId; dark: ThemeId } {
 
 export function resolveTheme(prefs: ThemePrefs): ThemeId {
   if (!prefs.auto) return prefs.theme;
-  const pair = autoPair(prefs.theme);
-  return lightQuery()?.matches ? pair.light : pair.dark;
+  return lightQuery()?.matches ? prefs.light : prefs.dark;
 }
 
 /** Wird bei jedem Designwechsel ausgelöst (z. B. für das Speicher-Diagramm). */

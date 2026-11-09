@@ -5094,6 +5094,33 @@ p {
   padding: 4px 18px 0;
 }
 
+/* Designs als Leiste: frei durchwischen (kein Einrasten – Schwung trägt bis ans Ende) */
+.theme-strip {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 4px 18px 10px;
+  scroll-padding: 0 18px;
+}
+
+.theme-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.theme-strip .theme-card {
+  flex: 0 0 152px;
+}
+
+.theme-strip .theme-meta span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .theme-card {
   position: relative;
   /* Inhalt oben ausrichten: ein Knopf zentriert ihn sonst, wenn die Nachbar-Kachel höher ist */
@@ -5205,9 +5232,6 @@ p {
 }
 
 /* Fünftes Design: über die ganze Breite */
-.theme-card:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
-}
 
 .theme-meta {
   flex: 1;
@@ -6693,4 +6717,30 @@ label.btn.disabled {
   padding: 1px 5px;
   border-radius: 5px;
   background: var(--inset-bg);
+}
+
+/* ---------- Aufklappbare Abschnitte (z. B. KI-Suche unter „Mehr“) ---------- */
+.section-toggle {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.section-toggle .toggle-chevron {
+  transition: transform 0.35s var(--spring);
+}
+
+.section-toggle.open .toggle-chevron {
+  transform: rotate(90deg);
+}
+
+.collapse-body {
+  animation: fadeUp 0.35s var(--ease) both;
 }

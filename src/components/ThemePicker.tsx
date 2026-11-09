@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  autoPair,
   BLEND_DEFAULT,
   BLEND_MAX,
   readFolderBlend,
@@ -46,7 +45,43 @@ export function ThemePreview({ t }: { t: ThemeInfo }) {
   );
 }
 
-/** Alles zu Design & Farbe: Design-Kacheln, Automatisch hell/dunkel, Ordnerfarben, Hintergrund-Bewegung. */
+/**
+ * Leiste mit allen Designs zum Durchwischen – ohne Einrasten: ein kräftiger Wisch fliegt bis ans Ende.
+ * Das gewählte Design wird beim Öffnen in die Mitte geholt.
+ */
+function ThemeStrip({ selected, onPick, label }: { selected: ThemeId; onPick: (id: ThemeId) => void; label: string }) {
+  const strip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = strip.current;
+    const card = el?.querySelector<HTMLElement>(".theme-card.on");
+    if (el && card) el.scrollLeft = card.offsetLeft - (el.clientWidth - card.offsetWidth) / 2;
+    // nur beim Öffnen – nicht bei jedem Antippen herumspringen
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="theme-strip" ref={strip} role="listbox" aria-label={label}>
+      {THEMES.map((t) => {
+        const on = selected === t.id;
+        return (
+          <button key={t.id} role="option" aria-selected={on} className={`theme-card ${on ? "on" : ""}`} onClick={() => onPick(t.id)}>
+            <ThemePreview t={t} />
+            <div className="theme-meta">
+              <strong>{t.name}</strong>
+              <span>{t.description}</span>
+            </div>
+            {on && (
+              <span className="theme-check">
+                <Icon name="check" size={14} />
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Alles zu Design & Farbe: Designs, Automatisch hell/dunkel (eigene Wahl), Ordnerfarben, Hintergrund-Bewegung. */
 export default function ThemePicker() {
   const [prefs, setPrefs] = useState<ThemePrefs>(readPrefs);
   const [blend, setBlend] = useState(readFolderBlend);
@@ -60,45 +95,11 @@ export default function ThemePicker() {
     setPrefs(next);
     savePrefs(next);
   };
-  // Mit „Automatisch hell/dunkel“ würde ein angetipptes Design oft gar nicht erscheinen (iPhone hell → immer
-  // das helle Design). Darum: Design antippen = genau dieses zeigen, Automatik aus – ausser es passt gerade zur Automatik.
-  const choose = (theme: ThemeId) => {
-    const next = { ...prefs, theme };
-    update(next.auto && resolveTheme(next) !== theme ? { ...next, auto: false } : next);
-  };
-  const pair = autoPair(prefs.theme);
+  // Automatik aus: das gerade sichtbare Design bleibt (kein Sprung)
+  const toggleAuto = (auto: boolean) => update(auto ? { ...prefs, auto } : { ...prefs, auto, theme: resolveTheme(prefs) });
 
   return (
     <>
-      <div className="section-title">
-        <span>Designs</span>
-        <span className="faint">{THEMES.length}</span>
-      </div>
-      <div className="theme-grid stagger">
-        {THEMES.map((t, i) => {
-          const on = prefs.theme === t.id;
-          return (
-            <button
-              key={t.id}
-              className={`theme-card ${on ? "on" : ""}`}
-              style={{ ["--i" as string]: i }}
-              onClick={() => choose(t.id as ThemeId)}
-            >
-              <ThemePreview t={t} />
-              <div className="theme-meta">
-                <strong>{t.name}</strong>
-                <span>{t.description}</span>
-              </div>
-              {on && (
-                <span className="theme-check">
-                  <Icon name="check" size={14} />
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
       <div className="section-title">
         <span>Hell & Dunkel</span>
       </div>
@@ -106,14 +107,41 @@ export default function ThemePicker() {
         <span>
           <strong>Automatisch hell/dunkel</strong>
           <div className="muted small">
-            Hell am iPhone → {nameOf(pair.light)}, dunkel → {nameOf(pair.dark)}
+            {prefs.auto ? `Hell → ${nameOf(prefs.light)}, dunkel → ${nameOf(prefs.dark)}` : "Folgt dem Erscheinungsbild des iPhones"}
           </div>
         </span>
         <span className="switch">
-          <input type="checkbox" checked={prefs.auto} onChange={(e) => update({ ...prefs, auto: e.target.checked })} />
+          <input type="checkbox" checked={prefs.auto} onChange={(e) => toggleAuto(e.target.checked)} />
           <span />
         </span>
       </label>
+
+      {prefs.auto ? (
+        <>
+          <div className="section-title">
+            <span>☀︎ Bei hellem iPhone</span>
+            <span className="faint">{nameOf(prefs.light)}</span>
+          </div>
+          <ThemeStrip label="Design bei hellem iPhone" selected={prefs.light} onPick={(light) => update({ ...prefs, light })} />
+          <div className="section-title">
+            <span>☾ Bei dunklem iPhone</span>
+            <span className="faint">{nameOf(prefs.dark)}</span>
+          </div>
+          <ThemeStrip label="Design bei dunklem iPhone" selected={prefs.dark} onPick={(dark) => update({ ...prefs, dark })} />
+        </>
+      ) : (
+        <>
+          <div className="section-title">
+            <span>Designs</span>
+            <span className="faint">{THEMES.length}</span>
+          </div>
+          <ThemeStrip
+            label="Design"
+            selected={prefs.theme}
+            onPick={(theme) => update({ ...prefs, theme })}
+          />
+        </>
+      )}
 
       <div className="section-title">
         <span>Farben</span>
