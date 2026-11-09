@@ -1,5 +1,6 @@
 // Vorschaubilder: Speicher → Cache auf dem Gerät → im Paket vom Server.
 // Jedes Bild wird nur einmal übers Netz geladen; danach kommt es sofort aus dem Gerätespeicher.
+import { pickEvictions } from "./thumbEvict";
 import { fetchThumbBlobs } from "./thumbSource";
 import type { Item } from "./types";
 
@@ -137,6 +138,22 @@ async function runBatch(batch: Pending[]) {
     }
   } catch (e) {
     for (const b of batch) b.reject(e instanceof Error ? e : new Error(String(e)));
+  }
+}
+
+/**
+ * Alte Vorschaubilder vom Gerät räumen, wenn die Obergrenzen überschritten sind (siehe thumbEvict.ts).
+ * Die Bilder sind nur ein Zwischenspeicher – was fehlt, wird beim nächsten Ansehen neu geholt.
+ */
+export async function pruneThumbCache(): Promise<number> {
+  const cache = await deviceCache();
+  if (!cache) return 0;
+  try {
+    const gone = pickEvictions((await cache.keys()).map((r) => r.url));
+    for (const url of gone) await cache.delete(url);
+    return gone.length;
+  } catch {
+    return 0;
   }
 }
 

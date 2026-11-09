@@ -4,6 +4,7 @@ import { syncAccounts, writeLog } from "./db";
 import { moveLogicalFolder, renameLogicalFolder } from "./folders";
 import { moveWithin, updateItem } from "./google";
 import { childKey, childPath } from "./naming";
+import { DRIVE_PARALLEL, mapPool } from "./pool";
 import type { Account, Crumb, Item, LogicalFolder } from "./types";
 
 export const UNDO_MS = 10_000;
@@ -66,15 +67,15 @@ export interface MovedFile {
 /** Fotos zurück in ihren alten Ordner (und alten Namen). */
 export function undoFileMoves(moved: MovedFile[]): () => Promise<void> {
   return async () => {
-    for (const m of moved) {
-      await moveWithin(
+    await mapPool(moved, DRIVE_PARALLEL, (m) =>
+      moveWithin(
         m.item.account_id,
         m.item.drive_id,
         m.item.parent_drive_id!,
         m.to,
         m.renamed ? { name: m.item.name, description: m.item.description ?? "" } : {},
-      );
-    }
+      ),
+    );
     await writeLog("move", `Rückgängig: ${moved.length} Foto${moved.length === 1 ? "" : "s"} zurückverschoben`);
     await refresh(moved.map((m) => m.item.account_id));
   };

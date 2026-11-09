@@ -32,6 +32,18 @@ jobs:
         with:
           path: dist
 
+  # Edge Functions (Deno) auf Tippfehler/Typen prüfen – sie werden sonst nirgends gebaut. Hält das Deployment nicht auf.
+  functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check --no-lock supabase/functions/*/index.ts
+        env:
+          DENO_NO_PACKAGE_JSON: "1"
+
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build

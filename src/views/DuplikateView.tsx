@@ -9,6 +9,7 @@ import { invalidateAll } from "../lib/cache";
 import { fetchDuplicates, ignoreDuplicate, syncAccounts, unignoreDuplicate, writeLog, type DuplicateGroup } from "../lib/db";
 import { formatBytes } from "../lib/format";
 import { trashItem } from "../lib/google";
+import { DRIVE_PARALLEL, mapPool } from "../lib/pool";
 import { navigate } from "../lib/route";
 import { accountColor } from "../lib/theme";
 import { dupKey as key, inRandom, pickOne, suggestRemoval } from "../lib/duplicates";
@@ -85,7 +86,7 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
     setProgress({ done: 0, total: items.length });
     const touched = new Set<string>();
     let ok = 0;
-    for (const it of items) {
+    await mapPool(items, DRIVE_PARALLEL, async (it) => {
       try {
         await trashItem(it.account_id, it.drive_id);
         touched.add(it.account_id);
@@ -94,7 +95,7 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
         /* weiter */
       }
       setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
-    }
+    });
     await writeLog("delete", `Duplikate aufgeräumt: ${ok} Foto(s) in den Papierkorb`, {
       namen: items.slice(0, 200).map((i) => i.path),
     });

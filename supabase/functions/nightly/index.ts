@@ -57,21 +57,36 @@ Deno.serve(async (req) => {
     let purged = 0;
     const { data: settings } = await admin.from("settings").select("trash_auto_days").eq("owner_id", ownerId).maybeSingle();
     if (settings?.trash_auto_days) {
-      const cutoff = new Date(Date.now() - settings.trash_auto_days * 86_400_000).toISOString();
+      const cutoff = Date.now() - settings.trash_auto_days * 86_400_000;
       for (const acc of (accounts ?? []) as Account[]) {
         try {
           const { token } = await getAccessToken(admin, acc.id);
-          const p = new URLSearchParams({
-            q: `trashed = true and 'me' in owners and trashedTime < '${cutoff}'`,
-            fields: "files(id,explicitlyTrashed)",
-            pageSize: "500",
-          });
-          const r = await gfetch<{ files: { id: string; explicitlyTrashed?: boolean }[] }>(token, `${DRIVE}/files?${p}`);
-          for (const f of r.files.filter((x) => x.explicitlyTrashed !== false)) {
-            if (timeLeft() < 10_000) break;
-            const res = await fetch(`${DRIVE}/files/${f.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-            if (res.ok) purged++;
-          }
+          // Nach „trashedTime“ lässt Google nicht suchen (kein gültiger Suchbegriff → Fehler 400).
+          // Deshalb wie in der App: ganzen Papierkorb auflisten und hier nach dem Datum filtern.
+          let pageToken: string | undefined;
+          do {
+            const p = new URLSearchParams({
+              q: "trashed = true and 'me' in owners",
+              fields: "nextPageToken,files(id,explicitlyTrashed,trashedTime)",
+              pageSize: "1000",
+            });
+            if (pageToken) p.set("pageToken", pageToken);
+            const r = await gfetch<{ nextPageToken?: string; files: { id: string; explicitlyTrashed?: boolean; trashedTime?: string }[] }>(
+              token,
+              `${DRIVE}/files?${p}`,
+            );
+            const old = r.files.filter((x) => x.explicitlyTrashed !== false && x.trashedTime && Date.parse(x.trashedTime) < cutoff);
+            for (const f of old) {
+              if (timeLeft() < 10_000) break;
+              const res = await fetch(`${DRIVE}/files/${f.id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+                signal: AbortSignal.timeout(15_000),
+              }).catch(() => null);
+              if (res?.ok) purged++;
+            }
+            pageToken = r.nextPageToken;
+          } while (pageToken && timeLeft() > 10_000);
         } catch (e) {
           failed.push(`Papierkorb ${acc.email}: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -92,6 +107,7 @@ Deno.serve(async (req) => {
         const res = await fetch(`${DRIVE}/files/${s.drive_id}/permissions/${s.permission_id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(15_000),
         });
         if (res.ok || res.status === 404) {
           await admin.from("shares").delete().eq("id", s.id);

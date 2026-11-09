@@ -7,6 +7,7 @@ import { crossesSealed } from "../lib/placement";
 import { moveWithin } from "../lib/google";
 import { planMove } from "../lib/move";
 import { childKey, childPath } from "../lib/naming";
+import { DRIVE_PARALLEL, mapPool } from "../lib/pool";
 import { folderHue } from "../lib/theme";
 import type { Account, Crumb, FolderContent, Item, LogicalFolder } from "../lib/types";
 import Icon from "./Icon";
@@ -139,13 +140,21 @@ export default function MoveSheet({
     const parentBy = new Map(parts.map((p) => [p.account_id, p.drive_id]));
     const resolver = new PathResolver(accounts);
     const gone = new Set<string>();
-    for (const e of todo) {
+    // Zielordner zuerst – pro Konto einmal und nacheinander (nebeneinander entstünde derselbe Ordner doppelt)
+    const noParent = new Map<string, unknown>();
+    for (const id of new Set(todo.map((e) => e.item.account_id))) {
+      if (parentBy.has(id)) continue;
       try {
-        let parent = parentBy.get(e.item.account_id);
-        if (!parent) {
-          parent = await resolver.ensure(e.item.account_id, pathSegments(current.path));
-          parentBy.set(e.item.account_id, parent);
-        }
+        parentBy.set(id, await resolver.ensure(id, pathSegments(current.path)));
+      } catch (err) {
+        noParent.set(id, err);
+      }
+    }
+    // Dann die Fotos, einige nebeneinander
+    await mapPool(todo, DRIVE_PARALLEL, async (e) => {
+      try {
+        const parent = parentBy.get(e.item.account_id);
+        if (!parent) throw noParent.get(e.item.account_id) ?? new Error("Zielordner fehlt");
         if (!e.item.parent_drive_id) throw new Error("Ursprungsordner unbekannt");
         await moveWithin(
           e.item.account_id,
@@ -163,7 +172,7 @@ export default function MoveSheet({
         errors.push(`${e.item.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
       setDone((d) => d + 1);
-    }
+    });
     const moved = gone.size;
     logs.unshift({
       kind: "move",

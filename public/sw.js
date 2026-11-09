@@ -5,6 +5,30 @@
 const CACHE = "drive-pool-v6";
 const SHELL = ["./", "./manifest.webmanifest", "./icons/icon-192.png"];
 const SHELL_KEY = new URL("./", self.location).toString();
+// Dateien dieser App-Version unter assets/ – wird beim Bauen eingesetzt (vite.config.ts). Ohne Bauen: null.
+// Dadurch ändert sich diese Datei mit jeder Version, der Browser bemerkt das Update und räumt auf.
+const ASSETS = /*__ASSETS__*/ null;
+
+/** Programmteile früherer Versionen löschen – sonst kommt mit jedem Update ein weiterer Satz dazu und nichts geht je weg. */
+function pruneOldAssets() {
+  if (!ASSETS) return Promise.resolve();
+  const keep = new Set(ASSETS.map((a) => new URL(a, self.location).toString()));
+  return caches
+    .open(CACHE)
+    .then((c) =>
+      c.keys().then((reqs) =>
+        Promise.all(
+          reqs
+            .filter((r) => {
+              const u = new URL(r.url);
+              return u.pathname.includes("/assets/") && !keep.has(u.origin + u.pathname);
+            })
+            .map((r) => c.delete(r)),
+        ),
+      ),
+    )
+    .catch(() => undefined);
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -22,6 +46,7 @@ self.addEventListener("activate", (event) => {
       .keys()
       // Nur alte App-Caches löschen – der Vorschaubilder-Cache (drivepool-thumbs-…) bleibt
       .then((keys) => Promise.all(keys.filter((k) => k.startsWith("drive-pool-") && k !== CACHE).map((k) => caches.delete(k))))
+      .then(pruneOldAssets)
       .then(() => self.clients.claim()),
   );
 });

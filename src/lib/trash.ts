@@ -1,6 +1,7 @@
 // Papierkorb über alle Konten (Regel 10): anzeigen, wiederherstellen, endgültig löschen, automatisch leeren.
 import { fetchSettings, writeLog } from "./db";
 import { deleteForever, listTrash, type TrashFile } from "./google";
+import { DRIVE_PARALLEL, mapPool } from "./pool";
 import type { Account, Item } from "./types";
 
 export interface TrashEntry {
@@ -40,7 +41,7 @@ export async function purgeOlderThan(accounts: Account[], days: number): Promise
   const old = (await loadTrash(accounts)).filter((e) => e.file.trashedTime && Date.parse(e.file.trashedTime) < cutoff);
   let count = 0;
   let bytes = 0;
-  for (const e of old) {
+  await mapPool(old, DRIVE_PARALLEL, async (e) => {
     try {
       await deleteForever(e.account.id, e.file.id);
       count++;
@@ -48,7 +49,7 @@ export async function purgeOlderThan(accounts: Account[], days: number): Promise
     } catch {
       /* nächstes Mal erneut */
     }
-  }
+  });
   if (count) await writeLog("delete", `Papierkorb: ${count} Einträge älter als ${days} Tage endgültig gelöscht`);
   return { count, bytes };
 }

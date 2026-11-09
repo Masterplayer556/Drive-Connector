@@ -81,6 +81,12 @@ async function fullSync(admin: SupabaseClient, acc: Account, token: string) {
     pageToken = r.nextPageToken;
   } while (pageToken);
 
+  // Lesezeichen zuerst entfernen: bricht der Lauf zwischen Leeren und Füllen ab, liest der nächste wieder
+  // alles ein – statt mit einem halben Index und dem alten Lesezeichen nur noch Änderungen zu holen.
+  if (acc.changes_page_token) {
+    const reset = await admin.from("accounts").update({ changes_page_token: null }).eq("id", acc.id);
+    if (reset.error) throw reset.error;
+  }
   const del = await admin.from("items").delete().eq("account_id", acc.id);
   if (del.error) throw del.error;
   for (const part of chunks(rows, 1000)) {
