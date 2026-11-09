@@ -95,6 +95,17 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
   const [s, setS] = useState(indexState);
   const [bytes, setBytes] = useState<number | null>(null);
   const [, tick] = useState(0);
+  // Kachel „KI-Suche“ samt Status immer sichtbar – Einstellungen, Training und Namen zum Aufklappen
+  const [open, setOpen] = useState(() => localStorage.getItem("drivepool.mehr.ai") === "1");
+  const toggleOpen = () =>
+    setOpen((o) => {
+      try {
+        localStorage.setItem("drivepool.mehr.ai", o ? "0" : "1");
+      } catch {
+        /* ignorieren */
+      }
+      return !o;
+    });
 
   useEffect(() => onIndexState(() => setS(indexState())), []);
   useEffect(() => onModelProgress(() => tick((n) => n + 1)), []);
@@ -164,7 +175,13 @@ export default function AiSettings({ accounts }: { accounts: Account[] }) {
         </div>
       )}
       {on && (
-        <div className="ai-settings-body">
+        <button className={`list-item ai-expand ${open ? "open" : ""}`} onClick={toggleOpen} aria-expanded={open}>
+          <span className="li-text small">{open ? "Weniger anzeigen" : "Einstellungen, Training & gelernte Namen"}</span>
+          <Icon name="chevronRight" size={16} className="toggle-chevron" />
+        </button>
+      )}
+      {on && open && (
+        <div className="ai-settings-body collapse-body">
           {crashNote() && <p className="small ai-note">{crashNote()}</p>}
           <div className="bar">
             <div className={`bar-fill ${s.phase === "indexing" || s.phase === "model" ? "live" : ""}`} style={{ width: `${pct}%` }} />
