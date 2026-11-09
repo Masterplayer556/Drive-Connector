@@ -438,29 +438,82 @@ function Aquarium({ ranges, usedFrac, shown, size, uid }: Shape) {
 }
 
 /* ---------- Kosmos: Planet mit Umlaufbahn – jedes Konto ein Bogen, am Ende sein Mond ---------- */
+// Bögen und Monde aus derselben Formel (Safari zeichnet gestrichelte Ellipsen mit eigenem Start und eigener
+// Richtung). Obere Bahnhälfte liegt hinter dem Planeten, untere davor – Bögen und Monde werden entsprechend geteilt.
+const ORBIT = { cx: 60, cy: 60, rx: 57, ry: 17, tilt: -16 };
+const orbitPoint = (t: number): [number, number] => {
+  const a = t * TAU;
+  return [ORBIT.cx + ORBIT.rx * Math.cos(a), ORBIT.cy + ORBIT.ry * Math.sin(a)];
+};
+/** hinter dem Planeten: obere Hälfte der (ungedrehten) Ellipse, also sin < 0 */
+const isBack = (t: number) => Math.sin(t * TAU) < 0;
+
+interface OrbitPiece {
+  from: number;
+  to: number;
+  color: string;
+  back: boolean;
+  d: string;
+}
+
+/** Bogen von t0 bis t1 in Stücke teilen, die jeweils ganz vorne oder ganz hinten liegen. */
+export function orbitPieces(ranges: Range[], gap = 0.006): OrbitPiece[] {
+  const out: OrbitPiece[] = [];
+  for (const r of ranges) {
+    const t0 = r.from;
+    const t1 = Math.max(t0, r.to - (ranges.length > 1 ? gap : 0));
+    if (t1 - t0 < 0.001) continue;
+    // Grenzen zwischen vorne und hinten: t = 0, 0.5, 1
+    const cuts = [t0, ...[0.5, 1].filter((c) => c > t0 && c < t1), t1];
+    for (let i = 0; i < cuts.length - 1; i++) {
+      const a = cuts[i];
+      const z = cuts[i + 1];
+      const steps = Math.max(2, Math.ceil((z - a) * 120));
+      let d = "";
+      for (let k = 0; k <= steps; k++) {
+        const [x, y] = orbitPoint(a + ((z - a) * k) / steps);
+        d += `${k ? " L" : "M"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      }
+      out.push({ from: a, to: z, color: r.color, back: isBack((a + z) / 2), d });
+    }
+  }
+  return out;
+}
+
+const SWEEP = 1.3; // Sekunden für eine ganze Umrundung
+
 function Orbit({ ranges, shown, size, uid }: Shape) {
-  const rx = 57;
-  const ry = 17;
-  const moon = (t: number) => {
-    const a = t * TAU;
-    return [60 + rx * Math.cos(a), 60 + ry * Math.sin(a)];
-  };
-  const arcs = (front: boolean) =>
-    ranges.map((s, i) => (
-      <ellipse
-        key={i}
-        className={`orbit-seg ${front ? "front" : ""}`}
-        cx="60"
-        cy="60"
-        rx={rx}
-        ry={ry}
-        pathLength={100}
-        stroke={s.color}
-        strokeDasharray={`${shown ? Math.max(0.3, (s.to - s.from) * 100 - 1.2) : 0} 100`}
-        strokeDashoffset={-s.from * 100}
-        style={delay(s.from, 1.2)}
-      />
-    ));
+  const pieces = orbitPieces(ranges);
+  const piece = (p: OrbitPiece, i: number) => (
+    <path
+      key={i}
+      className={`orbit-seg ${p.back ? "" : "front"}`}
+      d={p.d}
+      pathLength={1}
+      stroke={p.color}
+      strokeDasharray="1 1"
+      strokeDashoffset={shown ? 0 : 1}
+      style={{ transitionDuration: `${(p.to - p.from) * SWEEP}s`, transitionDelay: `${p.from * SWEEP}s` }}
+    />
+  );
+  const moons = (back: boolean) =>
+    ranges
+      .filter((r) => isBack(r.to) === back)
+      .map((r) => {
+        const [x, y] = orbitPoint(r.to);
+        return (
+          <circle
+            key={r.from}
+            className={`moon ${shown ? "on" : ""} ${back ? "back" : ""}`}
+            cx={x}
+            cy={y}
+            r={back ? 2.8 : 3.6}
+            fill={r.color}
+            style={{ transitionDelay: `${r.to * SWEEP}s` }}
+          />
+        );
+      });
+  const rot = `rotate(${ORBIT.tilt} ${ORBIT.cx} ${ORBIT.cy})`;
   return (
     <svg viewBox="-10 -10 140 140" width={size} height={size}>
       <defs>
@@ -469,39 +522,23 @@ function Orbit({ ranges, shown, size, uid }: Shape) {
           <stop offset=".55" stopColor="#5b45d6" />
           <stop offset="1" stopColor="#1d1260" />
         </radialGradient>
-        <clipPath id={`${uid}-front`}>
-          <rect x="-20" y="60" width="160" height="80" />
-        </clipPath>
       </defs>
-      <g transform="rotate(-16 60 60)">
-        <ellipse className="orbit-track" cx="60" cy="60" rx={rx} ry={ry} />
-        {arcs(false)}
+      {/* hinten: Bahn, Bögen und Monde – der Planet verdeckt sie */}
+      <g transform={rot}>
+        <path className="orbit-track" d={`M ${ORBIT.cx + ORBIT.rx} ${ORBIT.cy} A ${ORBIT.rx} ${ORBIT.ry} 0 0 0 ${ORBIT.cx - ORBIT.rx} ${ORBIT.cy}`} />
+        {pieces.filter((p) => p.back).map(piece)}
+        {moons(true)}
       </g>
       <g className="planet">
         <circle cx="60" cy="60" r="30" fill={`url(#${uid}-planet)`} />
         <path className="planet-band" d="M 32 52 Q 60 60 88 52" />
         <path className="planet-band" d="M 31 66 Q 60 74 89 66" />
       </g>
-      {/* vordere Hälfte der Bahn liegt vor dem Planeten */}
-      <g transform="rotate(-16 60 60)">
-        <g clipPath={`url(#${uid}-front)`}>
-          <ellipse className="orbit-track" cx="60" cy="60" rx={rx} ry={ry} />
-          {arcs(true)}
-        </g>
-        {ranges.map((s, i) => {
-          const [x, y] = moon(s.to);
-          return (
-            <circle
-              key={i}
-              className={`moon ${shown ? "on" : ""}`}
-              cx={x}
-              cy={y}
-              r="3.4"
-              fill={s.color}
-              style={{ transitionDelay: `${Math.round(s.to * 1200)}ms` }}
-            />
-          );
-        })}
+      {/* vorne: liegt über dem Planeten */}
+      <g transform={rot}>
+        <path className="orbit-track" d={`M ${ORBIT.cx + ORBIT.rx} ${ORBIT.cy} A ${ORBIT.rx} ${ORBIT.ry} 0 0 1 ${ORBIT.cx - ORBIT.rx} ${ORBIT.cy}`} />
+        {pieces.filter((p) => !p.back).map(piece)}
+        {moons(false)}
       </g>
     </svg>
   );

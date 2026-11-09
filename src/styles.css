@@ -4979,12 +4979,21 @@ p {
 .orbit-seg {
   fill: none;
   stroke-width: 4.5;
-  stroke-linecap: round;
-  transition: stroke-dasharray 1.2s var(--ease);
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+  /* Dauer und Verzögerung pro Stück (Inline-Stil) – zusammen ein durchgehender Bogen */
+  transition-property: stroke-dashoffset;
+  transition-timing-function: linear;
 }
 
+/* hintere Hälfte: etwas dunkler, wie im Schatten des Planeten */
 .orbit-seg:not(.front) {
-  opacity: 0.55;
+  opacity: 0.6;
+}
+
+.moon.back {
+  filter: none;
+  opacity: 0.75;
 }
 
 .planet {
@@ -5021,6 +5030,10 @@ p {
 .moon.on {
   opacity: 1;
   transform: scale(1);
+}
+
+.moon.back.on {
+  opacity: 0.75;
 }
 
 .donut-kosmos .donut-center strong {
