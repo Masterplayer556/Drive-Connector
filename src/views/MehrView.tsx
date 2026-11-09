@@ -397,7 +397,7 @@ export default function MehrView({ session, accounts }: { session: Session; acco
           icon="sparkles"
           bg="linear-gradient(135deg,#f472b6,#e11d48)"
           title="KI-Daten löschen"
-          sub={hasMfa ? "Modell, Index und Namen von diesem Gerät – mit 2FA-Code" : "Braucht den Zwei-Faktor-Schutz"}
+          sub={hasMfa ? "Modell und Index von diesem Gerät, gelernte Namen überall – mit 2FA-Code" : "Braucht den Zwei-Faktor-Schutz"}
           onClick={() => setAiWipe(true)}
         />
       </div>

@@ -8,6 +8,7 @@ import { forgetOldSettings } from "./engine";
 import { setAiEnabled } from "./flag";
 import { stopIndexer } from "./indexer";
 import { usedBytes, wipeEverything } from "./store";
+import { wipeCloudFeedback } from "./feedbackCloud";
 
 const mb = (b: number) => `${Math.round(b / 1e6).toLocaleString("de-CH")} MB`;
 
@@ -41,6 +42,7 @@ export default function AiWipeSheet({ factorId, onClose }: { factorId: string | 
       setAiEnabled(false);
       forgetOldSettings();
       await wipeEverything();
+      await wipeCloudFeedback(); // gesicherte Namen und 👍/👎 auch aus der Datenbank
       ui.toast("KI-Daten gelöscht", "ok");
       onClose();
     } catch (e) {
@@ -75,9 +77,10 @@ export default function AiWipeSheet({ factorId, onClose }: { factorId: string | 
             }}
           >
             <p className="muted" style={{ margin: 0 }}>
-              Modell, gelernte Fotos, 👍/👎 und gelernte Namen werden von diesem Gerät gelöscht
-              {bytes !== null && bytes >= 1e6 ? ` (${mb(bytes)})` : ""}. Beim nächsten Einschalten lädt und lernt die KI alles
-              neu. Deine Fotos und Tags bleiben unverändert.
+              Modell und gelernte Fotos werden von diesem Gerät gelöscht
+              {bytes !== null && bytes >= 1e6 ? ` (${mb(bytes)})` : ""}, 👍/👎 und gelernte Namen auch aus der Sicherung
+              (also auf allen Geräten). Beim nächsten Einschalten lädt und lernt die KI alles neu. Deine Fotos und Tags bleiben
+              unverändert.
             </p>
             {factorId ? (
               <>
