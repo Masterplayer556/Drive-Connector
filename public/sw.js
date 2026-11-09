@@ -110,16 +110,50 @@ self.addEventListener("message", (event) => {
   if (d && d.type === "video-token" && d.accountId && d.token) videoTokens.set(d.accountId, d.token);
 });
 
-async function streamVideo(req, url) {
+/**
+ * Frisches Token bei der offenen Seite holen. Nötig, weil das Token hier nur im Arbeitsspeicher liegt:
+ * beendet iOS den Service Worker mitten im Video, ist es weg – und nach rund einer Stunde läuft es ohnehin ab.
+ */
+async function askToken(accountId, clientId, force) {
+  const direct = clientId ? await self.clients.get(clientId) : null;
+  const pages = direct ? [direct] : await self.clients.matchAll({ type: "window" });
+  for (const page of pages) {
+    const token = await new Promise((resolve) => {
+      const ch = new MessageChannel();
+      const timer = setTimeout(() => resolve(null), 8000);
+      ch.port1.onmessage = (e) => {
+        clearTimeout(timer);
+        resolve((e.data && e.data.token) || null);
+      };
+      page.postMessage({ type: "video-token-request", accountId, force }, [ch.port2]);
+    });
+    if (token) {
+      videoTokens.set(accountId, token);
+      return token;
+    }
+  }
+  return null;
+}
+
+async function streamVideo(req, url, clientId) {
   const [accountId, id] = url.pathname.split("/__video/")[1].split("/").map(decodeURIComponent);
   const size = Number(url.searchParams.get("size")) || 0;
   const type = url.searchParams.get("type") || "video/mp4";
-  const token = videoTokens.get(accountId);
-  if (!token) return new Response("Kein Zugang", { status: 401 });
   const range = req.headers.get("range");
-  const headers = { Authorization: `Bearer ${token}` };
-  if (range) headers.Range = range;
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers });
+  const load = (token) => {
+    const headers = { Authorization: `Bearer ${token}` };
+    if (range) headers.Range = range;
+    return fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers });
+  };
+  let token = videoTokens.get(accountId) || (await askToken(accountId, clientId, false));
+  if (!token) return new Response("Kein Zugang", { status: 401 });
+  let res = await load(token);
+  if (res.status === 401) {
+    // Token abgelaufen → neues holen und einmal wiederholen
+    token = await askToken(accountId, clientId, true);
+    if (!token) return new Response("Kein Zugang", { status: 401 });
+    res = await load(token);
+  }
   if (!res.ok && res.status !== 206) return new Response(null, { status: res.status });
   const out = new Headers({ "Content-Type": type, "Accept-Ranges": "bytes" });
   // Content-Range selbst berechnen (Google gibt den Header nicht an Web-Apps heraus)
@@ -141,7 +175,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.includes("/__video/")) {
-    event.respondWith(streamVideo(req, url));
+    event.respondWith(streamVideo(req, url, event.clientId));
     return;
   }
 
