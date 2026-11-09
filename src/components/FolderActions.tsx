@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { offerUndo, undoFolderMove, undoFolderRename } from "../lib/undo";
 import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
 import { tagsOf, useTags } from "../lib/tags";
 import { customHue, FOLDER_HUES, hueOf, setFolderHue, useFolderColors } from "../lib/folderColors";
@@ -64,7 +65,7 @@ export default function FolderActions({
     setBusy(true);
     try {
       await renameLogicalFolder(folder, name);
-      ui.toast(`Umbenannt in „${name}“`, "ok");
+      offerUndo(`„${folder.name}“ → „${name}“ umbenannt`, undoFolderRename(folder, name));
       onChanged();
       onClose();
     } catch (e) {
@@ -110,7 +111,7 @@ export default function FolderActions({
           setBusy(true);
           try {
             await moveLogicalFolder(folder, target, accounts);
-            ui.toast(`„${folder.name}“ nach „${target.path || "Drive"}“ verschoben`, "ok");
+            offerUndo(`„${folder.name}“ nach „${target.path || "Drive"}“ verschoben`, undoFolderMove(folder, target, accounts));
             onChanged();
             onClose();
           } catch (e) {

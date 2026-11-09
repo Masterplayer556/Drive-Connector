@@ -11,6 +11,8 @@ import { navigate } from "../lib/route";
 import { supabase } from "../lib/supabase";
 import type { Account } from "../lib/types";
 import { THEMES } from "../lib/theme";
+import { lastSealReport, sealSummary } from "../lib/health";
+import { buildInventoryZip, saveFile } from "../lib/inventory";
 import { useThemeId } from "../lib/useTheme";
 
 const AiSettings = lazy(() => import("../ai/AiSettings")); // KI-SUCHE
@@ -137,6 +139,31 @@ export default function MehrView({ session, accounts }: { session: Session; acco
   const [code, setCode] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [aiWipe, setAiWipe] = useState(false); // KI-SUCHE
+  const [seal] = useState(lastSealReport);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [exportFile, setExportFile] = useState<File | null>(null);
+
+  // Notfall-Export: ZIP mit allen Dateien, Konten und Pfaden. Zweiter Tipper sichert es –
+  // das iPhone öffnet das Teilen-Menü nur direkt nach einem Tippen.
+  const exportInventory = async () => {
+    if (exportFile) {
+      try {
+        await saveFile(exportFile);
+        setExportFile(null);
+      } catch (e) {
+        ui.toast(e instanceof Error ? e.message : String(e), "error");
+      }
+      return;
+    }
+    setExporting("Liste wird erstellt …");
+    try {
+      setExportFile(await buildInventoryZip(accounts, (n) => setExporting(`${n.toLocaleString("de-CH")} Einträge gelesen …`)));
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+    } finally {
+      setExporting(null);
+    }
+  };
 
   const loadFactors = async () => {
     const { data, error } = await supabase.auth.mfa.listFactors();
@@ -246,6 +273,20 @@ export default function MehrView({ session, accounts }: { session: Session; acco
           onClick={() => navigate("duplikate")}
         />
         <Item
+          icon="sparkles"
+          bg="linear-gradient(135deg,#34d399,#0ea5e9)"
+          title="Platz sparen"
+          sub="Grösste Dateien, Dateitypen, alte Screenshots"
+          onClick={() => navigate("platz")}
+        />
+        <Item
+          icon="share"
+          bg="linear-gradient(135deg,#a78bfa,#6366f1)"
+          title="Teilen-Menü (Kurzbefehl)"
+          sub="Aus Fotos & Dateien direkt in Drive Pool sichern"
+          onClick={() => navigate("teilen")}
+        />
+        <Item
           icon="trash"
           bg="linear-gradient(135deg,#fb7185,#f97316)"
           title="Papierkorb"
@@ -292,6 +333,21 @@ export default function MehrView({ session, accounts }: { session: Session; acco
         <span>Sicherheit</span>
       </div>
       <div className="list glass enter" style={{ animationDelay: "60ms" }}>
+        <Item
+          icon="shield"
+          bg={seal && seal.total ? "linear-gradient(135deg,#fb7185,#e11d48)" : "linear-gradient(135deg,#4ade80,#0d9488)"}
+          title="Abschottung (Privat & Claude)"
+          sub={seal ? sealSummary(seal).replace("Abschottung geprüft: ", "") : "Wöchentliche Prüfung – noch nicht gelaufen"}
+          onClick={() => navigate("pruefung")}
+        />
+        <Item
+          icon="download"
+          bg="linear-gradient(135deg,#94a3b8,#475569)"
+          title="Notfall-Export"
+          sub={exporting ?? (exportFile ? "Bereit – antippen zum Sichern" : "Liste aller Dateien mit Konto und Pfad (ZIP)")}
+          onClick={exporting ? undefined : exportInventory}
+          right={exporting ? <span className="spinner" /> : undefined}
+        />
         <FaceIdItem email={session.user.email ?? "Drive Pool"} />
         {hasMfa === null ? (
           <Item icon="shield" bg="linear-gradient(135deg,#4ade80,#16a34a)" title="Zwei-Faktor-Schutz" sub="Lädt …" />

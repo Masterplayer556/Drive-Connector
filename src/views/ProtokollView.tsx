@@ -15,6 +15,7 @@ const FILTERS: { kind: LogKind | null; label: string }[] = [
   { kind: "folder", label: "Ordner" },
   { kind: "setup", label: "Einrichtung" },
   { kind: "account", label: "Konten" },
+  { kind: "check", label: "Prüfungen" },
   { kind: "error", label: "Fehler" },
   { kind: "app", label: "App-Updates" },
 ];
@@ -29,6 +30,7 @@ const STYLE: Record<LogKind, { icon: IconName; bg: string }> = {
   sync: { icon: "refresh", bg: "linear-gradient(135deg,#60a5fa,#6366f1)" },
   error: { icon: "alert", bg: "linear-gradient(135deg,#fb7185,#e11d48)" },
   setup: { icon: "compass", bg: "linear-gradient(135deg,#a78bfa,#ec4899)" },
+  check: { icon: "checkCircle", bg: "linear-gradient(135deg,#4ade80,#0d9488)" },
   app: { icon: "sparkles", bg: "linear-gradient(135deg,#0ea5e9,#22c55e)" },
 };
 

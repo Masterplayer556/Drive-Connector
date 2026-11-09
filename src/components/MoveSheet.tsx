@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { offerUndo, undoAll, undoFileMoves, undoFolderMove, type MovedFile } from "../lib/undo";
 import { invalidateAll, invalidateFolder, loadFolder, patchFolder } from "../lib/cache";
 import { fetchFolderParts, syncAccounts, writeLogs, type LogInput } from "../lib/db";
 import { moveLogicalFolder, PathResolver, pathSegments, SEALED_MESSAGE } from "../lib/folders";
@@ -107,20 +108,30 @@ export default function MoveSheet({
     const todo = plan.filter((e) => e.status === "move");
     setPhase("run");
     const errors: string[] = [];
+    const undos: (() => Promise<void>)[] = [];
+    const movedFiles: MovedFile[] = [];
     // 1. Ordner (samt Inhalt) – jeder Teil bleibt in seinem Konto
     for (const f of folderTodo) {
       try {
         await moveLogicalFolder(f, current, accounts);
+        undos.push(undoFolderMove(f, current, accounts));
       } catch (err) {
         errors.push(`${f.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
       setDone((d) => d + 1);
     }
     if (folderTodo.length) invalidateAll();
+    const offer = () => {
+      if (movedFiles.length) undos.push(undoFileMoves(movedFiles));
+      if (!undos.length) return;
+      const n = movedFiles.length + (undos.length - (movedFiles.length ? 1 : 0));
+      offerUndo(`${n} ${n === 1 ? "Eintrag" : "Einträge"} nach „${current.path || "Drive"}“ verschoben`, undoAll(undos));
+    };
     if (!todo.length) {
       invalidateFolder(current.key);
       setFailed(errors);
       setPhase("done");
+      offer();
       return;
     }
     const logs: LogInput[] = [];
@@ -144,6 +155,7 @@ export default function MoveSheet({
           e.renamed ? { name: e.targetName, description: `Originalname: ${e.item.name}` } : {},
         );
         gone.add(`${e.item.account_id}|${e.item.drive_id}`);
+        movedFiles.push({ item: e.item, to: parent, renamed: e.renamed });
         if (e.renamed) {
           logs.push({ kind: "rename", message: `„${e.item.name}“ → „${e.targetName}“ (Namenskonflikt beim Verschieben)` });
         }
@@ -174,6 +186,7 @@ export default function MoveSheet({
     for (const k of new Set(items.map((i) => i.parent_key ?? ""))) invalidateFolder(k);
     setFailed(errors);
     setPhase("done");
+    offer();
   };
 
   return (

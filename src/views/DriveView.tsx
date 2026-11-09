@@ -118,6 +118,11 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   }, [stack]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
+  // Nach „Rückgängig“ den aktuellen Ordner neu laden
+  useEffect(() => {
+    window.addEventListener("drivepool-changed", reload);
+    return () => window.removeEventListener("drivepool-changed", reload);
+  }, [reload]);
 
   // Ordner laden: sofort aus dem Speicher, dann frisch vom Server
   useEffect(() => {
