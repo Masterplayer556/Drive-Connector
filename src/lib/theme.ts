@@ -1,6 +1,6 @@
-// Designs: Aurora (Standard), Sunset, Polar (hell), Neon, Riso (hell), Tinte, Botanik (hell), Terminal. Farben stehen in styles.css unter [data-theme].
+// Designs: Aurora (Standard), Sunset, Polar (hell), Neon, Riso (hell), Tinte, Botanik (hell), Terminal, Tiefsee, Kosmos. Farben stehen in styles.css unter [data-theme].
 
-export type ThemeId = "aurora" | "sunset" | "polar" | "neon" | "riso" | "tinte" | "botanik" | "terminal";
+export type ThemeId = "aurora" | "sunset" | "polar" | "neon" | "riso" | "tinte" | "botanik" | "terminal" | "tiefsee" | "kosmos";
 
 /** Mini-Ansicht der App für die Design-Kachel unter „Mehr“ (Titel, Speicher-Karte mit Ring, Archiv/Privat). */
 export interface ThemePreview {
@@ -199,6 +199,50 @@ export const THEMES: ThemeInfo[] = [
       areas: ["#ffb547", "rgba(255,176,0,.05)"],
       areaShadow: "inset 0 0 0 1px rgba(255,181,71,.6)",
       radius: 3,
+    },
+  },
+  {
+    id: "tiefsee",
+    pair: "polar",
+    name: "Tiefsee",
+    description: "Licht von oben, Blasen, leuchtende Quallen",
+    light: false,
+    themeColor: "#03161d",
+    preview: {
+      bg: "linear-gradient(180deg,#0a4d5c 0%,#06303d 35%,#031a24 70%,#01070b 100%)",
+      blobs: ["#0e7490", "transparent", "#db2777"],
+      overlay:
+        "radial-gradient(circle at 18% 70%, transparent 2.5px, rgba(180,250,255,.5) 3px, transparent 3.6px),radial-gradient(circle at 84% 52%, transparent 3.5px, rgba(180,250,255,.45) 4px, transparent 4.8px),repeating-linear-gradient(100deg, rgba(150,240,255,.08) 0 5px, transparent 5px 18px)",
+      title: "linear-gradient(100deg,#9ff3ff,#5ad1e6)",
+      card: "linear-gradient(165deg,rgba(160,240,255,.18),rgba(160,240,255,.05))",
+      cardShadow: "inset 0 1px 0 rgba(200,255,255,.45), inset 0 0 0 .5px rgba(200,255,255,.25)",
+      ring: "conic-gradient(#5ad1e6 0 18%,transparent 0 20%,#14b8a6 0 32%,transparent 0 34%,#a78bfa 0 42%,rgba(160,240,255,.12) 0)",
+      line: "rgba(200,255,255,.35)",
+      areas: ["linear-gradient(150deg,#0e7490,#14b8a6)", "linear-gradient(150deg,#6d28d9,#db2777)"],
+      areaShadow: "inset 0 1px 0 rgba(255,255,255,.4)",
+      radius: 9,
+    },
+  },
+  {
+    id: "kosmos",
+    pair: "polar",
+    name: "Kosmos",
+    description: "Sternenhimmel, Planeten, Sternschnuppen",
+    light: false,
+    themeColor: "#05050f",
+    preview: {
+      bg: "radial-gradient(90% 70% at 85% 0%, #2a1b5c 0%, #0b0b24 55%, #04040d 100%)",
+      blobs: ["transparent", "#4c1d95", "transparent"],
+      overlay:
+        "radial-gradient(1px 1px at 12% 20%,#fff,transparent),radial-gradient(1px 1px at 40% 8%,#fff,transparent),radial-gradient(1.4px 1.4px at 70% 30%,#fff,transparent),radial-gradient(1px 1px at 92% 64%,#cfe0ff,transparent),radial-gradient(1px 1px at 28% 88%,#fff,transparent),radial-gradient(1.4px 1.4px at 58% 96%,#ffe9c9,transparent)",
+      title: "linear-gradient(100deg,#ecebff,#b9b0ff)",
+      card: "rgba(20,18,50,.6)",
+      cardShadow: "inset 0 0 0 .5px rgba(190,180,255,.4), 0 0 18px rgba(110,90,255,.2)",
+      ring: "conic-gradient(#7c6cff 0 18%,transparent 0 20%,#22d3ee 0 32%,transparent 0 34%,#ff7ab8 0 42%,rgba(190,180,255,.12) 0)",
+      line: "rgba(190,180,255,.4)",
+      areas: ["radial-gradient(circle at 75% 25%,#7c6cff,#2b1d78 70%)", "radial-gradient(circle at 75% 25%,#ff7ab8,#5a1747 70%)"],
+      areaShadow: "inset 0 1px 0 rgba(255,255,255,.3)",
+      radius: 9,
     },
   },
 ];

@@ -4000,13 +4000,6 @@ p {
     rgba(var(--surface-rgb), 0.28);
 }
 
-/* Beim Scrollen steht der Hintergrund kurz still – spart Rechenzeit genau dann, wenn sie gebraucht wird */
-.is-scrolling .aurora i,
-.is-scrolling .aurora::before,
-.is-scrolling .donut-shimmer {
-  animation-play-state: paused;
-}
-
 /* ---------- Hintergrund still (unter „Design → Bewegung“) ---------- */
 .still-bg .aurora i,
 .still-bg .aurora::before,
@@ -4601,6 +4594,442 @@ p {
   content: "_";
   margin-left: 1px;
   animation: blink 1.05s steps(1) infinite;
+}
+
+/* =========================================================================
+   Tiefsee: Licht fällt von oben ins Wasser, Blasen steigen, Quallen leuchten
+   ========================================================================= */
+:root[data-theme="tiefsee"] {
+  --bg: #03161d;
+  --bg-rgb: 3, 22, 29;
+  --surface-rgb: 6, 38, 48;
+  --scrim-rgb: 0, 8, 12;
+  --tint-rgb: 210, 250, 255;
+  --text: #dcfbff;
+  --muted: #86b7c2;
+  --faint: #557f89;
+  --glow-rgb: 90, 209, 230;
+  --accent-rgb: 90, 209, 230;
+  --accent2-rgb: 20, 184, 166;
+  --accent3-rgb: 167, 139, 250;
+  --violet: #a78bfa;
+  --cyan: #67e8f9;
+  --pink: #f0abfc;
+  --grad: linear-gradient(135deg, #22d3ee 0%, #14b8a6 55%, #a78bfa 100%);
+  --grad-text: linear-gradient(100deg, #b8f7ff 0%, #5ad1e6 55%, #7dd3fc 100%);
+  --aurora-top: #0a4d5c;
+  --blob1: #0e7490;
+  --blob2: #155e75;
+  --blob3: #c026d3;
+  --blob-opacity: 0.45;
+  --grain-opacity: 0;
+  --area-archiv: linear-gradient(150deg, #0e7490 0%, #14b8a6 100%);
+  --area-privat: linear-gradient(150deg, #5b21b6 0%, #c026d3 60%, #f472b6 100%);
+  --area-claude: linear-gradient(120deg, #0f766e 0%, #155e75 45%, #f59e0b 100%);
+  --lg-fill: linear-gradient(
+    165deg,
+    rgba(170, 240, 255, 0.15) 0%,
+    rgba(120, 220, 240, 0.05) 40%,
+    rgba(80, 200, 230, 0.04) 65%,
+    rgba(140, 230, 255, 0.1) 100%
+  );
+  --lg-rim: linear-gradient(
+    140deg,
+    rgba(200, 255, 255, 0.75) 0%,
+    rgba(160, 240, 255, 0.12) 30%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(90, 209, 230, 0.15) 72%,
+    rgba(160, 240, 255, 0.5) 100%
+  );
+}
+
+/* Von der Oberfläche (oben, Petrol) in die Tiefe (unten, fast schwarz) */
+:root[data-theme="tiefsee"] .aurora {
+  background: linear-gradient(180deg, #0a4d5c 0%, #06303d 28%, #031a24 60%, #01070b 100%);
+}
+
+/* Lichtstrahlen von der Wasseroberfläche, die sanft hin- und herwiegen */
+:root[data-theme="tiefsee"] .aurora::before {
+  left: -30%;
+  right: -30%;
+  top: -10vh;
+  height: 75vh;
+  background: repeating-linear-gradient(
+    100deg,
+    rgba(150, 240, 255, 0) 0 3vw,
+    rgba(150, 240, 255, 0.13) 4.5vw,
+    rgba(150, 240, 255, 0) 6vw,
+    rgba(150, 240, 255, 0) 9vw,
+    rgba(200, 250, 255, 0.08) 10vw,
+    rgba(150, 240, 255, 0) 11.5vw
+  );
+  -webkit-mask: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.6) 35%, transparent 100%);
+  mask: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.6) 35%, transparent 100%);
+  filter: none;
+  mix-blend-mode: screen;
+  opacity: 1;
+  transform-origin: 50% 0;
+  animation: caustics 11s ease-in-out infinite alternate;
+}
+
+@keyframes caustics {
+  from {
+    transform: skewX(-6deg) translateX(-3%);
+  }
+  to {
+    transform: skewX(5deg) translateX(3%);
+  }
+}
+
+/* Aufsteigende Blasen (eine hohe Ebene, die langsam nach oben wandert – nur transform) */
+:root[data-theme="tiefsee"] .aurora::after {
+  inset: auto 0 0 0;
+  height: 200vh;
+  opacity: 1;
+  mix-blend-mode: normal;
+  background-image:
+    radial-gradient(circle at 12% 18%, transparent 3px, rgba(180, 250, 255, 0.4) 3.6px, transparent 4.6px),
+    radial-gradient(circle at 14% 22%, transparent 1.6px, rgba(180, 250, 255, 0.35) 2.2px, transparent 3px),
+    radial-gradient(circle at 78% 41%, transparent 4.5px, rgba(180, 250, 255, 0.35) 5.1px, transparent 6.2px),
+    radial-gradient(circle at 81% 46%, transparent 2px, rgba(180, 250, 255, 0.3) 2.6px, transparent 3.4px),
+    radial-gradient(circle at 45% 70%, transparent 2.5px, rgba(180, 250, 255, 0.3) 3.1px, transparent 4px),
+    radial-gradient(circle at 92% 88%, transparent 1.8px, rgba(180, 250, 255, 0.3) 2.4px, transparent 3.2px);
+  background-size: 100% 50%;
+  animation: bubbles 26s linear infinite;
+}
+
+@keyframes bubbles {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+/* Je weiter du scrollst, desto tiefer: das Wasser wird dunkler (wo der Browser es kann) */
+@supports (animation-timeline: scroll()) {
+  :root[data-theme="tiefsee"] .app::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    /* unter dem Inhalt, über dem Hintergrund */
+    z-index: -1;
+    pointer-events: none;
+    background: #01070b;
+    opacity: 0;
+    animation: deeper linear both;
+    animation-timeline: scroll(root);
+  }
+
+  @keyframes deeper {
+    to {
+      opacity: 0.55;
+    }
+  }
+}
+
+:root[data-theme="tiefsee"] .area-card::after {
+  /* Statt Glanzfleck: eine leuchtende Qualle */
+  width: 70px;
+  height: 52px;
+  right: 10px;
+  top: 8px;
+  border-radius: 50% 50% 42% 42%;
+  background: radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.08) 60%, transparent 72%);
+  filter: none;
+  animation: jelly 5s ease-in-out infinite alternate;
+}
+
+@keyframes jelly {
+  from {
+    transform: translateY(4px) scale(0.96, 1.04);
+  }
+  to {
+    transform: translateY(-4px) scale(1.04, 0.96);
+  }
+}
+
+:root[data-theme="tiefsee"] .folder-icon {
+  box-shadow: 0 0 16px hsl(var(--h) 85% 55% / 0.45);
+}
+
+:root[data-theme="tiefsee"] .tab-indicator {
+  background:
+    radial-gradient(120% 90% at 30% -10%, rgba(220, 255, 255, 0.45), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(135deg, rgba(34, 211, 238, 0.4), rgba(20, 184, 166, 0.25));
+}
+
+/* Aquarium-Diagramm */
+.tank-glass {
+  fill: rgba(var(--tint-rgb), 0.05);
+  stroke: rgba(var(--tint-rgb), 0.5);
+  stroke-width: 2;
+}
+
+.tank-water {
+  transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tank-water .surface path {
+  animation: waveRun 2.8s linear infinite;
+}
+
+.tank-water .layer path {
+  opacity: 0.92;
+  animation: waveRun 5.5s linear infinite reverse;
+}
+
+@keyframes waveRun {
+  to {
+    transform: translateX(-30px);
+  }
+}
+
+.tank-bubble {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 1;
+  animation: rise 3.6s ease-in infinite both;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-70px);
+    opacity: 0;
+  }
+}
+
+.tank-shine {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.45);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.donut-tiefsee .donut-center strong,
+.donut-tiefsee .donut-center span {
+  text-shadow: 0 1px 6px rgba(0, 20, 30, 0.8);
+}
+
+.donut-tiefsee .donut-center span {
+  color: #e6fdff;
+}
+
+/* =========================================================================
+   Kosmos: Sternenhimmel mit Nebel, funkelnden Sternen und Sternschnuppen
+   ========================================================================= */
+:root[data-theme="kosmos"] {
+  --bg: #05050f;
+  --bg-rgb: 5, 5, 15;
+  --surface-rgb: 16, 14, 40;
+  --scrim-rgb: 2, 2, 8;
+  --tint-rgb: 236, 235, 255;
+  --text: #ecebff;
+  --muted: #a39fcf;
+  --faint: #6c6896;
+  --glow-rgb: 124, 108, 255;
+  --accent-rgb: 124, 108, 255;
+  --accent2-rgb: 34, 211, 238;
+  --accent3-rgb: 255, 122, 184;
+  --violet: #9d8cff;
+  --cyan: #a5b4fc;
+  --pink: #ff7ab8;
+  --grad: linear-gradient(135deg, #7c6cff 0%, #5b8cff 50%, #22d3ee 100%);
+  --grad-text: linear-gradient(100deg, #ffffff 0%, #d8d2ff 50%, #a99cff 100%);
+  --aurora-top: #2a1b5c;
+  --blob1: #4c1d95;
+  --blob2: #1e3a8a;
+  --blob3: #9d174d;
+  --blob-opacity: 0.4;
+  --grain-opacity: 0;
+  --area-archiv: radial-gradient(circle at 78% 22%, #8b7bff 0%, #3a28a8 45%, #160e4a 100%);
+  --area-privat: radial-gradient(circle at 78% 22%, #ff8cc4 0%, #9d2a6c 45%, #3a0c2a 100%);
+  --area-claude: radial-gradient(circle at 92% 30%, #ffc48a 0%, #c2410c 35%, #3b1607 80%);
+  --lg-fill: linear-gradient(165deg, rgba(190, 180, 255, 0.12) 0%, rgba(110, 90, 255, 0.04) 45%, rgba(190, 180, 255, 0.07) 100%);
+  --lg-rim: linear-gradient(
+    140deg,
+    rgba(220, 215, 255, 0.7) 0%,
+    rgba(190, 180, 255, 0.1) 30%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(124, 108, 255, 0.18) 72%,
+    rgba(200, 190, 255, 0.45) 100%
+  );
+}
+
+:root[data-theme="kosmos"] .aurora {
+  background: radial-gradient(90% 60% at 82% 8%, #2a1b5c 0%, #0b0b24 50%, #04040d 100%);
+}
+
+/* Sterne – zwei Grössen, funkeln ganz leicht */
+:root[data-theme="kosmos"] .aurora::after {
+  inset: 0;
+  opacity: 1;
+  mix-blend-mode: normal;
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, #fff, transparent),
+    radial-gradient(1px 1px at 120px 80px, #fff, transparent),
+    radial-gradient(1.6px 1.6px at 260px 50px, #fff, transparent),
+    radial-gradient(1px 1px at 200px 160px, #cfe0ff, transparent),
+    radial-gradient(1px 1px at 60px 220px, #fff, transparent),
+    radial-gradient(1.6px 1.6px at 300px 270px, #ffe9c9, transparent),
+    radial-gradient(1px 1px at 150px 330px, #fff, transparent),
+    radial-gradient(1px 1px at 40px 420px, #cfe0ff, transparent),
+    radial-gradient(1px 1px at 240px 470px, #fff, transparent),
+    radial-gradient(1.6px 1.6px at 110px 560px, #fff, transparent),
+    radial-gradient(1px 1px at 330px 600px, #fff, transparent);
+  background-size: 360px 640px;
+  animation: twinkle 4s ease-in-out infinite alternate;
+}
+
+@keyframes twinkle {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Sternschnuppe: alle paar Sekunden ein kurzer Streifen quer über den Himmel */
+:root[data-theme="kosmos"] .aurora::before {
+  left: auto;
+  right: -20vw;
+  top: 8vh;
+  width: 34vw;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.95));
+  -webkit-mask: none;
+  mask: none;
+  filter: none;
+  mix-blend-mode: normal;
+  opacity: 0;
+  transform-origin: 100% 50%;
+  animation: shootingStar 9s ease-in infinite;
+}
+
+@keyframes shootingStar {
+  0%,
+  70% {
+    opacity: 0;
+    transform: rotate(-24deg) translateX(0);
+  }
+  72% {
+    opacity: 1;
+  }
+  80%,
+  100% {
+    opacity: 0;
+    transform: rotate(-24deg) translateX(-120vw);
+  }
+}
+
+:root[data-theme="kosmos"] .topbar-title h1 {
+  font-weight: 300;
+  letter-spacing: 0.01em;
+}
+
+/* Bereichskarten als Planeten – mit Ring wie Saturn */
+:root[data-theme="kosmos"] .area-card {
+  border: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 0 30px rgba(110, 90, 255, 0.18),
+    0 14px 30px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme="kosmos"] .area-card::after {
+  width: 150px;
+  height: 34px;
+  right: -40px;
+  top: 14px;
+  border-radius: 50%;
+  background: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  filter: none;
+  transform: rotate(-18deg);
+}
+
+:root[data-theme="kosmos"] .folder-icon {
+  background: radial-gradient(circle at 30% 28%, hsl(var(--h) 90% 78%), hsl(calc(var(--h) + var(--folder-blend, 45)) 70% 38%) 75%);
+  box-shadow: 0 0 14px hsl(var(--h) 85% 60% / 0.35);
+}
+
+:root[data-theme="kosmos"] .tab-indicator {
+  background:
+    radial-gradient(120% 90% at 30% -10%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(135deg, rgba(124, 108, 255, 0.45), rgba(34, 211, 238, 0.22));
+}
+
+/* Umlaufbahn-Diagramm */
+.orbit-track {
+  fill: none;
+  stroke: rgba(var(--tint-rgb), 0.16);
+  stroke-width: 1;
+}
+
+.orbit-seg {
+  fill: none;
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  transition: stroke-dasharray 1.2s var(--ease);
+}
+
+.orbit-seg:not(.front) {
+  opacity: 0.55;
+}
+
+.planet {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  animation: planetIn 1s var(--spring) both;
+}
+
+@keyframes planetIn {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+
+.planet-band {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.moon {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(0.2);
+  transition:
+    opacity 0.3s,
+    transform 0.5s var(--spring);
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.55));
+}
+
+.moon.on {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.donut-kosmos .donut-center strong {
+  font-size: 1.15rem;
+}
+
+.donut-kosmos .donut-center span {
+  font-size: 0.58rem;
+  color: #d8d2ff;
 }
 
 /* ---------- Claude-Karte in den einzelnen Designs ---------- */

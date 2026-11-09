@@ -36,7 +36,8 @@ const TOP = -Math.PI / 2;
 /**
  * Speicher-Diagramm: ein Teil pro Konto. Jedes Design hat seine eigene Form –
  * Aurora Ring mit Nordlicht, Sunset Sonne am Horizont, Polar Kompass, Neon Arcade-Anzeige,
- * Riso gedruckte Torte, Tinte Pinselkreis mit Stempel, Botanik Blüte, Terminal Zeichen-Ring.
+ * Riso gedruckte Torte, Tinte Pinselkreis mit Stempel, Botanik Blüte, Terminal Zeichen-Ring,
+ * Tiefsee Aquarium, Kosmos Planet mit Umlaufbahn.
  * Antippen spielt die Animation nochmal ab; `replay` (z. B. beim Hinwischen) ebenso.
  */
 export default function Donut({
@@ -390,6 +391,122 @@ function GlyphRing({ ranges, shown, size }: Shape) {
   );
 }
 
+/* ---------- Tiefsee: Aquarium – jedes Konto eine Wasserschicht, die Oberfläche schwappt ---------- */
+/** Wellenlinie von links nach rechts (über die Breite hinaus, damit sie endlos seitwärts laufen kann). */
+const wave = (y: number, amp: number) => {
+  let d = `M -40 ${y}`;
+  for (let x = -40; x < 170; x += 30) d += ` q 7.5 ${-amp} 15 0 t 15 0`;
+  return `${d} V 130 H -40 Z`;
+};
+
+function Aquarium({ ranges, usedFrac, shown, size, uid }: Shape) {
+  const bottom = 114;
+  const height = 108; // von y 6 bis 114
+  // Schichten von unten nach oben; die oberste zuletzt gezeichnet hat die bewegte Oberfläche
+  const layers = ranges.map((r) => ({ color: r.color, top: bottom - r.to * height }));
+  return (
+    <svg viewBox="-10 -10 140 140" width={size} height={size}>
+      <defs>
+        <clipPath id={`${uid}-tank`}>
+          <circle cx="60" cy="60" r="52" />
+        </clipPath>
+        <linearGradient id={`${uid}-deep`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="rgba(255,255,255,.18)" />
+          <stop offset="1" stopColor="rgba(0,0,0,.35)" />
+        </linearGradient>
+      </defs>
+      <circle className="tank-glass" cx="60" cy="60" r="55" />
+      <g clipPath={`url(#${uid}-tank)`}>
+        <g className="tank-water" style={{ transform: `translateY(${shown ? 0 : usedFrac * height + 8}px)` }}>
+          {[...layers].reverse().map((l, i) => (
+            <g key={i} className={i === 0 ? "surface" : "layer"}>
+              <path d={wave(l.top, i === 0 ? 3 : 1.4)} fill={l.color} />
+            </g>
+          ))}
+          <rect x="-10" y="0" width="140" height="130" fill={`url(#${uid}-deep)`} style={{ mixBlendMode: "soft-light" }} />
+        </g>
+        {usedFrac > 0.05 &&
+          [
+            [38, 0],
+            [74, 1.3],
+            [56, 2.4],
+          ].map(([x, d]) => <circle key={x} className="tank-bubble" cx={x} cy={bottom - 4} r={x === 56 ? 1.6 : 2.4} style={{ animationDelay: `${d}s` }} />)}
+      </g>
+      <path className="tank-shine" d="M 22 38 A 44 44 0 0 1 46 14" />
+    </svg>
+  );
+}
+
+/* ---------- Kosmos: Planet mit Umlaufbahn – jedes Konto ein Bogen, am Ende sein Mond ---------- */
+function Orbit({ ranges, shown, size, uid }: Shape) {
+  const rx = 57;
+  const ry = 17;
+  const moon = (t: number) => {
+    const a = t * TAU;
+    return [60 + rx * Math.cos(a), 60 + ry * Math.sin(a)];
+  };
+  const arcs = (front: boolean) =>
+    ranges.map((s, i) => (
+      <ellipse
+        key={i}
+        className={`orbit-seg ${front ? "front" : ""}`}
+        cx="60"
+        cy="60"
+        rx={rx}
+        ry={ry}
+        pathLength={100}
+        stroke={s.color}
+        strokeDasharray={`${shown ? Math.max(0.3, (s.to - s.from) * 100 - 1.2) : 0} 100`}
+        strokeDashoffset={-s.from * 100}
+        style={delay(s.from, 1.2)}
+      />
+    ));
+  return (
+    <svg viewBox="-10 -10 140 140" width={size} height={size}>
+      <defs>
+        <radialGradient id={`${uid}-planet`} cx=".34" cy=".3" r=".75">
+          <stop offset="0" stopColor="#c9c2ff" />
+          <stop offset=".55" stopColor="#5b45d6" />
+          <stop offset="1" stopColor="#1d1260" />
+        </radialGradient>
+        <clipPath id={`${uid}-front`}>
+          <rect x="-20" y="60" width="160" height="80" />
+        </clipPath>
+      </defs>
+      <g transform="rotate(-16 60 60)">
+        <ellipse className="orbit-track" cx="60" cy="60" rx={rx} ry={ry} />
+        {arcs(false)}
+      </g>
+      <g className="planet">
+        <circle cx="60" cy="60" r="30" fill={`url(#${uid}-planet)`} />
+        <path className="planet-band" d="M 32 52 Q 60 60 88 52" />
+        <path className="planet-band" d="M 31 66 Q 60 74 89 66" />
+      </g>
+      {/* vordere Hälfte der Bahn liegt vor dem Planeten */}
+      <g transform="rotate(-16 60 60)">
+        <g clipPath={`url(#${uid}-front)`}>
+          <ellipse className="orbit-track" cx="60" cy="60" rx={rx} ry={ry} />
+          {arcs(true)}
+        </g>
+        {ranges.map((s, i) => {
+          const [x, y] = moon(s.to);
+          return (
+            <circle
+              key={i}
+              className={`moon ${shown ? "on" : ""}`}
+              cx={x}
+              cy={y}
+              r="3.4"
+              fill={s.color}
+              style={{ transitionDelay: `${Math.round(s.to * 1200)}ms` }}
+            />
+          );
+        })}
+      </g>
+    </svg>
+  );
+}
+
 const SHAPES: Partial<Record<ThemeId, (s: Shape) => React.JSX.Element>> = {
   aurora: AuroraRing,
   sunset: SunGauge,
@@ -399,4 +516,6 @@ const SHAPES: Partial<Record<ThemeId, (s: Shape) => React.JSX.Element>> = {
   tinte: Enso,
   botanik: Bloom,
   terminal: GlyphRing,
+  tiefsee: Aquarium,
+  kosmos: Orbit,
 };
