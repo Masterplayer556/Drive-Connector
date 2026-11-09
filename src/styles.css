@@ -2225,6 +2225,23 @@ p {
   animation: fadeUp 0.5s var(--ease) both;
 }
 
+/* Fehler-Anzeige (ErrorBoundary) */
+.error-detail {
+  font-size: 0.8rem;
+  color: var(--muted);
+  opacity: 0.8;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
 .empty-icon {
   width: 72px;
   height: 72px;

@@ -35,6 +35,8 @@ interface Task {
 type Log = (msg: string) => void;
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
+/** Google-IDs bestehen nur aus diesen Zeichen – alles andere kommt nicht in eine Drive-Abfrage */
+const ID_RE = /^[\w-]{5,200}$/;
 const isLocked = (key: string, locks: string[]) => locks.some((l) => key === l || key.startsWith(l + "/"));
 /** Gebiet des Pfads: "privat", "claude" oder "schule" (Archiv) – ohne Bereich null (dann wie das Quellkonto) */
 const zoneOfPath = (path: string): string | null => {
@@ -64,7 +66,11 @@ async function expandPlan(admin: SupabaseClient, plan: { id: string; owner_id: s
   const roleOf = new Map((accRows ?? []).map((a) => [a.id as string, (a.role as string) ?? "schule"]));
   let total = 0;
   for (const step of plan.steps) {
-    for (const u of step.units) {
+    // Der Plan kommt aus der App: nur zwischen eigenen, verschiedenen Konten
+    if (!roleOf.has(step.from) || !roleOf.has(step.to) || step.from === step.to) continue;
+    for (const u of step.units ?? []) {
+      if (typeof u.folder_id !== "string" || !ID_RE.test(u.folder_id)) continue;
+      if (typeof u.path !== "string" || !u.path || typeof u.parent_key !== "string") continue;
       if (isLocked(u.parent_key, locks)) continue;
       const zone = zoneOfPath(u.path) ?? roleOf.get(step.from) ?? "schule";
       if ((roleOf.get(step.to) ?? "schule") !== zone) continue;
@@ -231,9 +237,59 @@ async function moveOne(
     path: `${t.path}/${t.name}`,
     parent_key: t.path.toLowerCase(),
   });
-  await admin.from("favorites").update({ account_id: t.dst_account, drive_id: copy.id }).eq("account_id", t.src_account).eq("drive_id", t.drive_id);
   await admin.from("shares").delete().eq("account_id", t.src_account).eq("drive_id", t.drive_id);
+  await carryOver(admin, t, copy.id);
   return copy.id;
+}
+
+/**
+ * Was am Foto hängt, zieht mit um – die Kopie hat ein anderes Konto und eine neue Google-ID:
+ * Favorit, eigene Tags, KI-Fingerabdruck sowie 👍/👎 und gelernte Namen der KI-Suche.
+ * Das Foto ist an dieser Stelle schon sicher verschoben; ein Fehler hier bricht nichts mehr ab.
+ */
+async function carryOver(admin: SupabaseClient, t: Task, newId: string) {
+  const to = { account_id: t.dst_account, drive_id: newId };
+  const warn = (what: string, error: { message: string } | null) => error && console.error(`Mitnehmen (${what})`, t.drive_id, error.message);
+  const mine = <Q extends { eq: (column: string, value: string) => Q }>(q: Q) =>
+    q.eq("owner_id", t.owner_id).eq("account_id", t.src_account).eq("drive_id", t.drive_id);
+
+  warn("Favorit", (await mine(admin.from("favorites").update(to))).error);
+  warn("Tags", (await mine(admin.from("item_tags").update(to))).error);
+  // updated_at neu setzen: andere Geräte holen den Fingerabdruck unter dem neuen Schlüssel ab
+  warn("KI-Fingerabdruck", (await mine(admin.from("ai_vectors").update({ ...to, updated_at: new Date().toISOString() }))).error);
+
+  // 👍/👎 und Namen: Schlüssel „konto/datei“ steckt auch in der ID → neuer Eintrag, alter als gelöscht markiert
+  // (so übernehmen es auch die Geräte beim nächsten Abgleich)
+  const oldKey = `${t.src_account}/${t.drive_id}`;
+  const newKey = `${t.dst_account}/${newId}`;
+  const { data: fb, error } = await admin
+    .from("ai_feedback")
+    .select("english, vote, q")
+    .eq("owner_id", t.owner_id)
+    .eq("key", oldKey)
+    .eq("deleted", false);
+  warn("KI-Bewertungen", error);
+  if (!fb?.length) return;
+  const at = Date.now();
+  const moved = await admin.from("ai_feedback").upsert(
+    fb.map((f) => ({
+      owner_id: t.owner_id,
+      id: `${String(f.english ?? "").toLowerCase()}|${newKey}`,
+      key: newKey,
+      english: f.english,
+      vote: f.vote,
+      q: f.q,
+      at,
+      deleted: false,
+    })),
+    { onConflict: "owner_id,id" },
+  );
+  warn("KI-Bewertungen", moved.error);
+  if (moved.error) return;
+  warn(
+    "KI-Bewertungen",
+    (await admin.from("ai_feedback").update({ key: null, english: null, vote: null, q: null, at, deleted: true }).eq("owner_id", t.owner_id).eq("key", oldKey)).error,
+  );
 }
 
 /** Freigaben entfernen und leere Quellordner in den Papierkorb legen. */

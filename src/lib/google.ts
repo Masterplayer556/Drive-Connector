@@ -1,4 +1,5 @@
 // Direkter Zugriff auf die Google Drive API aus dem Browser mit kurzlebigen Access-Tokens.
+import { backoffMs, MAX_RETRIES, shouldRetry } from "./retry";
 import { callFunction } from "./supabase";
 
 export const DRIVE = "https://www.googleapis.com/drive/v3";
@@ -68,17 +69,28 @@ async function googleError(res: Response): Promise<Error> {
   return new Error(`Google (${res.status}): ${message}`);
 }
 
-/** fetch mit Bearer-Token; bei 401 wird das Token einmal erneuert. */
+/**
+ * fetch mit Bearer-Token; bei 401 wird das Token einmal erneuert. Bremst Google (zu viele Aufrufe) oder hat
+ * es einen kurzen Aussetzer, wird nach einer Pause nochmals versucht (siehe retry.ts).
+ */
 async function authedFetch(accountId: string, url: string, init: RequestInit = {}): Promise<Response> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const token = await tokenFor(accountId, attempt > 0);
+  const method = init.method ?? "GET";
+  let renewed = false;
+  let force = false;
+  for (let retries = 0; ; ) {
+    const token = await tokenFor(accountId, force);
+    force = false;
     const res = await fetch(url, {
       ...init,
       headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` },
     });
-    if (res.status !== 401 || attempt > 0) return res;
+    if (res.status === 401 && !renewed) {
+      renewed = force = true;
+      continue;
+    }
+    if (retries >= MAX_RETRIES || !(await shouldRetry(res, method))) return res;
+    await new Promise((r) => setTimeout(r, backoffMs(retries++, res)));
   }
-  throw new Error("unerreichbar");
 }
 
 async function driveJson<T>(accountId: string, url: string, init: RequestInit = {}): Promise<T> {
@@ -196,12 +208,12 @@ export function moveItem(accountId: string, id: string, newParent: string, oldPa
   });
 }
 
-/** Ganzes Foto als Blob (für die Grossansicht, falls die Vorschau fehlt). */
 /** Kurzlebiges Zugangs-Token (für das Video-Streaming über den Service Worker). */
 export function accessToken(accountId: string): Promise<string> {
   return tokenFor(accountId);
 }
 
+/** Ganzes Foto als Blob (für die Grossansicht, falls die Vorschau fehlt). */
 export async function downloadBlob(accountId: string, id: string): Promise<Blob> {
   const res = await authedFetch(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?alt=media`);
   if (!res.ok) throw await googleError(res);

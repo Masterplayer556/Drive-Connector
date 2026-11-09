@@ -1,5 +1,6 @@
 import type { Session } from "@supabase/supabase-js";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Icon, { type IconName } from "./components/Icon";
 import { LineSkeleton } from "./components/Skeleton";
 import Splash from "./components/Splash";
@@ -11,6 +12,7 @@ import LockScreen from "./components/LockScreen";
 import { lockEnabled, watchRelock } from "./lib/lock";
 import { clearLocalCaches, readCachedAccounts, writeCachedAccounts } from "./lib/cache";
 import { fetchAccounts } from "./lib/db";
+import { startHousekeeping } from "./lib/housekeeping";
 import { clearTokens, loadTokens } from "./lib/google";
 import { navigate, useRoute, type RouteName } from "./lib/route";
 import { supabase } from "./lib/supabase";
@@ -148,6 +150,10 @@ function Shell() {
     if (userId) void start();
   }, [userId, start]);
 
+  useEffect(() => {
+    if (phase === "ready") startHousekeeping();
+  }, [phase]);
+
   // KI-SUCHE: Hintergrund-Index erst nach dem Start – er liest zehntausende Einträge und würde sonst
   // mit dem Laden der Ordner um Netz und Rechenzeit kämpfen (Start dauerte so mehrere Sekunden)
   const [aiLater, setAiLater] = useState(false);
@@ -200,43 +206,48 @@ function Shell() {
         )}
         {/* KI-SUCHE: Hintergrund-Index, nur wenn eingeschaltet und entsperrt */}
         {ai && aiLater && (
-          <Suspense fallback={null}>
-            <AiIndexer />
-          </Suspense>
+          <ErrorBoundary silent>
+            <Suspense fallback={null}>
+              <AiIndexer />
+            </Suspense>
+          </ErrorBoundary>
         )}
-        <Suspense fallback={<LineSkeleton />}>
-          {route.name === "drive" && <DriveView accounts={accounts} />}
-          {route.name === "konten" && (
-            <KontenView
-              accounts={accounts}
-              params={route.params}
-              reload={async () => {
-                await refreshTokens();
-                await reloadAccounts();
-              }}
-            />
-          )}
-          {route.name === "protokoll" && <ProtokollView />}
-          {route.name === "mehr" && <MehrView session={current} accounts={accounts} />}
-          {route.name === "einrichtung" && (
-            <EinrichtungView
-              accounts={accounts}
-              reload={async () => {
-                await reloadAccounts();
-              }}
-            />
-          )}
-          {route.name === "duplikate" && <DuplikateView accounts={accounts} />}
-          {route.name === "papierkorb" && <PapierkorbView accounts={accounts} />}
-          {route.name === "favoriten" && <FavoritenView accounts={accounts} />}
-          {route.name === "statistik" && <StatistikView accounts={accounts} />}
-          {route.name === "regal" && <RegalView accounts={accounts} />}
-          {route.name === "links" && <LinksView accounts={accounts} />}
-          {route.name === "design" && <DesignView />}
-          {route.name === "pruefung" && <AbschottungView />}
-          {route.name === "platz" && <PlatzView />}
-          {route.name === "teilen" && <TeilenView />}
-        </Suspense>
+        {/* key: beim Wechsel der Ansicht ist ein Fehler der vorherigen wieder weg */}
+        <ErrorBoundary key={route.name}>
+          <Suspense fallback={<LineSkeleton />}>
+            {route.name === "drive" && <DriveView accounts={accounts} />}
+            {route.name === "konten" && (
+              <KontenView
+                accounts={accounts}
+                params={route.params}
+                reload={async () => {
+                  await refreshTokens();
+                  await reloadAccounts();
+                }}
+              />
+            )}
+            {route.name === "protokoll" && <ProtokollView />}
+            {route.name === "mehr" && <MehrView session={current} accounts={accounts} />}
+            {route.name === "einrichtung" && (
+              <EinrichtungView
+                accounts={accounts}
+                reload={async () => {
+                  await reloadAccounts();
+                }}
+              />
+            )}
+            {route.name === "duplikate" && <DuplikateView accounts={accounts} />}
+            {route.name === "papierkorb" && <PapierkorbView accounts={accounts} />}
+            {route.name === "favoriten" && <FavoritenView accounts={accounts} />}
+            {route.name === "statistik" && <StatistikView accounts={accounts} />}
+            {route.name === "regal" && <RegalView accounts={accounts} />}
+            {route.name === "links" && <LinksView accounts={accounts} />}
+            {route.name === "design" && <DesignView />}
+            {route.name === "pruefung" && <AbschottungView />}
+            {route.name === "platz" && <PlatzView />}
+            {route.name === "teilen" && <TeilenView />}
+          </Suspense>
+        </ErrorBoundary>
       </>
     );
   }

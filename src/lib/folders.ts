@@ -4,6 +4,7 @@ import { moveFolderHues } from "./folderColors";
 import { supabase } from "./supabase";
 import { fetchFolderParts, findFolderInAccount, syncAccounts, writeLog, writeLogs } from "./db";
 import { childPath } from "./naming";
+import { DRIVE_PARALLEL, mapPool } from "./pool";
 import { accountStates, areaOf, chooseAccount, crossesSealed, noAccountMessage } from "./placement";
 import type { Account, Crumb, Item, LogicalFolder } from "./types";
 
@@ -78,14 +79,14 @@ export async function trashLogicalFolder(folder: LogicalFolder): Promise<void> {
 export async function trashFiles(items: Item[]): Promise<{ ok: number; failed: string[] }> {
   let ok = 0;
   const failed: string[] = [];
-  for (const it of items) {
+  await mapPool(items, DRIVE_PARALLEL, async (it) => {
     try {
       await trashItem(it.account_id, it.drive_id);
       ok++;
     } catch (e) {
       failed.push(`${it.name}: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }
+  });
   await writeLogs([
     {
       kind: "delete",

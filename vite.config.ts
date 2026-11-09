@@ -1,5 +1,7 @@
 import { execSync } from "node:child_process";
-import { defineConfig } from "vite";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
 /** App-Updates fürs Protokoll: Merges (mit ihren Pushes) und direkte Pushes auf main, aus der Git-Historie. */
@@ -30,10 +32,39 @@ function appChanges() {
   }
 }
 
+/**
+ * Trägt nach dem Bauen die Dateien unter assets/ in den Service Worker ein. Der löscht damit beim Update
+ * die Programmteile früherer Versionen aus dem Gerätespeicher (public/sw.js, pruneOldAssets).
+ */
+function swAssets(): Plugin {
+  const MARK = "/*__ASSETS__*/ null";
+  let outDir = "dist";
+  return {
+    name: "drivepool-sw-assets",
+    apply: "build",
+    configResolved(config) {
+      outDir = config.build.outDir;
+    },
+    closeBundle() {
+      const sw = join(outDir, "sw.js");
+      const dir = join(outDir, "assets");
+      if (!existsSync(sw) || !existsSync(dir)) return;
+      const src = readFileSync(sw, "utf8");
+      if (src.includes("const ASSETS = [")) return; // schon eingetragen (Hook lief zweimal)
+      if (!src.includes(MARK)) throw new Error("sw.js: Platzhalter für die Asset-Liste fehlt");
+      const files = (readdirSync(dir, { recursive: true, withFileTypes: true }) as import("node:fs").Dirent[])
+        .filter((d) => d.isFile())
+        .map((d) => join(d.parentPath, d.name).slice(outDir.length + 1).replaceAll("\\", "/"))
+        .sort();
+      writeFileSync(sw, src.replace(MARK, JSON.stringify(files)));
+    },
+  };
+}
+
 // base "./" damit die App unter jedem Pfad läuft (z. B. GitHub Pages /Drive-Connector/)
 export default defineConfig({
   base: "./",
-  plugins: [react()],
+  plugins: [react(), swAssets()],
   define: { __APP_CHANGES__: JSON.stringify(appChanges()) },
   // KI-SUCHE: der Worker lädt Teile nach → ES-Modul-Format nötig
   worker: { format: "es" },

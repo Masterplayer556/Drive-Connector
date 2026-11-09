@@ -48,8 +48,17 @@ const EXT: Record<string, string> = {
   "application/pdf": "pdf",
 };
 
+/** Kurzbefehle schicken den Namen meist kodiert (%20 …) – ein einzelnes „%“ im Namen darf aber nichts abbrechen. */
+function decodeName(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 function fileName(raw: string | null, mime: string): string {
-  let name = raw ? decodeURIComponent(raw).trim().replace(/[\\/]/g, "-") : "";
+  let name = raw ? decodeName(raw).trim().replace(/[\\/]/g, "-") : "";
   if (!name || name === ".") {
     const stamp = new Date().toISOString().slice(0, 19).replace("T", " ").replace(/:/g, "-");
     name = `Geteilt ${stamp}`;
@@ -133,9 +142,12 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const folder = cleanFolder(url.searchParams.get("folder"));
     const mime = (req.headers.get("content-type") ?? "application/octet-stream").split(";")[0].trim();
+    const tooBig = () => new HttpError(413, "Zu gross fürs Teilen-Menü (max. 150 MB) – bitte in der App hochladen");
+    // Grösse schon vor dem Einlesen prüfen, wenn sie angegeben ist (spart Arbeitsspeicher)
+    if (Number(req.headers.get("content-length")) > MAX_BYTES) throw tooBig();
     const bytes = new Uint8Array(await req.arrayBuffer());
     if (!bytes.length) throw new HttpError(400, "Keine Datei erhalten");
-    if (bytes.length > MAX_BYTES) throw new HttpError(413, "Zu gross fürs Teilen-Menü (max. 150 MB) – bitte in der App hochladen");
+    if (bytes.length > MAX_BYTES) throw tooBig();
 
     // 3. Konto wählen – im Gebiet des Ordners, bevorzugt wo der Ordner schon liegt, sonst mit dem meisten Platz
     const zone = zoneOf(folder);
