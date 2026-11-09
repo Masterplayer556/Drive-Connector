@@ -1539,6 +1539,10 @@ p {
 .viewer {
   position: fixed;
   inset: 0;
+  /* Ganze Bildschirmhöhe: auf dem iPhone blieb unten sonst ein Streifen Hintergrund sichtbar,
+     solange die Seite dahinter gesperrt ist (100lvh = volle Höhe, auch unter dem Home-Balken) */
+  height: 100vh;
+  height: 100lvh;
   z-index: 40;
   display: flex;
   flex-direction: column;
@@ -1546,6 +1550,18 @@ p {
   padding-top: var(--safe-top);
   padding-bottom: var(--safe-bottom);
   animation: fadeIn 0.25s ease both;
+}
+
+/* Sicherheitsnetz: schwarz nach unten verlängert, falls iOS das Fenster trotzdem zu kurz misst */
+.viewer::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 160px;
+  background: #000;
+  pointer-events: none;
 }
 
 .viewer.closing {

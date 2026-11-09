@@ -1,5 +1,7 @@
-// KI-SUCHE: Index nur auf diesem Gerät (IndexedDB). Nichts davon geht an Supabase oder Google.
+// KI-SUCHE: Index auf diesem Gerät (IndexedDB). Namen und 👍/👎 werden zusätzlich in Supabase gesichert
+// (feedbackCloud.ts) – sonst gehen sie verloren, wenn die App vom Home-Bildschirm entfernt wird.
 import { aiModel } from "./flag";
+import { mergeFeedback, pullFeedback, tombstoneFeedback, uploadFeedback } from "./feedbackCloud";
 import { MODELS, type ModelId, type ModelSpec } from "./protocol";
 
 /** Cache, in dem transformers.js die Modelldateien ablegt. */
@@ -120,19 +122,50 @@ export interface Feedback {
   at: number;
 }
 
-export async function allFeedback(): Promise<Feedback[]> {
+async function localFeedback(): Promise<Feedback[]> {
   const db = await openShared();
   return (await req(db.transaction("feedback").objectStore("feedback").getAll())) as Feedback[];
+}
+
+/** Einmal pro Sitzung mit der Datenbank abgleichen (holt z. B. nach einer Neuinstallation alles zurück). */
+let synced: Promise<void> | null = null;
+export function syncFeedback(): Promise<void> {
+  synced ??= (async () => {
+    const [local, cloud] = await Promise.all([localFeedback(), pullFeedback()]);
+    const { putLocal, deleteLocal, upload } = mergeFeedback(local, cloud);
+    if (putLocal.length || deleteLocal.length) {
+      const db = await openShared();
+      const tx = db.transaction("feedback", "readwrite");
+      for (const f of putLocal) tx.objectStore("feedback").put(f);
+      for (const id of deleteLocal) tx.objectStore("feedback").delete(id);
+      await new Promise((res, rej) => {
+        tx.oncomplete = res;
+        tx.onerror = () => rej(tx.error);
+      });
+    }
+    if (upload.length) await uploadFeedback(upload);
+  })().catch((e) => {
+    synced = null; // beim nächsten Mal nochmals versuchen (z. B. offline)
+    console.warn("KI-Feedback: Abgleich fehlgeschlagen", e);
+  });
+  return synced;
+}
+
+export async function allFeedback(): Promise<Feedback[]> {
+  await syncFeedback();
+  return localFeedback();
 }
 
 export async function putFeedback(f: Feedback) {
   const db = await openShared();
   await req(db.transaction("feedback", "readwrite").objectStore("feedback").put(f));
+  void uploadFeedback([f]).catch((e) => console.warn("KI-Feedback: Sichern fehlgeschlagen", e));
 }
 
 export async function deleteFeedback(id: string) {
   const db = await openShared();
   await req(db.transaction("feedback", "readwrite").objectStore("feedback").delete(id));
+  void tombstoneFeedback(id).catch((e) => console.warn("KI-Feedback: Löschen fehlgeschlagen", e));
 }
 
 export async function removeKeys(keys: string[]) {
