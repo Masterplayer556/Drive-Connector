@@ -280,13 +280,6 @@ export default function MehrView({ session, accounts }: { session: Session; acco
           onClick={() => navigate("platz")}
         />
         <Item
-          icon="share"
-          bg="linear-gradient(135deg,#a78bfa,#6366f1)"
-          title="Teilen-Menü (Kurzbefehl)"
-          sub="Aus Fotos & Dateien direkt in Drive Pool sichern"
-          onClick={() => navigate("teilen")}
-        />
-        <Item
           icon="trash"
           bg="linear-gradient(135deg,#fb7185,#f97316)"
           title="Papierkorb"

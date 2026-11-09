@@ -209,8 +209,24 @@ export function moveItem(accountId: string, id: string, newParent: string, oldPa
 }
 
 /** Kurzlebiges Zugangs-Token (für das Video-Streaming über den Service Worker). */
-export function accessToken(accountId: string): Promise<string> {
-  return tokenFor(accountId);
+export function accessToken(accountId: string, force = false): Promise<string> {
+  return tokenFor(accountId, force);
+}
+
+/**
+ * Der Service Worker fragt nach einem Token, wenn seines fehlt (iOS hat ihn zwischendurch beendet) oder
+ * abgelaufen ist (lange Videos) – sonst bräche die Wiedergabe an dieser Stelle ab. Siehe public/sw.js.
+ */
+export function answerVideoTokenRequests() {
+  navigator.serviceWorker?.addEventListener("message", (event) => {
+    const d = event.data as { type?: string; accountId?: string; force?: boolean } | null;
+    const port = event.ports[0];
+    if (d?.type !== "video-token-request" || !d.accountId || !port) return;
+    accessToken(d.accountId, !!d.force).then(
+      (token) => port.postMessage({ token }),
+      () => port.postMessage({ token: null }),
+    );
+  });
 }
 
 /** Ganzes Foto als Blob (für die Grossansicht, falls die Vorschau fehlt). */

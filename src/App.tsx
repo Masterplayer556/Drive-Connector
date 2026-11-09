@@ -35,7 +35,6 @@ const LinksView = lazy(() => import("./views/LinksView"));
 const DesignView = lazy(() => import("./views/DesignView"));
 const AbschottungView = lazy(() => import("./views/AbschottungView"));
 const PlatzView = lazy(() => import("./views/PlatzView"));
-const TeilenView = lazy(() => import("./views/TeilenView"));
 const AiIndexer = lazy(() => import("./ai/AiIndexer")); // KI-SUCHE
 
 type Phase = "loading" | "login" | "mfa" | "ready" | "error";
@@ -184,7 +183,7 @@ function Shell() {
     );
   }
 
-  const active = ["einrichtung", "duplikate", "papierkorb", "favoriten", "statistik", "links", "regal", "design", "pruefung", "platz", "teilen"].includes(route.name)
+  const active = ["einrichtung", "duplikate", "papierkorb", "favoriten", "statistik", "links", "regal", "design", "pruefung", "platz"].includes(route.name)
     ? "mehr"
     : route.name;
   const activeIndex = Math.max(0, TABS.findIndex((t) => t.name === active));
@@ -245,7 +244,6 @@ function Shell() {
             {route.name === "design" && <DesignView />}
             {route.name === "pruefung" && <AbschottungView />}
             {route.name === "platz" && <PlatzView />}
-            {route.name === "teilen" && <TeilenView />}
           </Suspense>
         </ErrorBoundary>
       </>

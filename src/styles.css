@@ -6724,34 +6724,6 @@ label.btn.disabled {
   }
 }
 
-/* ---------- Teilen-Menü (Kurzbefehl) ---------- */
-.share-key {
-  display: block;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--inset-bg);
-  font-size: 0.78rem;
-  text-align: left;
-  user-select: all;
-  -webkit-user-select: all;
-}
-
-.share-steps {
-  padding: 16px 16px 16px 36px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  font-size: 0.9rem;
-  line-height: 1.4;
-}
-
-.share-steps code {
-  font-size: 0.8rem;
-  padding: 1px 5px;
-  border-radius: 5px;
-  background: var(--inset-bg);
-}
-
 /* ---------- KI-Suche: Details zum Aufklappen ---------- */
 .ai-expand {
   color: var(--muted);
