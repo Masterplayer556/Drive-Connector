@@ -140,6 +140,16 @@ export default function MehrView({ session, accounts }: { session: Session; acco
   const [syncing, setSyncing] = useState(false);
   const [aiWipe, setAiWipe] = useState(false); // KI-SUCHE
   const [seal] = useState(lastSealReport);
+  const [aiOpen, setAiOpen] = useState(() => localStorage.getItem("drivepool.mehr.ai") === "1");
+  const toggleAi = () =>
+    setAiOpen((o) => {
+      try {
+        localStorage.setItem("drivepool.mehr.ai", o ? "0" : "1");
+      } catch {
+        /* ignorieren */
+      }
+      return !o;
+    });
   const [exporting, setExporting] = useState<string | null>(null);
   const [exportFile, setExportFile] = useState<File | null>(null);
 
@@ -321,13 +331,18 @@ export default function MehrView({ session, accounts }: { session: Session; acco
       </div>
       <DesignTile />
 
-      {/* KI-SUCHE */}
-      <div className="section-title">
-        <span>Suche</span>
-      </div>
-      <Suspense fallback={null}>
-        <AiSettings accounts={accounts} />
-      </Suspense>
+      {/* KI-SUCHE – aufklappbar, Zustand bleibt gespeichert */}
+      <button className={`section-title section-toggle ${aiOpen ? "open" : ""}`} onClick={toggleAi} aria-expanded={aiOpen}>
+        <span>KI-Suche</span>
+        <Icon name="chevronRight" size={16} className="toggle-chevron" />
+      </button>
+      {aiOpen && (
+        <div className="collapse-body">
+          <Suspense fallback={null}>
+            <AiSettings accounts={accounts} />
+          </Suspense>
+        </div>
+      )}
 
       <div className="section-title">
         <span>Sicherheit</span>
