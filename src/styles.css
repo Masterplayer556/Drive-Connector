@@ -2758,7 +2758,7 @@ p {
 /* Bergkamm, vom Nordlicht angeleuchtet */
 :root[data-theme="aurora"] .aurora b {
   display: block;
-  height: 26vh;
+  height: 26%;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 260'%3E%3Cpath d='M0 150L60 120L110 140L170 82L215 116L260 72L300 102L350 40L400 96L440 62L500 112L545 76L600 126L650 96L710 136L760 110L800 150V260H0Z' fill='%230a1a36'/%3E%3Cpath d='M170 82L215 116L196 118ZM260 72L300 102L280 106ZM350 40L400 96L372 98L362 70ZM440 62L500 112L470 110ZM545 76L600 126L572 124Z' fill='%235eead4' fill-opacity='.13'/%3E%3Cpath d='M0 150L60 120L110 140L170 82L215 116L260 72L300 102L350 40L400 96L440 62L500 112L545 76L600 126L650 96L710 136L760 110L800 150' fill='none' stroke='%236ee7b7' stroke-opacity='.3' stroke-width='1.2'/%3E%3Cpath d='M0 212L50 186L100 202L160 152L210 186L270 142L330 192L390 162L450 202L510 152L570 196L640 166L700 202L750 182L800 212V260H0Z' fill='%23040a16'/%3E%3C/svg%3E") bottom center / auto 100% repeat-x;
 }
 
@@ -2908,7 +2908,10 @@ p {
   background: rgba(45, 212, 191, 0.09);
 }
 
-/* ---------- Sunset: warm, Orange / Pink / Magenta ---------- */
+/* =========================================================================
+   Sunset: Goldene Stunde über dem Meer. Die Sonne sinkt in den Horizont, ihr Licht glitzert
+   auf dem Wasser, Schleierwolken ziehen vorbei. Bereichskarten sind kleine Sonnenuntergänge.
+   ========================================================================= */
 :root[data-theme="sunset"] {
   --bg: #12060c;
   --bg-rgb: 18, 6, 12;
@@ -2916,25 +2919,38 @@ p {
   --scrim-rgb: 12, 3, 7;
   --tint-rgb: 255, 236, 226;
   --text: #fff2ec;
-  --muted: #d3a9b2;
-  --faint: #93707a;
+  --muted: #e6c3c7;
+  --faint: #b9979f;
   --glow-rgb: 244, 63, 94;
   --accent-rgb: 251, 146, 60;
   --accent2-rgb: 236, 72, 153;
   --accent3-rgb: 244, 63, 94;
-  --violet: #ec4899;
+  --violet: #fb923c;
   --cyan: #fdba74;
   --grad: linear-gradient(135deg, #fbbf24 0%, #f97316 30%, #ec4899 70%, #a855f7 100%);
   --grad-text: linear-gradient(100deg, #fde68a 0%, #fdba74 35%, #f9a8d4 75%, #e9d5ff 100%);
-  --aurora-top: #3a0d22;
-  --blob1: #f97316;
-  --blob2: #db2777;
-  --blob3: #7c3aed;
-  --blob-opacity: 0.42;
-  --area-archiv: linear-gradient(150deg, #fbbf24 0%, #f97316 42%, #e11d48 100%);
-  --area-privat: linear-gradient(150deg, #6d28d9 0%, #c026d3 55%, #fb7185 100%);
-  --area-claude: linear-gradient(120deg, #881337 0%, #e11d48 40%, #fb923c 100%);
-  /* Glas mit warmem Schimmer */
+  --aurora-top: #1b0a2c;
+  --blob1: #c026d3;
+  --blob2: #7c3aed;
+  --blob3: #f97316;
+  --blob-opacity: 0.2;
+  --grain-opacity: 0;
+  /* Kleine Szenen: oben Himmel mit Sonnenschein, unten das dunkle Meer mit Lichtstreifen – dort steht die Schrift */
+  --area-archiv:
+    radial-gradient(circle at 76% 50%, rgba(255, 236, 160, 0.6), rgba(255, 236, 160, 0) 46%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 0 50%, rgba(255, 214, 150, 0.5) 50% calc(50% + 1px), rgba(255, 255, 255, 0) calc(50% + 1px)),
+    linear-gradient(180deg, #f59e0b 0%, #f97316 26%, #ef4444 50%, #a02c1c 50%, #5a1512 100%);
+  --area-privat:
+    radial-gradient(circle at 76% 50%, rgba(255, 200, 220, 0.55), rgba(255, 200, 220, 0) 46%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 0 50%, rgba(255, 190, 220, 0.5) 50% calc(50% + 1px), rgba(255, 255, 255, 0) calc(50% + 1px)),
+    linear-gradient(180deg, #5b21b6 0%, #a21caf 26%, #f0597e 50%, #6b1d6e 50%, #33104a 100%);
+  --area-claude:
+    linear-gradient(90deg, rgba(46, 9, 22, 0.86) 0%, rgba(46, 9, 22, 0.5) 42%, rgba(46, 9, 22, 0) 70%),
+    radial-gradient(circle at 84% 62%, rgba(255, 226, 150, 0.6), rgba(255, 226, 150, 0) 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 0 62%, rgba(255, 214, 150, 0.5) 62% calc(62% + 1px), rgba(255, 255, 255, 0) calc(62% + 1px)),
+    linear-gradient(180deg, #9f1239 0%, #e11d48 30%, #fb923c 62%, #8a2a18 62%, #4a1210 100%);
+  /* Glas mit warmem Schimmer. Etwas abgedunkelt und weniger gesättigt als sonst, damit Karten vor der Sonne nicht grell werden */
+  --lg-blur: blur(24px) saturate(125%) brightness(0.78);
   --lg-fill: linear-gradient(
     165deg,
     rgba(255, 228, 214, 0.17) 0%,
@@ -2944,12 +2960,274 @@ p {
   );
   --lg-rim: linear-gradient(
     140deg,
-    rgba(255, 236, 214, 0.8) 0%,
+    rgba(255, 236, 200, 0.85) 0%,
     rgba(255, 200, 170, 0.14) 28%,
     rgba(255, 255, 255, 0) 50%,
-    rgba(251, 113, 133, 0.14) 72%,
-    rgba(253, 186, 116, 0.55) 100%
+    rgba(251, 113, 133, 0.16) 72%,
+    rgba(253, 186, 116, 0.6) 100%
   );
+}
+
+/* Himmel: oben schon Nacht (Violett), zum Horizont hin Magenta und Glut; um die Sonne ein warmer Schein */
+:root[data-theme="sunset"] .aurora {
+  background:
+    radial-gradient(64vmin 38vmin at 50% 70%, rgba(255, 170, 90, 0.36), rgba(255, 170, 90, 0) 72%),
+    linear-gradient(180deg, #170a2b 0%, #2c0d38 22%, #54113d 44%, #862038 60%, #a83a28 70%, #12060c 70%);
+}
+
+/* Die Sonne: halb im Meer versunken, zum Horizont hin in Streifen aufgelöst */
+:root[data-theme="sunset"] .aurora::before {
+  left: 50%;
+  right: auto;
+  top: calc(70% - 23vmin);
+  width: 46vmin;
+  height: 46vmin;
+  margin-left: -23vmin;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fcc660 0%, #fb9d3c 18%, #f8693f 36%, #f43f5e 50%);
+  -webkit-mask: linear-gradient(180deg, #000 0 28%, transparent 28% 29.5%, #000 29.5% 35%, transparent 35% 37%, #000 37% 41.5%, transparent 41.5% 44%, #000 44% 47%, transparent 47% 49%, #000 49% 50%, transparent 50%);
+  mask: linear-gradient(180deg, #000 0 28%, transparent 28% 29.5%, #000 29.5% 35%, transparent 35% 37%, #000 37% 41.5%, transparent 41.5% 44%, #000 44% 47%, transparent 47% 49%, #000 49% 50%, transparent 50%);
+  mix-blend-mode: normal;
+  filter: none;
+  opacity: 0.66;
+  transform-origin: 50% 50%;
+  animation: sunGlow 7s ease-in-out infinite alternate;
+}
+
+/* Die Sonne „atmet“ um ihre Mitte – die liegt genau auf dem Horizont, so bleibt die Kante am Wasser stehen */
+@keyframes sunGlow {
+  from {
+    transform: scale(0.97);
+    opacity: 0.56;
+  }
+  to {
+    transform: scale(1.03);
+    opacity: 0.72;
+  }
+}
+
+:root[data-theme="sunset"] .aurora i:nth-child(3) {
+  opacity: 0.12;
+}
+
+/* Schleierwolken, von unten angeglüht, ziehen langsam nach links (mit ein paar Vögeln) */
+:root[data-theme="sunset"] .aurora::after {
+  inset: 6% auto auto 0;
+  width: 200%;
+  height: 56%;
+  opacity: 0.5;
+  mix-blend-mode: normal;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600' preserveAspectRatio='none'%3E%3ClinearGradient id='c' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%236b2a6e' stop-opacity='.0'/%3E%3Cstop offset='.45' stop-color='%23a23a6a' stop-opacity='.55'/%3E%3Cstop offset='.85' stop-color='%23fb7185' stop-opacity='.8'/%3E%3Cstop offset='1' stop-color='%23fdba74' stop-opacity='.95'/%3E%3C/linearGradient%3E%3Cg fill='url%28%23c%29'%3E%3Cellipse cx='123' cy='78' rx='112' ry='10' opacity='0.85'/%3E%3Cellipse cx='127' cy='68' rx='87' ry='8' opacity='0.65'/%3E%3Cellipse cx='143' cy='57' rx='57' ry='6' opacity='0.45'/%3E%3Cellipse cx='454' cy='160' rx='145' ry='12' opacity='0.85'/%3E%3Cellipse cx='408' cy='147' rx='108' ry='10' opacity='0.65'/%3E%3Cellipse cx='412' cy='134' rx='71' ry='7' opacity='0.45'/%3E%3Cellipse cx='188' cy='256' rx='93' ry='8' opacity='0.85'/%3E%3Cellipse cx='234' cy='248' rx='71' ry='6' opacity='0.65'/%3E%3Cellipse cx='227' cy='240' rx='53' ry='5' opacity='0.45'/%3E%3Cellipse cx='454' cy='336' rx='97' ry='7' opacity='0.85'/%3E%3Cellipse cx='477' cy='328' rx='68' ry='6' opacity='0.65'/%3E%3Cellipse cx='489' cy='320' rx='50' ry='4' opacity='0.45'/%3E%3Cellipse cx='106' cy='407' rx='108' ry='9' opacity='0.85'/%3E%3Cellipse cx='140' cy='398' rx='79' ry='7' opacity='0.65'/%3E%3Cellipse cx='111' cy='389' rx='53' ry='5' opacity='0.45'/%3E%3Cellipse cx='330' cy='478' rx='126' ry='10' opacity='0.85'/%3E%3Cellipse cx='387' cy='468' rx='103' ry='8' opacity='0.65'/%3E%3Cellipse cx='345' cy='457' rx='66' ry='6' opacity='0.45'/%3E%3C/g%3E%3Cg fill='none' stroke='%232a0d1e' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M300 205q4 -5 8 0q4 -5 8 0' /%3E%3Cpath d='M322 196q4 -5 8 0q4 -5 8 0' /%3E%3Cpath d='M340 212q4 -5 8 0q4 -5 8 0' /%3E%3C/g%3E%3C/svg%3E") 0 0 / 50% 100% repeat-x;
+  animation: cloudDrift 150s linear infinite;
+}
+
+@keyframes cloudDrift {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Das Meer: dunkel, mit heller Linie am Horizont */
+:root[data-theme="sunset"] .aurora b {
+  display: block;
+  height: 30%;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 196, 130, 0.85) 0, rgba(255, 196, 130, 0) 2px),
+    linear-gradient(180deg, #8a2233 0%, #4a1230 16%, #230a1c 48%, #12060c 100%);
+}
+
+/* Glitzerpfad der Sonne auf dem Wasser: helle Streifen, unter der Sonne am dichtesten */
+:root[data-theme="sunset"] .aurora b::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 62vmin;
+  height: 100%;
+  margin-left: -31vmin;
+  background:
+    repeating-linear-gradient(180deg, rgba(255, 224, 150, 0.9) 0 2px, rgba(255, 224, 150, 0) 2px 7px),
+    repeating-linear-gradient(180deg, rgba(255, 150, 110, 0.55) 0 1.5px, rgba(255, 150, 110, 0) 1.5px 11px);
+  -webkit-mask: radial-gradient(ellipse 50% 100% at 50% 0%, #000 0%, rgba(0, 0, 0, 0.55) 34%, transparent 72%);
+  mask: radial-gradient(ellipse 50% 100% at 50% 0%, #000 0%, rgba(0, 0, 0, 0.55) 34%, transparent 72%);
+  transform-origin: 50% 0;
+  animation: glitter 3.4s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes glitter {
+  from {
+    transform: scaleX(0.84);
+    opacity: 0.6;
+  }
+  to {
+    transform: scaleX(1.12);
+    opacity: 1;
+  }
+}
+
+/* Kleine Wellenkämme, die quer über das Wasser wandern */
+:root[data-theme="sunset"] .aurora b::after {
+  content: "";
+  position: absolute;
+  inset: 0 -180px 0 0;
+  background-image:
+    radial-gradient(ellipse 20px 1.2px at 30px 14px, rgba(255, 190, 150, 0.42), transparent),
+    radial-gradient(ellipse 14px 1px at 118px 36px, rgba(255, 170, 160, 0.32), transparent),
+    radial-gradient(ellipse 24px 1.3px at 76px 62px, rgba(255, 190, 150, 0.3), transparent),
+    radial-gradient(ellipse 16px 1px at 150px 88px, rgba(255, 170, 160, 0.24), transparent),
+    radial-gradient(ellipse 22px 1.2px at 22px 108px, rgba(255, 190, 150, 0.2), transparent);
+  background-size: 180px 124px;
+  animation: wavesDrift 16s linear infinite;
+  will-change: transform;
+}
+
+@keyframes wavesDrift {
+  to {
+    transform: translateX(-180px);
+  }
+}
+
+:root[data-theme="sunset"] .topbar {
+  background: linear-gradient(180deg, rgba(23, 10, 43, 0.9) 0%, rgba(28, 11, 48, 0.58) 70%, rgba(34, 12, 52, 0) 100%);
+}
+
+:root[data-theme="sunset"] .topbar-title .eyebrow {
+  letter-spacing: 0.14em;
+  color: #fdba74;
+}
+
+/* Überschriften stehen frei auf dem Himmel (manchmal vor der Sonne) – heller und mit weichem Schatten */
+:root[data-theme="sunset"] .section-title {
+  color: #f0cfcb;
+  text-shadow: 0 1px 6px rgba(18, 6, 12, 0.75);
+}
+
+:root[data-theme="sunset"] .design-hint {
+  color: #dcc0c4;
+  text-shadow: 0 1px 5px rgba(18, 6, 12, 0.85);
+}
+
+/* Kleine aufgehende Sonne vor jeder Überschrift */
+:root[data-theme="sunset"] .section-title > span:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 6px;
+  margin-right: 10px;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(180deg, #fde68a, #fb923c);
+  box-shadow:
+    -3px 1.5px 0 -0.25px #fb7185,
+    3px 1.5px 0 -0.25px #fb7185,
+    0 0 10px rgba(251, 146, 60, 0.7);
+  transform: translateY(-1px);
+}
+
+/* Glas: warmer Lichtschein oben, ein Hauch Abendrot unten */
+:root[data-theme="sunset"] .glass::after,
+:root[data-theme="sunset"] .icon-btn::after {
+  background:
+    radial-gradient(130% 70% at 22% -12%, rgba(255, 214, 160, 0.26), rgba(255, 214, 160, 0) 56%),
+    radial-gradient(110% 60% at 96% 112%, rgba(244, 114, 182, 0.18), rgba(244, 114, 182, 0) 58%);
+}
+
+/* Bereichskarten: die Sonne steht halb im Wasser – oben gestreift, unten als Spiegelung in feinen Linien */
+:root[data-theme="sunset"] .area-card {
+  isolation: isolate;
+  box-shadow:
+    inset 0 1.5px 0.5px -0.5px rgba(255, 240, 210, 0.8),
+    inset 0 0 0 0.5px rgba(255, 240, 210, 0.3),
+    0 0 26px rgba(249, 115, 22, 0.2),
+    0 16px 36px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="sunset"] .area-card.privat {
+  box-shadow:
+    inset 0 1.5px 0.5px -0.5px rgba(255, 225, 240, 0.8),
+    inset 0 0 0 0.5px rgba(255, 225, 240, 0.3),
+    0 0 26px rgba(192, 38, 211, 0.22),
+    0 16px 36px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="sunset"] .area-card.claude {
+  box-shadow:
+    inset 0 1.5px 0.5px -0.5px rgba(255, 232, 214, 0.8),
+    inset 0 0 0 0.5px rgba(255, 232, 214, 0.3),
+    0 0 26px rgba(225, 29, 72, 0.22),
+    0 16px 36px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="sunset"] .area-card::after {
+  z-index: -1;
+  width: 62px;
+  height: 62px;
+  left: 76%;
+  right: auto;
+  top: 50%;
+  margin: -31px 0 0 -31px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fffbe0 0%, #fde68a 22%, #fdba74 50%, #fda4af 100%);
+  -webkit-mask: linear-gradient(180deg, #000 0 30%, transparent 30% 33%, #000 33% 40%, transparent 40% 44%, #000 44% 50%, transparent 50% 56%, rgba(0, 0, 0, 0.6) 56% 59%, transparent 59% 67%, rgba(0, 0, 0, 0.45) 67% 69.5%, transparent 69.5% 79%, rgba(0, 0, 0, 0.3) 79% 81%, transparent 81%);
+  mask: linear-gradient(180deg, #000 0 30%, transparent 30% 33%, #000 33% 40%, transparent 40% 44%, #000 44% 50%, transparent 50% 56%, rgba(0, 0, 0, 0.6) 56% 59%, transparent 59% 67%, rgba(0, 0, 0, 0.45) 67% 69.5%, transparent 69.5% 79%, rgba(0, 0, 0, 0.3) 79% 81%, transparent 81%);
+  filter: none;
+}
+
+:root[data-theme="sunset"] .area-card.privat::after {
+  background: linear-gradient(180deg, #fff1f5 0%, #fecdd3 22%, #fda4af 50%, #f0abfc 100%);
+}
+
+:root[data-theme="sunset"] .area-card.claude::after {
+  width: 54px;
+  height: 54px;
+  left: 84%;
+  top: 62%;
+  margin: -27px 0 0 -27px;
+}
+
+:root[data-theme="sunset"] .area-card strong,
+:root[data-theme="sunset"] .area-card span {
+  text-shadow: 0 1px 6px rgba(40, 8, 12, 0.45);
+}
+
+:root[data-theme="sunset"] .pool-dot.on.dot-schule {
+  background: linear-gradient(90deg, #fbbf24, #f43f5e);
+}
+
+:root[data-theme="sunset"] .pool-dot.on.dot-privat {
+  background: linear-gradient(90deg, #a855f7, #fb7185);
+}
+
+:root[data-theme="sunset"] .pool-dot.on.dot-claude {
+  background: linear-gradient(90deg, #e11d48, #fb923c);
+}
+
+:root[data-theme="sunset"] .folder-icon {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 240, 210, 0.5),
+    0 0 16px hsl(var(--h) 85% 58% / 0.38);
+}
+
+:root[data-theme="sunset"] .btn.primary,
+:root[data-theme="sunset"] .fab {
+  background: linear-gradient(135deg, #ea580c 0%, #e11d48 52%, #c026d3 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 240, 210, 0.36),
+    inset 0 0 0 0.5px rgba(255, 240, 210, 0.3),
+    0 0 22px rgba(249, 115, 22, 0.35),
+    0 10px 28px rgba(225, 29, 72, 0.4);
+}
+
+:root[data-theme="sunset"] .tab-indicator {
+  background:
+    radial-gradient(120% 90% at 30% -10%, rgba(255, 240, 214, 0.42), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(120deg, rgba(251, 191, 36, 0.46), rgba(244, 63, 94, 0.36) 55%, rgba(168, 85, 247, 0.4));
+  box-shadow:
+    inset 0 1.5px 0.5px -0.5px rgba(255, 240, 214, 0.85),
+    inset 0 0 0 0.5px rgba(253, 186, 116, 0.4),
+    0 0 18px rgba(249, 115, 22, 0.32),
+    0 6px 18px rgba(225, 29, 72, 0.28);
 }
 
 /* =========================================================================
@@ -3027,9 +3305,9 @@ p {
 
 /* Tief stehende Sonne mit Halo: heller Kern, feiner Ring (innen warm, aussen kühl) und zwei Nebensonnen */
 :root[data-theme="polar"] .aurora::before {
-  left: calc(72vw - 60vmin);
+  left: calc(72% - 60vmin);
   right: auto;
-  top: calc(84vh - 60vmin);
+  top: calc(84% - 60vmin);
   width: 120vmin;
   height: 120vmin;
   background:
@@ -3071,7 +3349,7 @@ p {
 /* Eisberge am Horizont, im Wasser gespiegelt */
 :root[data-theme="polar"] .aurora b {
   display: block;
-  height: 24vh;
+  height: 24%;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 240'%3E%3Cg id='b'%3E%3Cpath d='M0 200L0 186L70 178L130 184L190 176L260 184L330 174L420 182L520 172L600 182L690 176L800 186V200Z' fill='%23cfe2f5'/%3E%3Cpath d='M186 200L206 164L236 136L262 168L290 200Z' fill='%23bcd7f0'/%3E%3Cpath d='M186 200L206 164L236 136L240 200Z' fill='%23f6fafe'/%3E%3Cpath d='M320 200L346 150L378 164L410 70L440 112L462 98L500 160L520 200Z' fill='%23a9cbeb'/%3E%3Cpath d='M410 70L440 112L428 200L384 200L378 164Z' fill='%23d4e6f7'/%3E%3Cpath d='M346 150L378 164L410 70Z' fill='%23fff'/%3E%3Cpath d='M320 200L346 150L378 164L384 200Z' fill='%23edf5fc'/%3E%3Cpath d='M440 112L462 98L500 160L470 150Z' fill='%23cfe2f5'/%3E%3Cpath d='M546 200L566 172L590 126L612 152L626 144L644 200Z' fill='%23b5d2ee'/%3E%3Cpath d='M546 200L566 172L590 126L596 200Z' fill='%23f8fbfe'/%3E%3C/g%3E%3Crect y='200' width='800' height='40' fill='%23dceaf8'/%3E%3Cuse href='%23b' transform='matrix%281 0 0 -.3 0 260%29' opacity='.45'/%3E%3Cpath d='M0 200H800' stroke='%23fff' stroke-width='1.5'/%3E%3C/svg%3E") bottom center / auto 100% repeat-x;
 }
 
@@ -3413,41 +3691,6 @@ p {
   }
   to {
     transform: skewX(8deg) translateX(6%) scaleY(1.14);
-  }
-}
-
-/* Sunset: tief stehende Sonne mit Streifen, die über dem Horizont flimmert */
-:root[data-theme="sunset"] .aurora::before {
-  left: 50%;
-  right: auto;
-  top: auto;
-  bottom: -34vmin;
-  width: 92vmin;
-  height: 92vmin;
-  margin-left: -46vmin;
-  border-radius: 50%;
-  background: linear-gradient(180deg, #fde68a 0%, #fb923c 38%, #f43f5e 68%, #be185d 100%);
-  mix-blend-mode: normal;
-  opacity: 0.32;
-  filter: blur(0.5px);
-  box-shadow: 0 0 140px 50px rgba(249, 115, 22, 0.4);
-  animation: sunrise 9s ease-in-out infinite alternate;
-}
-
-:root[data-theme="sunset"] .aurora::before {
-  /* Streifen werden nach unten dichter (Retro-Sonne) */
-  -webkit-mask: linear-gradient(180deg, #000 0 46%, transparent 46% 49%, #000 49% 57%, transparent 57% 61%, #000 61% 67%, transparent 67% 72%, #000 72% 77%, transparent 77% 83%, #000 83% 87%, transparent 87%);
-  mask: linear-gradient(180deg, #000 0 46%, transparent 46% 49%, #000 49% 57%, transparent 57% 61%, #000 61% 67%, transparent 67% 72%, #000 72% 77%, transparent 77% 83%, #000 83% 87%, transparent 87%);
-}
-
-@keyframes sunrise {
-  from {
-    transform: translateY(4vmin) scale(0.98);
-    opacity: 0.26;
-  }
-  to {
-    transform: translateY(-2vmin) scale(1.02);
-    opacity: 0.4;
   }
 }
 
@@ -4534,6 +4777,8 @@ p {
 .still-bg .aurora i,
 .still-bg .aurora::before,
 .still-bg .aurora::after,
+.still-bg .aurora b::before,
+.still-bg .aurora b::after,
 :root.still-bg[data-theme="aurora"] .area-card::after,
 .still-bg .donut-shimmer,
 .still-bg .donut-rays::before,
@@ -5606,11 +5851,6 @@ p {
 /* ---------- Dunkle Designs: Titel leuchtet leicht (Aurora regelt das selbst) ---------- */
 :root:not([data-theme="aurora"]):not([data-theme="polar"]):not([data-theme="riso"]):not([data-theme="neon"]) .topbar-title h1 .grad-text {
   filter: drop-shadow(0 0 16px rgba(var(--glow-rgb), 0.35));
-}
-
-:root[data-theme="sunset"] .area-card.archiv {
-  color: #fff;
-  text-shadow: 0 1px 8px rgba(124, 45, 18, 0.35);
 }
 
 /* ---------- Design-Auswahl unter „Mehr“ ---------- */

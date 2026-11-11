@@ -63,15 +63,22 @@ export const THEMES: ThemeInfo[] = [
     light: false,
     themeColor: "#12060c",
     preview: {
-      bg: "radial-gradient(90% 60% at 50% 120%, #c2410c 0%, #4a0f24 45%, #12060c 75%)",
-      blobs: ["#f97316", "#db2777", "#7c3aed"],
+      // Himmel bis zum Horizont (65 %), darunter das dunkle Meer
+      bg: "linear-gradient(180deg,#170a2b 0%,#5a123f 38%,#c2452a 65%,#4a1230 65%,#12060c 100%)",
+      blobs: ["#c026d3", "#7c3aed", "transparent"],
+      // Halbe Sonne am Horizont, ihr Schein und der Glitzerpfad auf dem Wasser
+      overlay:
+        "linear-gradient(180deg,transparent 65%,#4a1230 65%,rgba(18,6,12,0) 100%),radial-gradient(circle at 50% 65%,#fcc660 0 10px,#f8693f 17px,#f43f5e 21px,rgba(244,63,94,0) 22px),radial-gradient(circle at 50% 65%,rgba(255,176,90,.6),rgba(255,176,90,0) 46px),repeating-linear-gradient(180deg,rgba(255,224,150,.8) 0 1px,rgba(255,224,150,0) 1px 4px) 50% 100%/34px 35% no-repeat",
       title: "linear-gradient(100deg,#fde68a,#fdba74,#f9a8d4)",
       card: "linear-gradient(165deg,rgba(255,228,214,.2),rgba(255,228,214,.06))",
       cardShadow: "inset 0 1px 0 rgba(255,236,224,.5), inset 0 0 0 .5px rgba(255,220,200,.22)",
       ring: "conic-gradient(#fbbf24 0 18%,transparent 0 20%,#f43f5e 0 32%,transparent 0 34%,#a855f7 0 42%,rgba(255,230,220,.14) 0)",
       line: "rgba(255,226,214,.38)",
-      areas: ["linear-gradient(150deg,#fbbf24,#f97316 45%,#e11d48)", "linear-gradient(150deg,#7c3aed,#c026d3 55%,#fb7185)"],
-      areaShadow: "inset 0 1px 0 rgba(255,255,255,.5)",
+      areas: [
+        "linear-gradient(180deg,#f59e0b,#ef4444 50%,#a02c1c 50%,#5a1512)",
+        "linear-gradient(180deg,#5b21b6,#f0597e 50%,#6b1d6e 50%,#33104a)",
+      ],
+      areaShadow: "inset 0 1px 0 rgba(255,240,210,.55)",
       radius: 9,
     },
   },
