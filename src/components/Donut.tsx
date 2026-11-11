@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { arcPath, colorAt, toRanges, wedgePath, type Range } from "../lib/donutGeometry";
+import { arcPath, colorAt, toRanges, type Range } from "../lib/donutGeometry";
 import { formatBytes } from "../lib/format";
 import { haptic } from "../lib/haptic";
 import type { ThemeId } from "../lib/theme";
@@ -36,7 +36,7 @@ const TOP = -Math.PI / 2;
 /**
  * Speicher-Diagramm: ein Teil pro Konto. Jedes Design hat seine eigene Form –
  * Aurora Ring mit Nordlicht und Strahlenkranz, Sunset Sonne am Horizont, Polar Kompass auf Eis, Neon Arcade-Anzeige,
- * Riso gedruckte Torte, Tinte Pinselkreis mit Stempel, Botanik Blüte, Terminal Zeichen-Ring,
+ * Düne Medaillon mit Dünen, Tinte Pinselkreis mit Stempel, Botanik Blüte, Terminal Zeichen-Ring,
  * Tiefsee Aquarium, Kosmos Planet mit Umlaufbahn.
  * Antippen spielt die Animation nochmal ab; `replay` (z. B. beim Hinwischen) ebenso.
  */
@@ -270,45 +270,51 @@ function LedGauge({ ranges, shown, size }: Shape) {
   );
 }
 
-/* ---------- Riso: gedruckte Torte, Farbe leicht verrutscht, Etikett wird aufgestempelt ---------- */
-function PrintedPie({ ranges, shown, size, uid }: Shape) {
-  const r = 54;
-  const lead = 8;
+/* ---------- Düne: schmaler Ring um ein Medaillon – darin steigen Dünen auf ---------- */
+function DuneMedallion({ ranges, usedFrac, shown, size, uid }: Shape) {
+  const r = 55;
+  const c = TAU * r;
+  const gap = ranges.length > 1 ? 3 : 0;
+  const lead = 6;
   return (
     <svg viewBox="-10 -10 140 140" width={size} height={size}>
       <defs>
-        <pattern id={`${uid}-dots`} width="5" height="5" patternUnits="userSpaceOnUse">
-          <circle cx="2.5" cy="2.5" r="1.05" fill="rgba(255,255,255,.4)" />
-        </pattern>
-        <mask id={`${uid}-reveal`} maskUnits="userSpaceOnUse" x="-40" y="-40" width="200" height="200">
+        <clipPath id={`${uid}-disc`}>
+          <circle cx="60" cy="60" r="46" />
+        </clipPath>
+        <linearGradient id={`${uid}-sky`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#d3efed" />
+          <stop offset="1" stopColor="#fbf3df" />
+        </linearGradient>
+        <mask id={`${uid}-m`} maskUnits="userSpaceOnUse" x="-40" y="-40" width="200" height="200">
           <circle
             className="donut-reveal"
             cx="60"
             cy="60"
-            r="30"
-            strokeDasharray={`${shown ? 2 * Math.PI * 30 + lead : 0} 999`}
+            r={r}
+            strokeDasharray={`${shown ? usedFrac * c + 2 * lead : 0} ${c + 2 * lead}`}
+            strokeDashoffset={lead}
             transform="rotate(-90 60 60)"
           />
         </mask>
       </defs>
-      <circle cx="64" cy="64" r={r} className="pie-shadow" />
-      <circle cx="60" cy="60" r={r} className="pie-paper" />
-      <g mask={`url(#${uid}-reveal)`}>
-        {/* Farbe verrutscht gegenüber der Tinte – wie beim echten Risodruck */}
-        <g transform="translate(-2 -1.5)">
-          {ranges.map((s, i) => (
-            <g key={i}>
-              <path d={wedgePath(60, 60, r, TOP + s.from * TAU, TOP + s.to * TAU)} fill={s.color} />
-              <path d={wedgePath(60, 60, r, TOP + s.from * TAU, TOP + s.to * TAU)} fill={`url(#${uid}-dots)`} />
-            </g>
-          ))}
-        </g>
+      <circle className="dune-disc" cx="60" cy="60" r="46" fill={`url(#${uid}-sky)`} />
+      <g clipPath={`url(#${uid}-disc)`}>
+        <path className="dune-hill far" d="M10 92 Q38 72 62 85 Q84 96 112 79 V112 H10 Z" />
+        <path className="dune-hill mid" d="M10 101 Q42 97 72 86 Q92 100 112 97 V112 H10 Z" />
+        <path className="dune-hill near" d="M10 108 Q60 107 96 95 Q106 101 112 104 V112 H10 Z" />
+      </g>
+      <circle className="donut-track" cx="60" cy="60" r={r} />
+      <g mask={`url(#${uid}-m)`}>
         {ranges.map((s, i) => (
-          <path key={i} className="pie-ink" d={wedgePath(60, 60, r, TOP + s.from * TAU, TOP + s.to * TAU)} />
+          <path
+            key={i}
+            className="donut-seg"
+            d={arcPath(60, 60, r, TOP + s.from * TAU, TOP + s.from * TAU + Math.max(0.001, (s.to - s.from) * TAU - gap / r))}
+            stroke={s.color}
+          />
         ))}
       </g>
-      <circle cx="60" cy="60" r={r} className="pie-outline" />
-      <circle cx="60" cy="60" r="31" className="pie-label" />
     </svg>
   );
 }
@@ -559,7 +565,7 @@ const SHAPES: Partial<Record<ThemeId, (s: Shape) => React.JSX.Element>> = {
   sunset: SunGauge,
   polar: Compass,
   neon: LedGauge,
-  riso: PrintedPie,
+  duene: DuneMedallion,
   tinte: Enso,
   botanik: Bloom,
   terminal: GlyphRing,

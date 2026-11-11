@@ -1,6 +1,6 @@
-// Designs: Aurora (Standard, Polarnacht), Sunset, Polar (hell, Polartag), Neon, Riso (hell), Tinte, Botanik (hell), Terminal, Tiefsee, Kosmos. Farben stehen in styles.css unter [data-theme].
+// Designs: Aurora (Standard, Polarnacht), Sunset, Polar (hell, Polartag), Neon, Düne (hell), Tinte, Botanik (hell), Terminal, Tiefsee, Kosmos. Farben stehen in styles.css unter [data-theme].
 
-export type ThemeId = "aurora" | "sunset" | "polar" | "neon" | "riso" | "tinte" | "botanik" | "terminal" | "tiefsee" | "kosmos";
+export type ThemeId = "aurora" | "sunset" | "polar" | "neon" | "duene" | "tinte" | "botanik" | "terminal" | "tiefsee" | "kosmos";
 
 /** Mini-Ansicht der App für die Design-Kachel unter „Mehr“ (Titel, Speicher-Karte mit Ring, Archiv/Privat). */
 export interface ThemePreview {
@@ -28,8 +28,6 @@ export interface ThemeInfo {
   themeColor: string;
   preview: ThemePreview;
 }
-
-const INK = "#1b1a17";
 
 export const THEMES: ThemeInfo[] = [
   {
@@ -128,30 +126,31 @@ export const THEMES: ThemeInfo[] = [
     },
   },
   {
-    id: "riso",
-    pair: "tinte",
-    name: "Riso",
-    description: "Druckfarbe auf Papier – Pink, Blau, Gelb, harte Kanten",
+    id: "duene",
+    pair: "kosmos",
+    name: "Düne",
+    description: "Wüste am Vormittag – Dünen, Oase, Türkis",
     light: true,
-    themeColor: "#f3ecdc",
+    themeColor: "#c6e9e8",
     preview: {
-      bg: "#f3ecdc",
+      bg: "linear-gradient(180deg,#c4e8e7,#f4efdd 58%,#f4e6c8)",
       blobs: ["transparent", "transparent", "transparent"],
+      // Blasse Sonne oben links, unten drei Dünen mit Licht- und Schattenseite
       overlay:
-        "radial-gradient(circle at 100% 0, rgba(255,72,176,.55) 1.4px, transparent 1.8px) 0 0/7px 7px",
-      title: `linear-gradient(${INK},${INK})`,
-      card: "#fffaf0",
-      cardShadow: `inset 0 0 0 1.5px ${INK}, 3px 3px 0 ${INK}`,
-      ring: "conic-gradient(#ff48b0 0 18%,transparent 0 20%,#0078bf 0 32%,transparent 0 34%,#ffd400 0 42%,rgba(27,26,23,.12) 0)",
-      line: "rgba(27,26,23,.35)",
-      areas: ["#0078bf", "#ff48b0"],
-      areaShadow: `inset 0 0 0 1.5px ${INK}, 3px 3px 0 ${INK}`,
-      radius: 7,
+        "radial-gradient(circle at 20% 22%,#fff 0 5px,rgba(255,244,205,.6) 9px,rgba(255,244,205,0) 22px),radial-gradient(90px 34px at 28% 104%,#d6b071 0 99%,rgba(214,176,113,0) 100%),radial-gradient(110px 46px at 82% 104%,#e5ca91 0 99%,rgba(229,202,145,0) 100%),radial-gradient(120px 52px at 44% 106%,#eedfbb 0 99%,rgba(238,223,187,0) 100%)",
+      title: "linear-gradient(100deg,#7a3e12,#b5651d,#d2932f)",
+      card: "linear-gradient(165deg,rgba(255,252,244,.96),rgba(252,245,230,.86))",
+      cardShadow: "inset 0 1px 0 #fff, 0 4px 12px rgba(120,84,40,.16)",
+      ring: "conic-gradient(#8b5cf6 0 18%,transparent 0 20%,#0891b2 0 32%,transparent 0 34%,#d97706 0 42%,rgba(62,44,24,.1) 0)",
+      line: "rgba(62,44,24,.22)",
+      areas: ["linear-gradient(160deg,#0d7780,#159a94 58%,#55bfa6)", "linear-gradient(160deg,#262d68,#3a479c 56%,#6a7dcc)"],
+      areaShadow: "inset 0 1px 0 rgba(255,255,255,.35), 0 4px 10px rgba(120,84,40,.22)",
+      radius: 9,
     },
   },
   {
     id: "tinte",
-    pair: "riso",
+    pair: "polar",
     name: "Tinte",
     description: "Tusche, Serifen, ein roter Stempel",
     light: false,
@@ -273,10 +272,13 @@ export interface ThemePrefs {
 const KEY = "drivepool.theme";
 const DEFAULT: ThemePrefs = { theme: "aurora", auto: false, light: "polar", dark: "aurora" };
 const known = (id: unknown): id is ThemeId => THEMES.some((t) => t.id === id);
+/** Früheres Design „Riso“ wurde durch „Düne“ ersetzt – gespeicherte Einstellungen wandern mit. */
+const renamed = (id: unknown): unknown => (id === "riso" ? "duene" : id);
 
 export function readPrefs(): ThemePrefs {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? "null");
+    if (raw) for (const k of ["theme", "light", "dark"]) raw[k] = renamed(raw[k]);
     if (raw && known(raw.theme)) {
       // Ältere Einstellungen ohne eigene Hell/Dunkel-Wahl: Paar aus dem gewählten Design ableiten
       const pair = autoPair(raw.theme);
@@ -297,7 +299,7 @@ const lightQuery = () => window.matchMedia?.("(prefers-color-scheme: light)");
 
 export const isLight = (id: ThemeId) => THEMES.find((t) => t.id === id)?.light ?? false;
 
-/** Vorschlag fürs Paar: das gewählte Design plus sein Gegenstück (Riso ↔ Tinte, sonst Polar ↔ Aurora bzw. das dunkle Design). */
+/** Vorschlag fürs Paar: das gewählte Design plus sein Gegenstück (Düne ↔ Kosmos, sonst Polar ↔ Aurora bzw. das dunkle Design). */
 export function autoPair(theme: ThemeId): { light: ThemeId; dark: ThemeId } {
   const pair = THEMES.find((t) => t.id === theme)?.pair ?? "aurora";
   return isLight(theme) ? { light: theme, dark: pair } : { light: pair, dark: theme };

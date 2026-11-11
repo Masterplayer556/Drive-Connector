@@ -3935,398 +3935,302 @@ p {
 }
 
 /* =========================================================================
-   Riso: Druckfarbe auf Papier. Kein Glas – Tinte, Rasterpunkte, harte Schatten.
+   Düne: Wüste am Vormittag. Heller Himmel in Türkis, Dünen mit Licht- und Schattenseite, eine Oase,
+   eine Karawane; der Wind treibt Sand über die Kämme, ein Falke kreist. Karten wie Papier, Sandrippel als Muster.
    ========================================================================= */
-:root[data-theme="riso"] {
+:root[data-theme="duene"] {
   color-scheme: light;
-  --ink: #1b1a17;
-  --ink-rgb: 27, 26, 23;
+  --sand: #e5ca91;
+  --ochre: #c58a2a;
+  --teal: #0e8c8c;
   --paper: #fffaf0;
-  --riso-pink: #ff48b0;
-  --riso-blue: #0078bf;
-  --riso-yellow: #ffd400;
-  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
-  --bg: #f3ecdc;
-  --bg-rgb: 243, 236, 220;
+  --bg: #f4e9d2;
+  --bg-rgb: 244, 233, 210;
   --surface-rgb: 255, 250, 240;
-  --scrim-rgb: 27, 26, 23;
-  --tint-rgb: 27, 26, 23;
-  --shadow-rgb: 27, 26, 23;
-  --shadow-k: 0.25;
-  --text: #1b1a17;
-  --muted: #5f584c;
-  --faint: #91897a;
-  --glow-rgb: 255, 72, 176;
-  --accent-rgb: 255, 72, 176;
-  --accent2-rgb: 0, 120, 191;
-  --accent3-rgb: 255, 212, 0;
-  --violet: #ff48b0;
-  --blue: #0078bf;
-  --cyan: #0078bf;
-  --pink: #ff48b0;
-  --green: #00a95c;
-  --red: #e4002b;
-  --amber: #b07d00;
-  --grad: linear-gradient(#ff48b0, #ff48b0);
-  --grad-text: linear-gradient(#1b1a17, #1b1a17);
-  --on-accent: #1b1a17;
-  --tab-active: #1b1a17;
-  --inset-bg: rgba(27, 26, 23, 0.06);
-  --glass-border: #1b1a17;
-  --aurora-top: #f3ecdc;
-  --blob-opacity: 0;
-  --grain-opacity: 1;
+  --scrim-rgb: 60, 40, 20;
+  --tint-rgb: 62, 44, 24;
+  --shadow-rgb: 120, 84, 40;
+  --shadow-k: 0.32;
+  --text: #33251a;
+  --muted: #76624c;
+  --faint: #a5927a;
+  --glow-rgb: 14, 140, 140;
+  --accent-rgb: 14, 140, 140;
+  --accent2-rgb: 60, 180, 160;
+  --accent3-rgb: 16, 158, 150;
+  --violet: #0e8c8c;
+  --blue: #1f6f9c;
+  --cyan: #0a6f70;
+  --pink: #c2552d;
+  --green: #4f7a2a;
+  --red: #c2412d;
+  --amber: #a8640f;
+  --grad: linear-gradient(135deg, #0e8c8c 0%, #1aa89a 60%, #55c2a6 100%);
+  --grad-text: linear-gradient(100deg, #7a3e12 0%, #b5651d 52%, #d2932f 100%);
+  --on-accent: #fffaf0;
+  --tab-active: #33251a;
+  --inset-bg: rgba(62, 44, 24, 0.06);
+  --glass-border: rgba(62, 44, 24, 0.1);
+  --aurora-top: #cdeceb;
+  --blob1: #bfe8e4;
+  --blob2: #f8e6b8;
+  --blob3: #f0cf9c;
+  --blob-opacity: 0.45;
+  --grain-opacity: 0;
   --seg-glow: none;
-  --radius: 18px;
-  --area-archiv: radial-gradient(rgba(255, 255, 255, 0.2) 1.2px, transparent 1.6px) 0 0 / 10px 10px, #0078bf;
-  --area-privat: radial-gradient(rgba(27, 26, 23, 0.12) 1.2px, transparent 1.6px) 0 0 / 10px 10px, #ff48b0;
-  --area-claude: radial-gradient(rgba(27, 26, 23, 0.12) 1.2px, transparent 1.6px) 0 0 / 10px 10px, #ff6c2f;
-  --lg-fill: linear-gradient(var(--paper), var(--paper));
+  --radius: 20px;
+  --area-archiv: linear-gradient(160deg, #0d7780 0%, #159a94 58%, #55bfa6 100%);
+  --area-privat: linear-gradient(160deg, #262d68 0%, #3a479c 56%, #6a7dcc 100%);
+  --area-claude: linear-gradient(110deg, #a35f0c 0%, #cf8a20 55%, #ebc05a 100%);
+  --lg-fill: linear-gradient(165deg, rgba(255, 252, 244, 0.96), rgba(252, 245, 230, 0.86));
   --lg-blur: none;
-  --lg-shadow: inset 0 0 0 2px var(--ink), 4px 4px 0 var(--ink);
+  --lg-shadow:
+    inset 0 1px 0 #fff,
+    inset 0 0 0 0.5px rgba(120, 84, 40, 0.12),
+    0 10px 24px rgba(120, 84, 40, 0.12),
+    0 1px 3px rgba(120, 84, 40, 0.1);
   --lg-rim: none;
 }
 
-/* Papier: Faserkorn + grosse Rasterpunkte in Pink und Blau, die sich überlagern */
-:root[data-theme="riso"] .aurora {
-  background: var(--bg);
-}
-
-:root[data-theme="riso"] .aurora::before {
-  inset: 0;
-  height: auto;
+/* Himmel: oben klares Türkis, zum Boden hin warmes Sandlicht; hoch oben links steht blass die Sonne */
+:root[data-theme="duene"] .aurora {
   background:
-    radial-gradient(circle, rgba(255, 72, 176, 0.55) 2.4px, transparent 2.9px) 0 0 / 14px 14px,
-    radial-gradient(circle, rgba(0, 120, 191, 0.45) 2.4px, transparent 2.9px) 7px 7px / 14px 14px;
-  -webkit-mask:
-    radial-gradient(55vmax 40vmax at 105% -5%, #000 0%, transparent 70%),
-    radial-gradient(50vmax 40vmax at -10% 108%, #000 0%, transparent 70%);
-  mask:
-    radial-gradient(55vmax 40vmax at 105% -5%, #000 0%, transparent 70%),
-    radial-gradient(50vmax 40vmax at -10% 108%, #000 0%, transparent 70%);
-  mix-blend-mode: multiply;
+    radial-gradient(circle at 20% 15%, #fff 0 3.2vmin, rgba(255, 248, 220, 0.85) 5vmin, rgba(255, 244, 205, 0.35) 12vmin, rgba(255, 244, 205, 0) 30vmin),
+    linear-gradient(180deg, #c4e8e7 0%, #dcf0ea 28%, #f4efdd 54%, #f4e6c8 100%);
+}
+
+/* Ein Falke kreist hoch über den Dünen */
+:root[data-theme="duene"] .aurora::before {
+  left: 62%;
+  right: auto;
+  top: 30%;
+  width: 34px;
+  height: 13px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 18'%3E%3Cpath d='M2 12Q12 2 22 9Q24 7 26 9Q36 2 46 12Q36 8 27 12L24 15L21 12Q12 8 2 12Z' fill='%235c4630'/%3E%3C/svg%3E") center / contain no-repeat;
+  -webkit-mask: none;
+  mask: none;
+  mix-blend-mode: normal;
   filter: none;
-  opacity: 0.75;
-  transform: none;
-  animation: none;
+  opacity: 0.55;
+  transform-origin: -70px 40px;
+  animation: soar 38s linear infinite;
 }
 
-:root[data-theme="riso"] .aurora::after {
-  mix-blend-mode: multiply;
-  opacity: 0.5;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .09 0 0 0 0 .07 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 160px 160px;
+@keyframes soar {
+  from {
+    transform: rotate(0deg) rotate(8deg);
+  }
+  to {
+    transform: rotate(360deg) rotate(8deg);
+  }
 }
 
-/* Fehldruck: Titel in Tinte, Pink leicht versetzt dahinter */
-:root[data-theme="riso"] .grad-text {
-  background: none;
-  color: var(--ink);
-  text-shadow: 2.5px 2px 0 rgba(255, 72, 176, 0.9);
+/* Dünen mit Licht- und Schattenseite, im Tal eine Oase, am Hang eine Karawane */
+:root[data-theme="duene"] .aurora b {
+  display: block;
+  height: 34%;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 240'%3E%3CclipPath id='d0'%3E%3Cpath d='M0 128Q60 124 130 84Q200 120 300 128Q370 124 440 72Q520 118 600 128V240H0Z'/%3E%3C/clipPath%3E%3Cpath d='M0 128Q60 124 130 84Q200 120 300 128Q370 124 440 72Q520 118 600 128V240H0Z' fill='%23eedfbb'/%3E%3Cg clip-path='url%28%23d0%29' fill='%23e0cb9c'%3E%3Cpath d='M130 80C176 118 116 168 176 240H300V0H130Z'/%3E%3Cpath d='M440 68C486 106 426 156 492 240H600V0H440Z'/%3E%3C/g%3E%3Cellipse cx='304' cy='131' rx='26' ry='2.6' fill='%238ed3cb'/%3E%3Cpath d='M292 131q-3 -15.0 -4 -30' stroke='%237a6240' stroke-width='2.2' fill='none' stroke-linecap='round'/%3E%3Cpath transform='translate%28288 101%29 rotate%28-160%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28288 101%29 rotate%28-125%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28288 101%29 rotate%28-90%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28288 101%29 rotate%28-55%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28288 101%29 rotate%28-20%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28288 101%29 rotate%2815%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28288 101%29 rotate%28195%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath d='M312 132q4 -11.0 6 -22' stroke='%237a6240' stroke-width='2.2' fill='none' stroke-linecap='round'/%3E%3Cpath transform='translate%28318 110%29 rotate%28-160%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28318 110%29 rotate%28-125%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28318 110%29 rotate%28-90%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28318 110%29 rotate%28-55%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28318 110%29 rotate%28-20%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28318 110%29 rotate%2815%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3Cpath transform='translate%28318 110%29 rotate%28195%29' d='M0 0Q9 -5 19 0Q9 3 0 0Z' fill='%236f8048'/%3E%3CclipPath id='d1'%3E%3Cpath d='M0 168Q110 160 230 112Q320 160 420 176Q500 172 560 150Q585 160 600 168V240H0Z'/%3E%3C/clipPath%3E%3Cpath d='M0 168Q110 160 230 112Q320 160 420 176Q500 172 560 150Q585 160 600 168V240H0Z' fill='%23e5ca91'/%3E%3Cg clip-path='url%28%23d1%29' fill='%23d3b173'%3E%3Cpath d='M230 108C276 146 216 196 286 240H420V0H230Z'/%3E%3Cpath d='M560 146C606 184 546 234 596 240H600V0H560Z'/%3E%3C/g%3E%3Cg transform='translate%28160 119%29 rotate%28-17%29 scale%28.82%29'%3E%3Cg fill='%236f5232' stroke='%236f5232'%3E%3Cellipse cx='12' cy='9' rx='7' ry='3.4' stroke='none'/%3E%3Ccircle cx='11' cy='6.2' r='3' stroke='none'/%3E%3Cpath d='M17.5 8.5Q20.5 6.5 20.5 2.5' fill='none' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='22' cy='2.3' rx='2.1' ry='1.2' stroke='none'/%3E%3Cpath d='M7.5 11V18M10 11V18M15 11V18M17 11V18' stroke-width='1.2' fill='none'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate%28184 111%29 rotate%28-17%29 scale%28.82%29'%3E%3Cg fill='%236f5232' stroke='%236f5232'%3E%3Cellipse cx='12' cy='9' rx='7' ry='3.4' stroke='none'/%3E%3Ccircle cx='11' cy='6.2' r='3' stroke='none'/%3E%3Cpath d='M17.5 8.5Q20.5 6.5 20.5 2.5' fill='none' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='22' cy='2.3' rx='2.1' ry='1.2' stroke='none'/%3E%3Cpath d='M7.5 11V18M10 11V18M15 11V18M17 11V18' stroke-width='1.2' fill='none'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate%28206 104%29 rotate%28-17%29 scale%28.82%29'%3E%3Cg fill='%236f5232' stroke='%236f5232'%3E%3Cellipse cx='12' cy='9' rx='7' ry='3.4' stroke='none'/%3E%3Ccircle cx='11' cy='6.2' r='3' stroke='none'/%3E%3Cpath d='M17.5 8.5Q20.5 6.5 20.5 2.5' fill='none' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='22' cy='2.3' rx='2.1' ry='1.2' stroke='none'/%3E%3Cpath d='M7.5 11V18M10 11V18M15 11V18M17 11V18' stroke-width='1.2' fill='none'/%3E%3C/g%3E%3C/g%3E%3CclipPath id='d2'%3E%3Cpath d='M0 212Q180 214 380 172Q480 206 600 212V240H0Z'/%3E%3C/clipPath%3E%3Cpath d='M0 212Q180 214 380 172Q480 206 600 212V240H0Z' fill='%23dbb777'/%3E%3Cg clip-path='url%28%23d2%29' fill='%23c79e5b'%3E%3Cpath d='M380 168C426 206 366 256 440 240H600V0H380Z'/%3E%3C/g%3E%3C/svg%3E") bottom center / auto 100% repeat-x;
 }
 
-:root[data-theme="riso"] .topbar-title h1,
-:root[data-theme="riso"] .auth-card h1,
-:root[data-theme="riso"] .splash h1,
-:root[data-theme="riso"] .hero-big,
-:root[data-theme="riso"] .area-card strong {
-  font-family: "Avenir Next Condensed", "Arial Narrow", -apple-system, system-ui, sans-serif;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+/* Der Wind treibt feine Sandsträhnen über die Kämme */
+:root[data-theme="duene"] .aurora b::before {
+  content: "";
+  position: absolute;
+  inset: 4% -320px 30% 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 124'%3E%3Cg fill='none' stroke='%23fff8e6' stroke-opacity='.75' stroke-width='1.2' stroke-linecap='round'%3E%3Cpath d='M10 12q35 -3 70 0'/%3E%3Cpath d='M150 30q45 -3 90 0'/%3E%3Cpath d='M60 52q30 -3 60 0'/%3E%3Cpath d='M230 70q40 -3 80 0'/%3E%3Cpath d='M20 92q50 -3 100 0'/%3E%3Cpath d='M190 110q35 -3 70 0'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 320px 124px repeat;
+  opacity: 0.7;
+  animation: sandWind 14s linear infinite;
+  will-change: transform;
 }
 
-:root[data-theme="riso"] .topbar-title .eyebrow,
-:root[data-theme="riso"] .section-title,
-:root[data-theme="riso"] .folder-meta,
-:root[data-theme="riso"] .donut-center span,
-:root[data-theme="riso"] .theme-meta span {
-  font-family: var(--mono);
-  letter-spacing: 0.02em;
+@keyframes sandWind {
+  to {
+    transform: translateX(-320px);
+  }
 }
 
-:root[data-theme="riso"] .section-title {
-  color: var(--ink);
+/* Feiner Flugsand in der Luft */
+:root[data-theme="duene"] .aurora::after {
+  inset: 0 -240px 0 0;
+  opacity: 1;
+  mix-blend-mode: normal;
+  background-image:
+    radial-gradient(circle at 30px 40px, rgba(197, 138, 42, 0.5) 0 1px, rgba(197, 138, 42, 0) 2.2px),
+    radial-gradient(circle at 150px 110px, rgba(197, 138, 42, 0.42) 0 0.8px, rgba(197, 138, 42, 0) 2px),
+    radial-gradient(circle at 210px 26px, rgba(197, 138, 42, 0.36) 0 1px, rgba(197, 138, 42, 0) 2.2px),
+    radial-gradient(circle at 90px 190px, rgba(197, 138, 42, 0.42) 0 0.8px, rgba(197, 138, 42, 0) 2px),
+    radial-gradient(circle at 190px 230px, rgba(197, 138, 42, 0.36) 0 1px, rgba(197, 138, 42, 0) 2.2px);
+  background-size: 240px 260px;
+  animation: flySand 26s linear infinite;
 }
 
-:root[data-theme="riso"] .section-title > span:first-child {
-  background: var(--riso-yellow);
-  padding: 2px 6px;
-  box-shadow: 2px 2px 0 var(--ink);
+@keyframes flySand {
+  to {
+    transform: translateX(-240px);
+  }
 }
 
-:root[data-theme="riso"] .topbar {
-  background: linear-gradient(180deg, rgba(var(--bg-rgb), 0.97) 0%, rgba(var(--bg-rgb), 0.75) 70%, rgba(var(--bg-rgb), 0) 100%);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-:root[data-theme="riso"] .glass::before,
-:root[data-theme="riso"] .icon-btn::before,
-:root[data-theme="riso"] .folder::before,
-:root[data-theme="riso"] .glass::after,
-:root[data-theme="riso"] .icon-btn::after {
+:root[data-theme="duene"] .glass::before,
+:root[data-theme="duene"] .icon-btn::before,
+:root[data-theme="duene"] .folder::before,
+:root[data-theme="duene"] .glass::after,
+:root[data-theme="duene"] .icon-btn::after {
   display: none;
 }
 
-:root[data-theme="riso"] .icon-btn {
-  box-shadow: inset 0 0 0 2px var(--ink), 2px 2px 0 var(--ink);
+:root[data-theme="duene"] .topbar {
+  background: linear-gradient(180deg, rgba(198, 233, 232, 0.95) 0%, rgba(208, 236, 232, 0.6) 70%, rgba(214, 238, 232, 0) 100%);
 }
 
-:root[data-theme="riso"] .folder {
-  box-shadow: inset 0 0 0 2px var(--ink), 3px 3px 0 var(--ink);
+:root[data-theme="duene"] .topbar-title h1 {
+  letter-spacing: -0.035em;
 }
 
-/* Drücken: Fläche rutscht in ihren Schatten */
-:root[data-theme="riso"] .icon-btn:active,
-:root[data-theme="riso"] .folder:active,
-:root[data-theme="riso"] .btn:active,
-:root[data-theme="riso"] .fab:active,
-:root[data-theme="riso"] .area-card:active,
-:root[data-theme="riso"] .list-item:active {
-  transform: translate(2px, 2px);
+:root[data-theme="duene"] .topbar-title .eyebrow {
+  letter-spacing: 0.16em;
+  color: #2f7f80;
+}
+
+/* Kleine Sandwelle vor jeder Überschrift */
+:root[data-theme="duene"] .section-title > span:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 18px;
+  height: 7px;
+  margin-right: 8px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 8'%3E%3Cpath d='M1 4q3 -4 6 0t6 0t6 0' fill='none' stroke='%23c58a2a' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* Bereichskarten: Sandrippel ziehen langsam durch, unten schwingt ein Dünenkamm */
+:root[data-theme="duene"] .area-card {
+  isolation: isolate;
+  border: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -30px 36px -28px rgba(30, 20, 10, 0.3),
+    0 12px 26px rgba(120, 84, 40, 0.24);
+}
+
+:root[data-theme="duene"] .area-card::after {
+  z-index: -1;
+  inset: 0 -60px 0 0;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 54'%3E%3Cg fill='none' stroke='%23fff' stroke-opacity='.3' stroke-width='1.3'%3E%3Cpath d='M-30 6q15 -6 30 0t30 0t30 0t30 0'/%3E%3Cpath d='M-30 15q15 -6 30 0t30 0t30 0t30 0'/%3E%3Cpath d='M-30 24q15 -6 30 0t30 0t30 0t30 0'/%3E%3Cpath d='M-30 33q15 -6 30 0t30 0t30 0t30 0'/%3E%3Cpath d='M-30 42q15 -6 30 0t30 0t30 0t30 0'/%3E%3Cpath d='M-30 51q15 -6 30 0t30 0t30 0t30 0'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 60px 54px repeat;
+  -webkit-mask: linear-gradient(115deg, transparent 20%, #000 78%);
+  mask: linear-gradient(115deg, transparent 20%, #000 78%);
   filter: none;
+  animation: rippleDrift 12s linear infinite;
 }
 
-:root[data-theme="riso"] .icon-btn:active,
-:root[data-theme="riso"] .folder:active,
-:root[data-theme="riso"] .btn:active {
-  box-shadow: inset 0 0 0 2px var(--ink), 1px 1px 0 var(--ink);
+@keyframes rippleDrift {
+  to {
+    transform: translateX(-60px);
+  }
 }
 
-:root[data-theme="riso"] .btn.primary,
-:root[data-theme="riso"] .fab {
-  background: var(--riso-pink);
-  color: var(--ink);
-  box-shadow: inset 0 0 0 2px var(--ink), 4px 4px 0 var(--ink);
-  animation: none;
+:root[data-theme="duene"] .area-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 34%;
+  right: -30%;
+  bottom: -64%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.08) 46%, rgba(0, 0, 0, 0.1) 46.5%, rgba(0, 0, 0, 0.04) 100%);
 }
 
-:root[data-theme="riso"] .fab {
-  animation: popIn 0.5s var(--spring) both;
+:root[data-theme="duene"] .area-card.claude::before {
+  left: 58%;
+  right: -10%;
+  bottom: -70%;
+  height: 130%;
 }
 
-:root[data-theme="riso"] .btn.danger-solid {
-  background: var(--red);
-  color: #fff;
-  box-shadow: inset 0 0 0 2px var(--ink), 3px 3px 0 var(--ink);
+/* Ordner-Symbole in gedeckten Erdtönen, wie bemalter Stein */
+:root[data-theme="duene"] .folder-icon {
+  background: linear-gradient(135deg, hsl(var(--h) 52% 58%), hsl(calc(var(--h) + var(--folder-blend, 45)) 52% 45%));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 4px 10px hsl(var(--h) 40% 36% / 0.22);
 }
 
-:root[data-theme="riso"] .btn.ghost {
+:root[data-theme="duene"] .dot {
   box-shadow: none;
 }
 
-:root[data-theme="riso"] .area-card {
-  color: #fff;
-  border: 0;
-  box-shadow: inset 0 0 0 2.5px var(--ink), 5px 5px 0 var(--ink);
+:root[data-theme="duene"] .btn.primary,
+:root[data-theme="duene"] .fab {
+  background: linear-gradient(135deg, #0b7c80, #129a92 60%, #2fb59e);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 8px 20px rgba(14, 140, 140, 0.3);
+  animation: none;
 }
 
-:root[data-theme="riso"] .area-card.privat {
-  color: var(--ink);
+:root[data-theme="duene"] .fab {
+  animation: popIn 0.5s var(--spring) both;
 }
 
-/* Gelbe Scheibe, überdruckt (multiply) – wie ein zweiter Farbdurchgang */
-:root[data-theme="riso"] .area-card::after {
-  width: 120px;
-  height: 120px;
-  right: -36px;
-  top: -44px;
-  background: var(--riso-yellow);
-  filter: none;
-  mix-blend-mode: multiply;
-  opacity: 0.95;
+:root[data-theme="duene"] .tabbar {
+  background: rgba(255, 250, 240, 0.95);
+  box-shadow:
+    0 12px 30px rgba(120, 84, 40, 0.18),
+    inset 0 0 0 1px rgba(62, 44, 24, 0.07);
 }
 
-:root[data-theme="riso"] .area-card .area-icon {
-  position: relative;
-  z-index: 1;
-  color: var(--ink);
-  background: var(--paper);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: inset 0 0 0 2px var(--ink), 2px 2px 0 var(--ink);
+:root[data-theme="duene"] .tab-indicator,
+:root[data-theme="duene"] .segmented .seg-thumb {
+  background: linear-gradient(135deg, rgba(14, 140, 140, 0.2), rgba(60, 180, 160, 0.13));
+  box-shadow: inset 0 0 0 1px rgba(14, 140, 140, 0.32);
 }
 
-:root[data-theme="riso"] .area-card > span:last-child {
-  position: relative;
-  z-index: 1;
+:root[data-theme="duene"] .segmented button.on {
+  color: var(--text);
 }
 
-:root[data-theme="riso"] .folder-icon {
-  color: var(--ink);
-  background: linear-gradient(135deg, hsl(var(--h) 90% 66%), hsl(calc(var(--h) + var(--folder-blend, 45)) 90% 60%));
-  box-shadow: inset 0 0 0 2px var(--ink);
+:root[data-theme="duene"] .chip.on,
+:root[data-theme="duene"] .stat-chip.on {
+  background: var(--teal);
+  color: #fffaf0;
 }
 
-:root[data-theme="riso"] .dot {
-  box-shadow: 0 0 0 1.5px var(--ink);
+:root[data-theme="duene"] .banner:not(.warn):not(.error):not(.ok) {
+  border-color: rgba(14, 140, 140, 0.3);
+  background: rgba(14, 140, 140, 0.08);
 }
 
-:root[data-theme="riso"] .donut-track {
-  stroke: rgba(var(--ink-rgb), 0.1);
+:root[data-theme="duene"] .modal-backdrop,
+:root[data-theme="duene"] .sheet-backdrop {
+  background: rgba(var(--scrim-rgb), 0.26);
 }
 
-:root[data-theme="riso"] .tabbar {
-  background: var(--paper);
-  box-shadow: inset 0 0 0 2px var(--ink), 4px 4px 0 var(--ink);
-}
-
-:root[data-theme="riso"] .tab {
-  color: var(--muted);
-}
-
-:root[data-theme="riso"] .tab-indicator,
-:root[data-theme="riso"] .segmented .seg-thumb {
-  background: var(--riso-yellow);
-  box-shadow: inset 0 0 0 2px var(--ink);
-}
-
-:root[data-theme="riso"] .segmented {
-  background: var(--paper);
-  box-shadow: inset 0 0 0 2px var(--ink);
-}
-
-:root[data-theme="riso"] .segmented button.on {
-  color: var(--ink);
-}
-
-:root[data-theme="riso"] .chip,
-:root[data-theme="riso"] .crumb,
-:root[data-theme="riso"] .stat-chip {
-  background: var(--paper);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: inset 0 0 0 1.5px var(--ink);
-}
-
-:root[data-theme="riso"] .chip.on,
-:root[data-theme="riso"] .stat-chip.on {
-  background: var(--riso-pink);
-  color: var(--ink);
-  box-shadow: inset 0 0 0 1.5px var(--ink);
-}
-
-:root[data-theme="riso"] .crumb.current {
-  background: var(--riso-yellow);
-  color: var(--ink);
-}
-
-:root[data-theme="riso"] .switch span {
-  box-shadow: inset 0 0 0 2px var(--ink);
-}
-
-:root[data-theme="riso"] .switch input:checked + span {
-  background: var(--riso-pink);
-}
-
-:root[data-theme="riso"] .switch span::after {
-  background: var(--paper);
-  box-shadow: inset 0 0 0 2px var(--ink);
-}
-
-:root[data-theme="riso"] .banner {
-  border: 0;
-  background: #fff1a8;
-  box-shadow: inset 0 0 0 2px var(--ink), 3px 3px 0 var(--ink);
-}
-
-:root[data-theme="riso"] .banner.warn {
-  background: #ffe28a;
-}
-
-:root[data-theme="riso"] .banner.error {
-  background: #ffc2cf;
-}
-
-:root[data-theme="riso"] .banner.ok {
-  background: #bdf0d2;
-}
-
-:root[data-theme="riso"] .modal,
-:root[data-theme="riso"] .menu,
-:root[data-theme="riso"] .toast,
-:root[data-theme="riso"] .actionbar {
-  background: var(--paper);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: inset 0 0 0 2px var(--ink), 5px 5px 0 var(--ink);
-}
-
-:root[data-theme="riso"] .sheet {
-  background: var(--paper);
-  border: 2px solid var(--ink);
-  border-bottom: 0;
-  box-shadow: 0 -6px 0 rgba(var(--ink-rgb), 0.12);
-}
-
-:root[data-theme="riso"] .modal-backdrop,
-:root[data-theme="riso"] .sheet-backdrop {
-  background: rgba(var(--scrim-rgb), 0.35);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-:root[data-theme="riso"] .list-item {
-  border-bottom-color: rgba(var(--ink-rgb), 0.18);
-}
-
-:root[data-theme="riso"] .list-item .li-icon {
-  color: var(--ink);
-  box-shadow: inset 0 0 0 2px var(--ink);
-}
-
-:root[data-theme="riso"] .input {
-  background: var(--paper);
-  border: 2px solid var(--ink);
-}
-
-:root[data-theme="riso"] .input:focus {
-  border-color: var(--ink);
-  box-shadow: 3px 3px 0 var(--riso-pink);
+:root[data-theme="duene"] .sheet,
+:root[data-theme="duene"] .modal,
+:root[data-theme="duene"] .menu,
+:root[data-theme="duene"] .toast,
+:root[data-theme="duene"] .actionbar {
   background: var(--paper);
 }
 
-:root[data-theme="riso"] .bar {
-  background: var(--paper);
-  box-shadow: inset 0 0 0 1.5px var(--ink);
+:root[data-theme="duene"] .status-pill {
+  background: rgba(79, 122, 42, 0.13);
 }
 
-:root[data-theme="riso"] .bar-fill {
-  box-shadow: inset 0 0 0 1.5px var(--ink);
+:root[data-theme="duene"] .status-pill.err {
+  background: rgba(194, 65, 45, 0.12);
 }
 
-:root[data-theme="riso"] .status-pill {
-  background: rgba(0, 169, 92, 0.14);
+:root[data-theme="duene"] .donut-center strong.lvl-warn {
+  color: #a8640f;
 }
 
-:root[data-theme="riso"] .status-pill.err {
-  background: rgba(228, 0, 43, 0.12);
-}
-
-:root[data-theme="riso"] .donut-center strong.lvl-warn {
-  color: #b07d00;
-}
-
-:root[data-theme="riso"] .theme-card {
-  box-shadow: inset 0 0 0 2px var(--ink);
-}
-
-:root[data-theme="riso"] .theme-card.on {
-  box-shadow: inset 0 0 0 3px var(--ink), 4px 4px 0 var(--riso-pink);
-}
-
-:root[data-theme="riso"] .theme-meta {
-  background: var(--paper);
-  border-top: 2px solid var(--ink);
-}
-
-:root[data-theme="riso"] .splash-logo::before {
-  display: none;
-}
-
-:root[data-theme="riso"] .splash-logo img,
-:root[data-theme="riso"] .auth-card .logo {
-  box-shadow: 0 0 0 2.5px var(--ink), 5px 5px 0 var(--ink);
+:root[data-theme="duene"] .theme-card.on {
+  box-shadow:
+    inset 0 0 0 2px var(--teal),
+    0 8px 22px rgba(120, 84, 40, 0.2);
 }
 
 /* =========================================================================
@@ -4699,10 +4603,6 @@ p {
   }
 }
 
-.donut-riso .donut-center {
-  animation: stamp 0.5s 0.85s var(--spring) both;
-}
-
 @keyframes stamp {
   from {
     transform: scale(1.5) rotate(-8deg);
@@ -4859,40 +4759,40 @@ p {
   filter: drop-shadow(0 0 3px currentColor);
 }
 
-/* Riso: gedruckte Torte */
-.pie-shadow {
-  fill: var(--ink, #1b1a17);
+/* Düne: schmaler Ring um ein Medaillon, in dem Dünen aufsteigen */
+.donut-duene .donut-track,
+.donut-duene .donut-seg {
+  stroke-width: 7;
 }
 
-.pie-paper {
-  fill: var(--paper, #fffaf0);
+.dune-disc {
+  stroke: rgba(var(--tint-rgb), 0.1);
+  stroke-width: 1;
 }
 
-.pie-ink {
-  fill: none;
-  stroke: var(--ink, #1b1a17);
-  stroke-width: 2;
-  stroke-linejoin: round;
+.dune-hill {
+  transform-box: view-box;
+  animation: duneIn 1.1s var(--ease) both;
 }
 
-.pie-outline {
-  fill: none;
-  stroke: var(--ink, #1b1a17);
-  stroke-width: 2.5;
+.dune-hill.far {
+  fill: #eedfbb;
 }
 
-.pie-label {
-  fill: var(--paper, #fffaf0);
-  stroke: var(--ink, #1b1a17);
-  stroke-width: 2.5;
+.dune-hill.mid {
+  fill: #e5ca91;
+  animation-delay: 0.12s;
 }
 
-.donut-riso .donut-center strong {
-  font-size: 1.15rem;
+.dune-hill.near {
+  fill: #d6b071;
+  animation-delay: 0.24s;
 }
 
-.donut-riso .donut-center span {
-  font-size: 0.6rem;
+@keyframes duneIn {
+  from {
+    transform: translateY(30px);
+  }
 }
 
 /* Tinte: Pinselkreis mit rotem Stempel */
@@ -4970,10 +4870,6 @@ p {
   margin-top: 2px;
   color: var(--muted);
   font-size: 0.78rem;
-}
-
-:root[data-theme="riso"] .design-tile-preview {
-  box-shadow: inset 0 0 0 2px var(--ink);
 }
 
 .design-hint {
@@ -6449,23 +6345,13 @@ p {
     inset 0 0 30px rgba(251, 146, 60, 0.07);
 }
 
-:root[data-theme="riso"] .area-card.claude {
-  color: var(--ink);
-}
-
-:root[data-theme="riso"] .area-card.claude::after {
-  right: auto;
-  left: 52%;
-  top: -60px;
-}
-
 :root[data-theme="tinte"] .area-card.claude {
   color: var(--washi);
   box-shadow: inset 0 0 0 1px rgba(242, 239, 232, 0.16);
 }
 
 /* ---------- Dunkle Designs: Titel leuchtet leicht (Aurora regelt das selbst) ---------- */
-:root:not([data-theme="aurora"]):not([data-theme="polar"]):not([data-theme="riso"]):not([data-theme="neon"]) .topbar-title h1 .grad-text {
+:root:not([data-theme="aurora"]):not([data-theme="polar"]):not([data-theme="duene"]):not([data-theme="neon"]) .topbar-title h1 .grad-text {
   filter: drop-shadow(0 0 16px rgba(var(--glow-rgb), 0.35));
 }
 
@@ -6602,16 +6488,6 @@ p {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 7px;
-}
-
-/* Riso: Archiv/Privat mit Rasterpunkten, Gelb überdruckt */
-.tp-riso .tp-areas span {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.35) 0.8px, transparent 1.1px) !important;
-  background-size: 4px 4px !important;
-}
-
-.tp-riso .tp-title {
-  box-shadow: 2px 2px 0 #ff48b0;
 }
 
 /* Fünftes Design: über die ganze Breite */
