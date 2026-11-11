@@ -4765,6 +4765,12 @@ p {
   stroke-width: 7;
 }
 
+/* Kontofarben in Sandtönen: Ring und Legende bekommen denselben Filter, damit sie zusammenpassen */
+.donut-duene .donut-seg,
+:root[data-theme="duene"] .legend .dot {
+  filter: sepia(0.82) saturate(1.5) hue-rotate(-12deg);
+}
+
 .dune-disc {
   stroke: rgba(var(--tint-rgb), 0.1);
   stroke-width: 1;
