@@ -1,4 +1,4 @@
-// Designs: Aurora (Standard), Sunset, Polar (hell), Neon, Riso (hell), Tinte, Botanik (hell), Terminal, Tiefsee, Kosmos. Farben stehen in styles.css unter [data-theme].
+// Designs: Aurora (Standard, Polarnacht), Sunset, Polar (hell, Polartag), Neon, Riso (hell), Tinte, Botanik (hell), Terminal, Tiefsee, Kosmos. Farben stehen in styles.css unter [data-theme].
 
 export type ThemeId = "aurora" | "sunset" | "polar" | "neon" | "riso" | "tinte" | "botanik" | "terminal" | "tiefsee" | "kosmos";
 
@@ -36,19 +36,22 @@ export const THEMES: ThemeInfo[] = [
     id: "aurora",
     pair: "polar",
     name: "Aurora",
-    description: "Nordlicht in Violett & Türkis",
+    description: "Polarnacht – Nordlicht über den Bergen",
     light: false,
-    themeColor: "#060913",
+    themeColor: "#040915",
     preview: {
-      bg: "radial-gradient(120% 80% at 50% -10%, #111a3a, #060913 60%)",
-      blobs: ["#7c3aed", "#0ea5e9", "#db2777"],
-      title: "linear-gradient(100deg,#c4b5fd,#93c5fd,#67e8f9)",
-      card: "linear-gradient(165deg,rgba(255,255,255,.2),rgba(255,255,255,.06))",
-      cardShadow: "inset 0 1px 0 rgba(255,255,255,.45), inset 0 0 0 .5px rgba(255,255,255,.2)",
-      ring: "conic-gradient(#8b5cf6 0 18%,transparent 0 20%,#0891b2 0 32%,transparent 0 34%,#d97706 0 42%,rgba(255,255,255,.12) 0)",
-      line: "rgba(255,255,255,.35)",
-      areas: ["linear-gradient(140deg,#6d28d9,#2563eb 60%,#0891b2)", "linear-gradient(140deg,#db2777,#e11d48 45%,#f97316)"],
-      areaShadow: "inset 0 1px 0 rgba(255,255,255,.5)",
+      bg: "linear-gradient(180deg,#07122e,#050c1c 70%,#040915)",
+      blobs: ["#10b981", "#7c3aed", "transparent"],
+      // Sterne, darunter der Nordlicht-Vorhang (Strahlen, die nach unten im Nachthimmel auslaufen)
+      overlay:
+        "radial-gradient(1px 1px at 84% 10%,#fff,transparent),radial-gradient(1px 1px at 58% 20%,#d1fae5,transparent),radial-gradient(1px 1px at 94% 58%,#fff,transparent),linear-gradient(180deg,rgba(5,12,28,0) 18%,#050c1c 64%),repeating-linear-gradient(90deg,rgba(110,231,183,0) 0 4px,rgba(110,231,183,.42) 7px,rgba(110,231,183,0) 10px,rgba(167,139,250,.3) 14px,rgba(167,139,250,0) 18px,rgba(94,234,212,.3) 21px,rgba(94,234,212,0) 25px)",
+      title: "linear-gradient(100deg,#a7f3d0,#7dd3fc,#c4b5fd)",
+      card: "linear-gradient(165deg,rgba(190,255,238,.2),rgba(196,170,255,.08))",
+      cardShadow: "inset 0 1px 0 rgba(167,243,208,.6), inset 0 0 0 .5px rgba(167,243,208,.25)",
+      ring: "conic-gradient(#8b5cf6 0 18%,transparent 0 20%,#0891b2 0 32%,transparent 0 34%,#d97706 0 42%,rgba(222,244,255,.12) 0)",
+      line: "rgba(222,244,255,.35)",
+      areas: ["linear-gradient(180deg,#0f9f86,#0b3f66 62%,#0a2450)", "linear-gradient(180deg,#c026d3,#4c2aa6 62%,#251a6e)"],
+      areaShadow: "inset 0 1px 0 rgba(210,255,240,.55)",
       radius: 9,
     },
   },
@@ -76,19 +79,22 @@ export const THEMES: ThemeInfo[] = [
     id: "polar",
     pair: "aurora",
     name: "Polar",
-    description: "Hell & klar, ideal bei Sonne",
+    description: "Polartag – Eis, Halo und Schnee",
     light: true,
-    themeColor: "#eef2fb",
+    themeColor: "#bedbf8",
     preview: {
-      bg: "radial-gradient(120% 80% at 50% -10%, #dde5ff, #eef2fb 60%)",
-      blobs: ["#a5b4fc", "#7dd3fc", "#f9a8d4"],
-      title: "linear-gradient(100deg,#4f46e5,#2563eb,#0891b2)",
-      card: "rgba(255,255,255,.82)",
-      cardShadow: "inset 0 1px 0 #fff, 0 4px 12px rgba(42,54,110,.12)",
-      ring: "conic-gradient(#8b5cf6 0 18%,transparent 0 20%,#0891b2 0 32%,transparent 0 34%,#d97706 0 42%,rgba(15,23,42,.08) 0)",
-      line: "rgba(15,23,42,.18)",
-      areas: ["linear-gradient(140deg,#6366f1,#3b82f6 60%,#06b6d4)", "linear-gradient(140deg,#ec4899,#fb7185 50%,#fb923c)"],
-      areaShadow: "0 4px 10px rgba(99,102,241,.25)",
+      bg: "linear-gradient(180deg,#bcd9f8,#ecf3fb 62%,#f6f9fd)",
+      blobs: ["#bae6fd", "transparent", "#ffd9bf"],
+      // Sonne mit Halo-Ring, dazu ein paar Schneeflocken
+      overlay:
+        "radial-gradient(circle at 80% 64%,#fff 0 4px,rgba(255,214,170,.7) 9px,rgba(255,214,170,0) 18px),radial-gradient(circle at 80% 64%,rgba(255,255,255,0) 0 31px,rgba(255,168,112,.55) 32.5px,#fff 34.5px,rgba(120,190,255,.55) 36.5px,rgba(255,255,255,0) 40px),radial-gradient(1.6px 1.6px at 14% 20%,rgba(140,182,230,.95),transparent),radial-gradient(1.6px 1.6px at 46% 12%,rgba(140,182,230,.95),transparent),radial-gradient(1.6px 1.6px at 30% 70%,rgba(140,182,230,.95),transparent)",
+      title: "linear-gradient(100deg,#0b3a8c,#1d6fe0,#0891b2)",
+      card: "linear-gradient(168deg,rgba(255,255,255,.92),rgba(236,246,255,.74))",
+      cardShadow: "inset 0 1px 0 #fff, 0 4px 12px rgba(30,76,128,.14)",
+      ring: "conic-gradient(#8b5cf6 0 18%,transparent 0 20%,#0891b2 0 32%,transparent 0 34%,#d97706 0 42%,rgba(12,38,66,.1) 0)",
+      line: "rgba(12,38,66,.2)",
+      areas: ["linear-gradient(155deg,#1e40af,#0369a1 48%,#0e9fc4)", "linear-gradient(155deg,#86198f,#c0266d 46%,#ea6a4b)"],
+      areaShadow: "inset 0 1px 0 rgba(255,255,255,.6), 0 4px 10px rgba(14,116,214,.22)",
       radius: 9,
     },
   },

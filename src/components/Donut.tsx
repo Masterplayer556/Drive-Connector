@@ -35,7 +35,7 @@ const TOP = -Math.PI / 2;
 
 /**
  * Speicher-Diagramm: ein Teil pro Konto. Jedes Design hat seine eigene Form –
- * Aurora Ring mit Nordlicht, Sunset Sonne am Horizont, Polar Kompass, Neon Arcade-Anzeige,
+ * Aurora Ring mit Nordlicht und Strahlenkranz, Sunset Sonne am Horizont, Polar Kompass auf Eis, Neon Arcade-Anzeige,
  * Riso gedruckte Torte, Tinte Pinselkreis mit Stempel, Botanik Blüte, Terminal Zeichen-Ring,
  * Tiefsee Aquarium, Kosmos Planet mit Umlaufbahn.
  * Antippen spielt die Animation nochmal ab; `replay` (z. B. beim Hinwischen) ebenso.
@@ -101,7 +101,7 @@ function Stage({ theme, segments, total, size }: { theme: ThemeId; segments: Seg
 /** Verzögerung, damit sich die Teile nacheinander füllen. */
 const delay = (from: number, total = 1.1) => ({ transitionDelay: `${Math.round(from * total * 1000)}ms` });
 
-/* ---------- Aurora: Ring, ein Bogen füllt von 0° bis zum Verbrauch, dahinter wandert Nordlicht ---------- */
+/* ---------- Aurora: Ring, ein Bogen füllt von 0° bis zum Verbrauch, dahinter wandert Nordlicht, aussen ein Strahlenkranz ---------- */
 function AuroraRing({ ranges, usedFrac, shown, size, uid }: Shape) {
   const r = 52;
   const c = TAU * r;
@@ -111,6 +111,7 @@ function AuroraRing({ ranges, usedFrac, shown, size, uid }: Shape) {
   return (
     <>
       <span className="donut-shimmer" aria-hidden="true" />
+      <span className="donut-rays" aria-hidden="true" />
       <svg viewBox="-10 -10 140 140" width={size} height={size}>
         <defs>
           <mask id={`${uid}-m`} maskUnits="userSpaceOnUse" x="-40" y="-40" width="200" height="200">
@@ -204,12 +205,21 @@ function SunGauge({ ranges, usedFrac, shown, size, uid }: Shape) {
   );
 }
 
-/* ---------- Polar: Kompass-Ring aus feinen Strichen, die Nadel dreht sich einmal ein ---------- */
-function Compass({ ranges, shown, size }: Shape) {
+/* ---------- Polar: Kompass auf einer Eisscheibe – Striche füllen sich, der Zeiger dreht sich ans Ende des Verbrauchs ---------- */
+function Compass({ ranges, usedFrac, shown, size, uid }: Shape) {
   const n = 60;
   return (
     <svg viewBox="-10 -10 140 140" width={size} height={size}>
-      <circle className="compass-inner" cx="60" cy="60" r="40" />
+      <defs>
+        <radialGradient id={`${uid}-ice`} cx="0.36" cy="0.28" r="0.85">
+          <stop offset="0" stopColor="#fff" />
+          <stop offset="1" stopColor="#dbeafb" />
+        </radialGradient>
+      </defs>
+      <circle className="compass-inner" cx="60" cy="60" r="40" fill={`url(#${uid}-ice)`} />
+      {/* Windrose: vier Spitzen, je eine Hälfte etwas dunkler (wie geschliffen) */}
+      <path className="compass-rose" d="M60 23 L64.5 55.5 L97 60 L64.5 64.5 L60 97 L55.5 64.5 L23 60 L55.5 55.5 Z" />
+      <path className="compass-rose shade" d="M60 23 L64.5 55.5 L60 60 Z M97 60 L64.5 64.5 L60 60 Z M60 97 L55.5 64.5 L60 60 Z M23 60 L55.5 55.5 L60 60 Z" />
       {Array.from({ length: n }, (_, i) => {
         const color = colorAt(ranges, (i + 0.5) / n);
         const a = TOP + (i / n) * TAU;
@@ -229,7 +239,7 @@ function Compass({ ranges, shown, size }: Shape) {
           />
         );
       })}
-      <path className="compass-needle" d="M60 -7 L65 2 L55 2 Z" />
+      <path className="compass-needle" d="M60 4.5 L65 -7 L60 -4 L55 -7 Z" style={{ ["--to" as string]: `${usedFrac * 360}deg` }} />
     </svg>
   );
 }

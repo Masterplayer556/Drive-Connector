@@ -1,6 +1,7 @@
 /* =========================================================================
-   Drive Pool – Design „Aurora“
-   Dunkler Grund, schwebende Nordlicht-Verläufe, Glasflächen, weiche Bewegung
+   Drive Pool – Grundgerüst
+   Dunkler Grund, schwebende Verläufe, Glasflächen, weiche Bewegung.
+   Die Werte hier sind die Ausgangsbasis; jedes Design (auch Aurora) überschreibt sie weiter unten.
    ========================================================================= */
 
 :root {
@@ -34,7 +35,7 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   color-scheme: dark;
 
-  /* Design-Variablen (Standard: Aurora) – jedes Design überschreibt sie unten */
+  /* Design-Variablen (Ausgangsbasis) – jedes Design überschreibt sie unten */
   --bg-rgb: 6, 9, 19;
   --surface-rgb: 16, 21, 42;
   --scrim-rgb: 3, 5, 12;
@@ -169,6 +170,16 @@ p {
   );
   opacity: 0.35;
   animation: drift3 30s ease-in-out infinite alternate;
+}
+
+/* Horizont (Bergkamm, Eisberge …) – nur in Designs, die ihn einschalten */
+.aurora b {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
 }
 
 .aurora::after {
@@ -2630,10 +2641,271 @@ p {
 }
 
 /* =========================================================================
-   Designs (umschaltbar unter „Mehr“). Aurora ist der Standard oben.
+   Designs (umschaltbar unter „Mehr“). Aurora ist der Standard.
    ========================================================================= */
 .btn.primary {
   color: var(--on-accent);
+}
+
+/* =========================================================================
+   Aurora: Polarnacht. Zwei Nordlicht-Vorhänge wehen über einem Bergkamm, darüber Sterne.
+   Glas mit grün-violetter Lichtkante, Bereichskarten als Nachthimmel mit eigenem Vorhang.
+   ========================================================================= */
+:root[data-theme="aurora"] {
+  --bg: #040915;
+  --bg-rgb: 4, 9, 21;
+  --surface-rgb: 10, 22, 40;
+  --scrim-rgb: 2, 5, 12;
+  --tint-rgb: 222, 244, 255;
+  --text: #effcff;
+  --muted: #a6c0d1;
+  --faint: #7d98ad;
+  --glow-rgb: 45, 212, 191;
+  --accent-rgb: 52, 211, 153;
+  --accent2-rgb: 167, 139, 250;
+  --accent3-rgb: 34, 211, 238;
+  --violet: #34d399;
+  --cyan: #5eead4;
+  --grad: linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #8b5cf6 100%);
+  --grad-text: linear-gradient(100deg, #a7f3d0 0%, #5eead4 22%, #7dd3fc 44%, #c4b5fd 66%, #f0abfc 84%, #a7f3d0 100%);
+  --aurora-top: #0a1838;
+  --blob1: #10b981;
+  --blob2: #7c3aed;
+  --blob3: #0d9488;
+  --blob-opacity: 0.26;
+  --grain-opacity: 0;
+  /* Oben leuchtet der Himmel, unten ist es Nacht – dort steht die Schrift */
+  --area-archiv:
+    radial-gradient(1.2px 1.2px at 84% 16%, #fff, transparent), radial-gradient(1px 1px at 62% 9%, #d1fae5, transparent),
+    radial-gradient(1px 1px at 93% 38%, #fff, transparent),
+    linear-gradient(180deg, #0f9f86 0%, #0c6f7c 30%, #0b3f66 62%, #0a2450 100%);
+  --area-privat:
+    radial-gradient(1.2px 1.2px at 82% 14%, #fff, transparent), radial-gradient(1px 1px at 58% 8%, #fbcfe8, transparent),
+    radial-gradient(1px 1px at 94% 36%, #fff, transparent),
+    linear-gradient(180deg, #c026d3 0%, #8b30dc 30%, #4c2aa6 62%, #251a6e 100%);
+  --area-claude:
+    radial-gradient(1.2px 1.2px at 52% 22%, #fff, transparent), radial-gradient(1px 1px at 38% 70%, #fed7aa, transparent),
+    linear-gradient(100deg, #24142c 0%, #6b2a1c 34%, #c9603a 70%, #f4ad7c 100%);
+  --lg-fill: linear-gradient(
+    165deg,
+    rgba(190, 255, 238, 0.14) 0%,
+    rgba(140, 225, 255, 0.05) 38%,
+    rgba(150, 140, 255, 0.04) 64%,
+    rgba(196, 170, 255, 0.11) 100%
+  );
+  --lg-rim: linear-gradient(
+    140deg,
+    rgba(167, 243, 208, 0.9) 0%,
+    rgba(94, 234, 212, 0.16) 28%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(167, 139, 250, 0.18) 72%,
+    rgba(216, 180, 254, 0.65) 100%
+  );
+}
+
+/* Nachthimmel: oben tiefblau, am Horizont ein grünlicher Schein */
+:root[data-theme="aurora"] .aurora {
+  background:
+    radial-gradient(120% 30% at 50% 82%, rgba(45, 212, 191, 0.16), rgba(45, 212, 191, 0) 70%),
+    linear-gradient(180deg, #07122e 0%, #061026 38%, #050c1c 68%, #040915 100%);
+}
+
+/* Vorderer Vorhang: grün mit violettem Saum, wellige Unterkante */
+:root[data-theme="aurora"] .aurora::before {
+  left: -35%;
+  right: -35%;
+  top: -9vh;
+  height: 70vh;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 600' preserveAspectRatio='none'%3E%3ClinearGradient id='g' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23a78bfa' stop-opacity='0'/%3E%3Cstop offset='0.3' stop-color='%238b7cf6' stop-opacity='0.26'/%3E%3Cstop offset='0.6' stop-color='%232dd4bf' stop-opacity='0.46'/%3E%3Cstop offset='0.86' stop-color='%2334d399' stop-opacity='0.85'/%3E%3Cstop offset='0.955' stop-color='%23bbf7d0' stop-opacity='1'/%3E%3Cstop offset='1' stop-color='%2334d399' stop-opacity='0'/%3E%3C/linearGradient%3E%3Cg fill='url%28%23g%29'%3E%3Crect width='17.32' height='233' transform='matrix%281 -.66 0 1 26.22 199%29' opacity='.07'/%3E%3Crect width='29.79' height='214' transform='matrix%281 -.87 0 1 43.39 207%29' opacity='.12'/%3E%3Crect width='14.79' height='185' transform='matrix%281 -.64 0 1 73.03 210%29' opacity='.33'/%3E%3Crect width='14.69' height='174' transform='matrix%281 -.21 0 1 87.66 211%29' opacity='.26'/%3E%3Crect width='31.57' height='167' transform='matrix%281 .43 0 1 102.2 215%29' opacity='.64'/%3E%3Crect width='39.65' height='162' transform='matrix%281 .31 0 1 133.62 233%29' opacity='.33'/%3E%3Crect width='30.46' height='180' transform='matrix%281 -.32 0 1 173.12 228%29' opacity='.39'/%3E%3Crect width='16.56' height='207' transform='matrix%281 -.21 0 1 203.43 191%29' opacity='.47'/%3E%3Crect width='26.94' height='225' transform='matrix%281 .12 0 1 219.84 170%29' opacity='.43'/%3E%3Crect width='17.48' height='257' transform='matrix%281 .16 0 1 246.63 141%29' opacity='.4'/%3E%3Crect width='12.99' height='277' transform='matrix%281 -.09 0 1 263.96 124%29' opacity='.39'/%3E%3Crect width='24.48' height='290' transform='matrix%281 -.48 0 1 276.8 109%29' opacity='.3'/%3E%3Crect width='26.69' height='312' transform='matrix%281 -.54 0 1 301.14 76%29' opacity='.47'/%3E%3Crect width='26.14' height='326' transform='matrix%281 .17 0 1 327.67 47%29' opacity='.55'/%3E%3Crect width='24.96' height='330' transform='matrix%281 .87 0 1 353.67 48%29' opacity='.83'/%3E%3Crect width='40.08' height='322' transform='matrix%281 .81 0 1 378.47 77%29' opacity='.4'/%3E%3Crect width='35.68' height='292' transform='matrix%281 .63 0 1 418.4 140%29' opacity='.47'/%3E%3Crect width='20.98' height='252' transform='matrix%281 1.08 0 1 453.93 202%29' opacity='.51'/%3E%3Crect width='20.24' height='228' transform='matrix%281 1.24 0 1 474.76 249%29' opacity='.47'/%3E%3Crect width='33.61' height='206' transform='matrix%281 .65 0 1 494.85 296%29' opacity='.34'/%3E%3Crect width='35.85' height='176' transform='matrix%281 -.38 0 1 528.31 347%29' opacity='.38'/%3E%3Crect width='38.98' height='162' transform='matrix%281 -.3 0 1 564.01 348%29' opacity='.33'/%3E%3Crect width='12.17' height='171' transform='matrix%281 -.07 0 1 602.84 328%29' opacity='.79'/%3E%3Crect width='37.64' height='178' transform='matrix%281 -.41 0 1 614.85 319%29' opacity='.69'/%3E%3Crect width='39.6' height='212' transform='matrix%281 -.72 0 1 652.34 270%29' opacity='.75'/%3E%3Crect width='14.2' height='258' transform='matrix%281 -.16 0 1 691.79 195%29' opacity='.51'/%3E%3Crect width='33.95' height='275' transform='matrix%281 .37 0 1 705.84 177%29' opacity='.62'/%3E%3Crect width='14.59' height='308' transform='matrix%281 .32 0 1 739.63 156%29' opacity='.43'/%3E%3Crect width='39.14' height='318' transform='matrix%281 -.29 0 1 754.07 151%29' opacity='.26'/%3E%3Crect width='15.45' height='330' transform='matrix%281 -.56 0 1 793.07 127%29' opacity='.39'/%3E%3Crect width='14.98' height='328' transform='matrix%281 -.4 0 1 808.37 121%29' opacity='.49'/%3E%3Crect width='34.47' height='322' transform='matrix%281 -.18 0 1 823.2 121%29' opacity='.51'/%3E%3Crect width='27.81' height='297' transform='matrix%281 -.6 0 1 857.52 140%29' opacity='.57'/%3E%3Crect width='17.49' height='267' transform='matrix%281 -1.16 0 1 885.18 153%29' opacity='.52'/%3E%3Crect width='15.82' height='247' transform='matrix%281 -1.28 0 1 902.52 153%29' opacity='.61'/%3E%3Crect width='15.41' height='229' transform='matrix%281 -1.04 0 1 918.18 152%29' opacity='.75'/%3E%3Crect width='18.11' height='211' transform='matrix%281 -.53 0 1 933.45 153%29' opacity='.82'/%3E%3Crect width='39.34' height='193' transform='matrix%281 .14 0 1 951.41 161%29' opacity='.47'/%3E%3Crect width='20.67' height='167' transform='matrix%281 .15 0 1 990.59 193%29' opacity='.32'/%3E%3Crect width='18.05' height='162' transform='matrix%281 .05 0 1 1011.11 201%29' opacity='.43'/%3E%3Crect width='36.07' height='164' transform='matrix%281 .48 0 1 1029.01 200%29' opacity='.27'/%3E%3Crect width='14.96' height='183' transform='matrix%281 1.15 0 1 1064.93 199%29' opacity='.13'/%3E%3Crect width='18.12' height='195' transform='matrix%281 1.31 0 1 1079.74 203%29' opacity='.25'/%3E%3Crect width='33.79' height='214' transform='matrix%281 .84 0 1 1097.71 208%29' opacity='.2'/%3E%3Crect width='20.45' height='253' transform='matrix%281 .1 0 1 1131.35 197%29' opacity='.2'/%3E%3Crect width='14.67' height='277' transform='matrix%281 -.05 0 1 1151.64 175%29' opacity='.1'/%3E%3Crect width='18.95' height='292' transform='matrix%281 .12 0 1 1166.17 159%29' opacity='.05'/%3E%3C/g%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  -webkit-mask: none;
+  mask: none;
+  mix-blend-mode: screen;
+  opacity: 0.95;
+  transform-origin: 50% 0;
+  animation: curtain 19s ease-in-out infinite alternate;
+}
+
+/* Lichtflecken: grüner Schein oben links, Horizontglühen unten – der mittlere wird zum hinteren Vorhang */
+:root[data-theme="aurora"] .aurora i:nth-child(2) {
+  left: -45%;
+  right: -45%;
+  top: -12vh;
+  width: auto;
+  height: 62vh;
+  border-radius: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 600' preserveAspectRatio='none'%3E%3ClinearGradient id='g' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23f472b6' stop-opacity='0'/%3E%3Cstop offset='0.32' stop-color='%23d946ef' stop-opacity='0.22'/%3E%3Cstop offset='0.64' stop-color='%23a78bfa' stop-opacity='0.42'/%3E%3Cstop offset='0.88' stop-color='%23818cf8' stop-opacity='0.72'/%3E%3Cstop offset='0.96' stop-color='%23c7d2fe' stop-opacity='0.85'/%3E%3Cstop offset='1' stop-color='%23818cf8' stop-opacity='0'/%3E%3C/linearGradient%3E%3Cg fill='url%28%23g%29'%3E%3Crect width='15.08' height='260' transform='matrix%281 .33 0 1 37.68 25%29' opacity='.11'/%3E%3Crect width='44.34' height='277' transform='matrix%281 .11 0 1 52.6 13%29' opacity='.2'/%3E%3Crect width='42.98' height='317' transform='matrix%281 .18 0 1 96.79 -22%29' opacity='.62'/%3E%3Crect width='29.16' height='330' transform='matrix%281 .61 0 1 139.62 -28%29' opacity='.72'/%3E%3Crect width='31.55' height='322' transform='matrix%281 .49 0 1 168.63 -2%29' opacity='.5'/%3E%3Crect width='14.57' height='299' transform='matrix%281 .09 0 1 200.03 37%29' opacity='.48'/%3E%3Crect width='23.09' height='284' transform='matrix%281 -.22 0 1 214.45 53%29' opacity='.24'/%3E%3Crect width='38.65' height='258' transform='matrix%281 -.23 0 1 237.39 73%29' opacity='.4'/%3E%3Crect width='39.66' height='213' transform='matrix%281 .25 0 1 275.9 109%29' opacity='.49'/%3E%3Crect width='33.91' height='177' transform='matrix%281 .26 0 1 315.41 155%29' opacity='.71'/%3E%3Crect width='14.21' height='163' transform='matrix%281 .03 0 1 349.17 178%29' opacity='.49'/%3E%3Crect width='20.85' height='162' transform='matrix%281 -.02 0 1 363.22 179%29' opacity='.87'/%3E%3Crect width='45.59' height='167' transform='matrix%281 .4 0 1 383.92 174%29' opacity='.52'/%3E%3Crect width='23.41' height='201' transform='matrix%281 .94 0 1 429.36 159%29' opacity='.39'/%3E%3Crect width='31.41' height='226' transform='matrix%281 .84 0 1 452.62 155%29' opacity='.43'/%3E%3Crect width='20.7' height='263' transform='matrix%281 .41 0 1 483.87 145%29' opacity='.24'/%3E%3Crect width='36.25' height='286' transform='matrix%281 .09 0 1 504.43 130%29' opacity='.21'/%3E%3Crect width='42.75' height='317' transform='matrix%281 .19 0 1 540.53 102%29' opacity='.41'/%3E%3Crect width='25.71' height='330' transform='matrix%281 .09 0 1 583.13 97%29' opacity='.65'/%3E%3Crect width='18.81' height='324' transform='matrix%281 -.32 0 1 608.69 106%29' opacity='.84'/%3E%3Crect width='23.79' height='312' transform='matrix%281 -.76 0 1 627.35 111%29' opacity='.64'/%3E%3Crect width='14.26' height='292' transform='matrix%281 -.98 0 1 650.99 114%29' opacity='.63'/%3E%3Crect width='24.96' height='277' transform='matrix%281 -.89 0 1 665.1 115%29' opacity='.82'/%3E%3Crect width='40.34' height='248' transform='matrix%281 -.42 0 1 689.91 121%29' opacity='.67'/%3E%3Crect width='24.26' height='203' transform='matrix%281 -.22 0 1 730.11 150%29' opacity='.49'/%3E%3Crect width='36.7' height='181' transform='matrix%281 -.45 0 1 754.21 166%29' opacity='.52'/%3E%3Crect width='45.35' height='163' transform='matrix%281 -.34 0 1 790.76 168%29' opacity='.43'/%3E%3Crect width='38.14' height='171' transform='matrix%281 .3 0 1 835.96 145%29' opacity='.31'/%3E%3Crect width='14.73' height='201' transform='matrix%281 .35 0 1 873.96 126%29' opacity='.46'/%3E%3Crect width='25.87' height='217' transform='matrix%281 .06 0 1 888.54 115%29' opacity='.61'/%3E%3Crect width='14.44' height='247' transform='matrix%281 -.29 0 1 914.25 87%29' opacity='.96'/%3E%3Crect width='19.94' height='263' transform='matrix%281 -.45 0 1 928.54 66%29' opacity='.47'/%3E%3Crect width='20.44' height='285' transform='matrix%281 -.4 0 1 948.33 35%29' opacity='.57'/%3E%3Crect width='43.9' height='305' transform='matrix%281 -.08 0 1 968.62 7%29' opacity='.43'/%3E%3Crect width='25.17' height='329' transform='matrix%281 -.08 0 1 1012.37 -20%29' opacity='.51'/%3E%3Crect width='30.94' height='329' transform='matrix%281 -.42 0 1 1037.39 -22%29' opacity='.25'/%3E%3Crect width='17.61' height='315' transform='matrix%281 -.54 0 1 1068.18 -21%29' opacity='.18'/%3E%3Crect width='39.66' height='301' transform='matrix%281 -.11 0 1 1085.64 -16%29' opacity='.12'/%3E%3Crect width='15.32' height='259' transform='matrix%281 .48 0 1 1125.15 21%29' opacity='.1'/%3E%3Crect width='17.07' height='241' transform='matrix%281 .7 0 1 1140.32 47%29' opacity='.14'/%3E%3Crect width='33.7' height='221' transform='matrix%281 .68 0 1 1157.24 78%29' opacity='.04'/%3E%3C/g%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  opacity: 0.7;
+  transform-origin: 50% 0;
+  animation: curtainBack 27s ease-in-out infinite alternate;
+}
+
+@keyframes curtainBack {
+  from {
+    transform: skewX(9deg) translateX(7%) scaleY(1.12);
+  }
+  55% {
+    transform: skewX(-2deg) translateX(-2%) scaleY(0.96);
+  }
+  to {
+    transform: skewX(-9deg) translateX(-8%) scaleY(1.06);
+  }
+}
+
+:root[data-theme="aurora"] .aurora i:nth-child(3) {
+  opacity: 0.22;
+}
+
+/* Bergkamm, vom Nordlicht angeleuchtet */
+:root[data-theme="aurora"] .aurora b {
+  display: block;
+  height: 26vh;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 260'%3E%3Cpath d='M0 150L60 120L110 140L170 82L215 116L260 72L300 102L350 40L400 96L440 62L500 112L545 76L600 126L650 96L710 136L760 110L800 150V260H0Z' fill='%230a1a36'/%3E%3Cpath d='M170 82L215 116L196 118ZM260 72L300 102L280 106ZM350 40L400 96L372 98L362 70ZM440 62L500 112L470 110ZM545 76L600 126L572 124Z' fill='%235eead4' fill-opacity='.13'/%3E%3Cpath d='M0 150L60 120L110 140L170 82L215 116L260 72L300 102L350 40L400 96L440 62L500 112L545 76L600 126L650 96L710 136L760 110L800 150' fill='none' stroke='%236ee7b7' stroke-opacity='.3' stroke-width='1.2'/%3E%3Cpath d='M0 212L50 186L100 202L160 152L210 186L270 142L330 192L390 162L450 202L510 152L570 196L640 166L700 202L750 182L800 212V260H0Z' fill='%23040a16'/%3E%3C/svg%3E") bottom center / auto 100% repeat-x;
+}
+
+/* Sterne im oberen Teil des Himmels, funkeln leicht */
+:root[data-theme="aurora"] .aurora::after {
+  inset: 0;
+  opacity: 1;
+  mix-blend-mode: normal;
+  background-image:
+    radial-gradient(1px 1px at 24px 40px, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 150px 22px, #d1fae5, transparent),
+    radial-gradient(1px 1px at 290px 96px, #fff, transparent),
+    radial-gradient(1px 1px at 96px 150px, #e0e7ff, transparent),
+    radial-gradient(1.5px 1.5px at 236px 210px, #fff, transparent),
+    radial-gradient(1px 1px at 40px 268px, #fff, transparent),
+    radial-gradient(1px 1px at 330px 300px, #d1fae5, transparent),
+    radial-gradient(1px 1px at 176px 352px, #fff, transparent);
+  background-size: 380px 400px;
+  -webkit-mask: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.7) 35%, transparent 68%);
+  mask: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.7) 35%, transparent 68%);
+  animation: twinkle 5s ease-in-out infinite alternate;
+}
+
+/* Titel: die Farben wandern langsam durch die Schrift */
+:root[data-theme="aurora"] .topbar-title h1 .grad-text {
+  background-size: 240% 100%;
+  /* kleiner Schein: ein grosser würde an der Titelzeile abgeschnitten */
+  filter: drop-shadow(0 0 6px rgba(var(--glow-rgb), 0.4));
+  animation: auroraFlow 12s linear infinite;
+}
+
+@keyframes auroraFlow {
+  to {
+    background-position: -240% 0;
+  }
+}
+
+:root[data-theme="aurora"] .topbar-title .eyebrow {
+  letter-spacing: 0.14em;
+  color: #7fd9c4;
+}
+
+/* Kleiner Nordlicht-Strich vor jeder Überschrift */
+:root[data-theme="aurora"] .section-title > span:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  margin-right: 8px;
+  border-radius: 3px;
+  vertical-align: middle;
+  background: linear-gradient(90deg, #34d399, #22d3ee 55%, #a78bfa);
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.7);
+  transform: translateY(-1px);
+}
+
+/* Glas: statt weissem Glanz ein grüner Schimmer oben und ein violetter unten */
+:root[data-theme="aurora"] .glass::after,
+:root[data-theme="aurora"] .icon-btn::after {
+  background:
+    radial-gradient(130% 70% at 20% -12%, rgba(110, 231, 183, 0.26), rgba(110, 231, 183, 0) 56%),
+    radial-gradient(110% 60% at 96% 112%, rgba(167, 139, 250, 0.22), rgba(167, 139, 250, 0) 58%);
+}
+
+/* Bereichskarten: Nachthimmel-Fenster mit eigenem, wehendem Vorhang */
+:root[data-theme="aurora"] .area-card {
+  isolation: isolate;
+  box-shadow:
+    inset 0 1.5px 0.5px -0.5px rgba(210, 255, 240, 0.75),
+    inset 0 0 0 0.5px rgba(210, 255, 240, 0.28),
+    0 0 26px rgba(45, 212, 191, 0.16),
+    0 16px 36px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="aurora"] .area-card.privat {
+  box-shadow:
+    inset 0 1.5px 0.5px -0.5px rgba(250, 220, 255, 0.75),
+    inset 0 0 0 0.5px rgba(250, 220, 255, 0.28),
+    0 0 26px rgba(192, 38, 211, 0.2),
+    0 16px 36px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="aurora"] .area-card.claude {
+  box-shadow:
+    inset 0 1.5px 0.5px -0.5px rgba(255, 232, 214, 0.75),
+    inset 0 0 0 0.5px rgba(255, 232, 214, 0.28),
+    0 0 26px rgba(217, 119, 87, 0.2),
+    0 16px 36px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="aurora"] .area-card::after {
+  z-index: -1;
+  inset: -4% -18% 26% -8%;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 200' preserveAspectRatio='none'%3E%3ClinearGradient id='g' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='0'/%3E%3Cstop offset='0.45' stop-color='%23fff' stop-opacity='0.2'/%3E%3Cstop offset='0.86' stop-color='%23fff' stop-opacity='0.6'/%3E%3Cstop offset='0.955' stop-color='%23fff' stop-opacity='0.9'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0'/%3E%3C/linearGradient%3E%3Cg fill='url%28%23g%29'%3E%3Crect width='6.87' height='109' transform='matrix%281 -.26 0 1 12.64 48%29' opacity='.18'/%3E%3Crect width='15.36' height='95' transform='matrix%281 -.03 0 1 19.36 60%29' opacity='.38'/%3E%3Crect width='8.73' height='72' transform='matrix%281 .04 0 1 34.58 82%29' opacity='.38'/%3E%3Crect width='11.32' height='69' transform='matrix%281 -.17 0 1 43.15 86%29' opacity='.46'/%3E%3Crect width='11.39' height='77' transform='matrix%281 -.55 0 1 54.33 76%29' opacity='.41'/%3E%3Crect width='7.81' height='96' transform='matrix%281 -.84 0 1 65.57 51%29' opacity='.28'/%3E%3Crect width='15.7' height='112' transform='matrix%281 -.87 0 1 73.22 29%29' opacity='.31'/%3E%3Crect width='14.3' height='136' transform='matrix%281 -.38 0 1 88.77 -10%29' opacity='.46'/%3E%3Crect width='6.85' height='139' transform='matrix%281 .17 0 1 102.93 -18%29' opacity='.54'/%3E%3Crect width='12.65' height='133' transform='matrix%281 .58 0 1 109.63 -11%29' opacity='.79'/%3E%3Crect width='6.49' height='112' transform='matrix%281 .78 0 1 122.13 18%29' opacity='.34'/%3E%3Crect width='11.35' height='99' transform='matrix%281 .71 0 1 128.47 36%29' opacity='.31'/%3E%3Crect width='15.82' height='79' transform='matrix%281 .34 0 1 139.67 63%29' opacity='.25'/%3E%3Crect width='16.28' height='69' transform='matrix%281 .04 0 1 155.34 78%29' opacity='.54'/%3E%3Crect width='14.96' height='87' transform='matrix%281 .22 0 1 171.47 62%29' opacity='.73'/%3E%3Crect width='16.44' height='116' transform='matrix%281 .59 0 1 186.28 36%29' opacity='.39'/%3E%3Crect width='7.22' height='139' transform='matrix%281 .62 0 1 202.57 23%29' opacity='.43'/%3E%3Crect width='8.54' height='141' transform='matrix%281 .41 0 1 209.65 25%29' opacity='.19'/%3E%3Crect width='10.95' height='136' transform='matrix%281 -.03 0 1 218.03 33%29' opacity='.35'/%3E%3Crect width='9.46' height='120' transform='matrix%281 -.54 0 1 228.83 49%29' opacity='.57'/%3E%3Crect width='10.39' height='102' transform='matrix%281 -.9 0 1 238.14 62%29' opacity='.77'/%3E%3Crect width='12.59' height='83' transform='matrix%281 -.96 0 1 248.39 72%29' opacity='.62'/%3E%3Crect width='16.1' height='70' transform='matrix%281 -.55 0 1 260.82 73%29' opacity='.29'/%3E%3Crect width='16.37' height='78' transform='matrix%281 .01 0 1 276.77 56%29' opacity='.06'/%3E%3C/g%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  filter: none;
+  opacity: 0.85;
+  transform-origin: 50% 0;
+  animation: cardCurtain 7s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i, 0) * -2.6s);
+}
+
+:root[data-theme="aurora"] .area-card.claude::after {
+  inset: -10% -6% -6% 46%;
+}
+
+@keyframes cardCurtain {
+  from {
+    transform: skewX(-9deg) translateX(-4%) scaleY(0.92);
+  }
+  to {
+    transform: skewX(9deg) translateX(5%) scaleY(1.08);
+  }
+}
+
+:root[data-theme="aurora"] .folder-icon {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 0 16px hsl(var(--h) 85% 58% / 0.42);
+}
+
+:root[data-theme="aurora"] .btn.primary,
+:root[data-theme="aurora"] .fab {
+  background: linear-gradient(135deg, #059669 0%, #0891b2 50%, #7c3aed 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.3),
+    0 0 22px rgba(45, 212, 191, 0.35),
+    0 10px 28px rgba(8, 145, 178, 0.4);
+}
+
+:root[data-theme="aurora"] .tab-indicator {
+  background:
+    radial-gradient(120% 90% at 30% -10%, rgba(220, 255, 244, 0.42), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(120deg, rgba(52, 211, 153, 0.46), rgba(34, 211, 238, 0.3) 50%, rgba(167, 139, 250, 0.42));
+  box-shadow:
+    inset 0 1.5px 0.5px -0.5px rgba(220, 255, 244, 0.85),
+    inset 0 0 0 0.5px rgba(167, 243, 208, 0.4),
+    0 0 18px rgba(45, 212, 191, 0.35),
+    0 6px 18px rgba(124, 58, 237, 0.25);
+}
+
+:root[data-theme="aurora"] .banner:not(.warn):not(.error):not(.ok) {
+  border-color: rgba(94, 234, 212, 0.35);
+  background: rgba(45, 212, 191, 0.09);
 }
 
 /* ---------- Sunset: warm, Orange / Pink / Magenta ---------- */
@@ -2680,90 +2952,275 @@ p {
   );
 }
 
-/* ---------- Polar: hell, Eisblau / Indigo, weiche Schatten ---------- */
+/* =========================================================================
+   Polar: Polartag. Tief stehende Sonne mit Halo und Nebensonnen, Eisberge am Horizont,
+   leiser Schneefall. Karten aus Milchglas, Bereiche als Gletscher mit Eisberg, Ordner wie geschliffenes Eis.
+   ========================================================================= */
 :root[data-theme="polar"] {
   color-scheme: light;
-  --bg: #eef2fb;
-  --bg-rgb: 238, 242, 251;
+  --bg: #eaf2fa;
+  --bg-rgb: 234, 242, 250;
   --surface-rgb: 255, 255, 255;
-  --scrim-rgb: 30, 41, 80;
-  --tint-rgb: 15, 23, 42;
-  --shadow-rgb: 42, 54, 110;
+  --scrim-rgb: 16, 42, 72;
+  --tint-rgb: 12, 38, 66;
+  --shadow-rgb: 30, 76, 128;
   --shadow-k: 0.3;
-  --text: #0f172a;
-  --muted: #55607d;
-  --faint: #8a93ad;
-  --glow-rgb: 99, 102, 241;
-  --accent-rgb: 99, 102, 241;
+  --text: #0b2239;
+  --muted: #4a627d;
+  --faint: #8196ad;
+  --glow-rgb: 14, 116, 214;
+  --accent-rgb: 37, 99, 235;
   --accent2-rgb: 6, 182, 212;
-  --accent3-rgb: 59, 130, 246;
-  --violet: #6366f1;
-  --blue: #2563eb;
-  --cyan: #0891b2;
-  --green: #16a34a;
+  --accent3-rgb: 2, 132, 199;
+  --violet: #2563eb;
+  --blue: #1d4ed8;
+  --cyan: #0b74a8;
+  --green: #15803d;
   --red: #e11d48;
-  --amber: #d97706;
+  --amber: #c2610a;
   --pink: #db2777;
-  --grad: linear-gradient(135deg, #6366f1 0%, #3b82f6 50%, #06b6d4 100%);
-  --grad-text: linear-gradient(100deg, #4f46e5 0%, #2563eb 50%, #0891b2 100%);
-  --tab-active: #1e1b4b;
-  --inset-bg: rgba(15, 23, 42, 0.05);
-  --aurora-top: #dde5ff;
-  --blob1: #a5b4fc;
-  --blob2: #7dd3fc;
-  --blob3: #f9a8d4;
-  --blob-opacity: 0.55;
+  --grad: linear-gradient(135deg, #1d4ed8 0%, #0284c7 55%, #06b6d4 100%);
+  --grad-text: linear-gradient(100deg, #0b3a8c 0%, #1d6fe0 48%, #0891b2 100%);
+  --tab-active: #0b2a55;
+  --inset-bg: rgba(12, 38, 66, 0.05);
+  --aurora-top: #cfe4fa;
+  --blob1: #bae6fd;
+  --blob2: #ffd9bf;
+  --blob3: #c7d9f5;
+  --blob-opacity: 0.5;
   --grain-opacity: 0;
   --seg-glow: none;
-  --area-archiv: linear-gradient(140deg, #6366f1 0%, #3b82f6 60%, #06b6d4 100%);
-  --area-privat: linear-gradient(140deg, #ec4899 0%, #fb7185 50%, #fb923c 100%);
-  --area-claude: linear-gradient(120deg, #c2410c 0%, #f97316 50%, #fbbf24 100%);
-  /* Helles Glas: weiss gefüllt, feine kühle Kante, kaum Schatten */
+  --area-archiv: linear-gradient(155deg, #1e40af 0%, #0369a1 48%, #0e9fc4 100%);
+  --area-privat: linear-gradient(155deg, #86198f 0%, #c0266d 46%, #ea6a4b 100%);
+  --area-claude: linear-gradient(110deg, #9a3412 0%, #d9601c 50%, #f2a23c 100%);
+  /* Milchglas: weiss gefüllt, unten ein Hauch Gletscherblau, feine kühle Kante */
   --lg-fill: linear-gradient(
-    165deg,
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(255, 255, 255, 0.62) 40%,
-    rgba(255, 255, 255, 0.55) 65%,
-    rgba(255, 255, 255, 0.78) 100%
+    168deg,
+    rgba(255, 255, 255, 0.88) 0%,
+    rgba(255, 255, 255, 0.58) 42%,
+    rgba(241, 248, 255, 0.5) 68%,
+    rgba(224, 240, 254, 0.72) 100%
   );
   --lg-blur: blur(24px) saturate(170%);
   --lg-shadow:
     inset 0 1.5px 0.5px -0.5px #fff,
-    inset 0 -1px 0.5px rgba(15, 23, 42, 0.04),
-    inset 0 0 0 0.5px rgba(15, 23, 42, 0.07),
-    0 8px 24px rgba(42, 54, 110, 0.09),
-    0 1px 3px rgba(42, 54, 110, 0.07);
+    inset 0 -1px 0.5px rgba(12, 38, 66, 0.05),
+    inset 0 0 0 0.5px rgba(30, 76, 128, 0.1),
+    0 10px 26px rgba(30, 76, 128, 0.1),
+    0 1px 3px rgba(30, 76, 128, 0.08);
   --lg-rim: linear-gradient(
     140deg,
     #fff 0%,
-    rgba(255, 255, 255, 0.5) 30%,
+    rgba(255, 255, 255, 0.55) 30%,
     rgba(255, 255, 255, 0) 50%,
-    rgba(148, 163, 200, 0.28) 75%,
+    rgba(125, 175, 225, 0.34) 76%,
     rgba(255, 255, 255, 0.95) 100%
   );
 }
 
-:root[data-theme="polar"] .glass::after,
-:root[data-theme="polar"] .icon-btn::after {
-  opacity: 0.3;
+/* Himmel: oben klares Eisblau, am Horizont der warme Schein der tiefen Sonne */
+:root[data-theme="polar"] .aurora {
+  background:
+    radial-gradient(110% 26% at 50% 80%, rgba(255, 214, 186, 0.6), rgba(255, 214, 186, 0) 72%),
+    linear-gradient(180deg, #bcd9f8 0%, #d6e7fa 34%, #ecf3fb 64%, #f6f9fd 100%);
 }
 
+/* Tief stehende Sonne mit Halo: heller Kern, feiner Ring (innen warm, aussen kühl) und zwei Nebensonnen */
+:root[data-theme="polar"] .aurora::before {
+  left: calc(72vw - 60vmin);
+  right: auto;
+  top: calc(84vh - 60vmin);
+  width: 120vmin;
+  height: 120vmin;
+  background:
+    radial-gradient(circle closest-side at 50% 50%, #fff 0 5%, rgba(255, 244, 222, 0.95) 8%, rgba(255, 214, 170, 0.55) 17%, rgba(255, 214, 170, 0) 40%),
+    radial-gradient(ellipse 5% 8% at 10.5% 50%, rgba(255, 255, 255, 0.95), rgba(255, 205, 160, 0.5) 45%, rgba(255, 205, 160, 0) 100%),
+    radial-gradient(ellipse 5% 8% at 89.5% 50%, rgba(255, 255, 255, 0.95), rgba(255, 205, 160, 0.5) 45%, rgba(255, 205, 160, 0) 100%),
+    radial-gradient(
+      circle closest-side at 50% 50%,
+      rgba(255, 255, 255, 0) 0 75%,
+      rgba(255, 168, 112, 0.5) 77%,
+      rgba(255, 255, 255, 0.98) 79.5%,
+      rgba(120, 190, 255, 0.5) 82.5%,
+      rgba(255, 255, 255, 0) 89%
+    );
+  -webkit-mask: none;
+  mask: none;
+  filter: none;
+  mix-blend-mode: normal;
+  opacity: 0.9;
+  transform-origin: 50% 50%;
+  animation: halo 9s ease-in-out infinite alternate;
+}
+
+@keyframes halo {
+  from {
+    transform: scale(0.97);
+    opacity: 0.72;
+  }
+  to {
+    transform: scale(1.03);
+    opacity: 1;
+  }
+}
+
+:root[data-theme="polar"] .aurora i:nth-child(3) {
+  opacity: 0.4;
+}
+
+/* Eisberge am Horizont, im Wasser gespiegelt */
+:root[data-theme="polar"] .aurora b {
+  display: block;
+  height: 24vh;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 240'%3E%3Cg id='b'%3E%3Cpath d='M0 200L0 186L70 178L130 184L190 176L260 184L330 174L420 182L520 172L600 182L690 176L800 186V200Z' fill='%23cfe2f5'/%3E%3Cpath d='M186 200L206 164L236 136L262 168L290 200Z' fill='%23bcd7f0'/%3E%3Cpath d='M186 200L206 164L236 136L240 200Z' fill='%23f6fafe'/%3E%3Cpath d='M320 200L346 150L378 164L410 70L440 112L462 98L500 160L520 200Z' fill='%23a9cbeb'/%3E%3Cpath d='M410 70L440 112L428 200L384 200L378 164Z' fill='%23d4e6f7'/%3E%3Cpath d='M346 150L378 164L410 70Z' fill='%23fff'/%3E%3Cpath d='M320 200L346 150L378 164L384 200Z' fill='%23edf5fc'/%3E%3Cpath d='M440 112L462 98L500 160L470 150Z' fill='%23cfe2f5'/%3E%3Cpath d='M546 200L566 172L590 126L612 152L626 144L644 200Z' fill='%23b5d2ee'/%3E%3Cpath d='M546 200L566 172L590 126L596 200Z' fill='%23f8fbfe'/%3E%3C/g%3E%3Crect y='200' width='800' height='40' fill='%23dceaf8'/%3E%3Cuse href='%23b' transform='matrix%281 0 0 -.3 0 260%29' opacity='.45'/%3E%3Cpath d='M0 200H800' stroke='%23fff' stroke-width='1.5'/%3E%3C/svg%3E") bottom center / auto 100% repeat-x;
+}
+
+/* Schnee: eine hohe Ebene, die langsam fällt und dabei leicht hin- und herweht (nur transform) */
+:root[data-theme="polar"] .aurora::after {
+  inset: -100vh 0 auto 0;
+  height: 200vh;
+  opacity: 1;
+  mix-blend-mode: normal;
+  background-image:
+    radial-gradient(circle at 9% 12%, #fff 0 0.6px, rgba(150, 190, 235, 0.75) 1.0px, rgba(150, 190, 235, 0) 3.0px),
+    radial-gradient(circle at 27% 58%, #fff 0 0.4px, rgba(150, 190, 235, 0.75) 0.7px, rgba(150, 190, 235, 0) 2.1px),
+    radial-gradient(circle at 44% 27%, #fff 0 0.7px, rgba(150, 190, 235, 0.75) 1.3px, rgba(150, 190, 235, 0) 4.0px),
+    radial-gradient(circle at 58% 82%, #fff 0 0.5px, rgba(150, 190, 235, 0.75) 0.8px, rgba(150, 190, 235, 0) 2.5px),
+    radial-gradient(circle at 71% 44%, #fff 0 0.6px, rgba(150, 190, 235, 0.75) 1.0px, rgba(150, 190, 235, 0) 3.2px),
+    radial-gradient(circle at 86% 9%, #fff 0 0.4px, rgba(150, 190, 235, 0.75) 0.7px, rgba(150, 190, 235, 0) 2.1px),
+    radial-gradient(circle at 93% 69%, #fff 0 0.7px, rgba(150, 190, 235, 0.75) 1.2px, rgba(150, 190, 235, 0) 3.8px),
+    radial-gradient(circle at 16% 91%, #fff 0 0.5px, rgba(150, 190, 235, 0.75) 0.8px, rgba(150, 190, 235, 0) 2.7px);
+  background-size: 100% 50%;
+  animation:
+    snowFall 34s linear infinite,
+    snowSway 8s ease-in-out infinite alternate;
+}
+
+@keyframes snowFall {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: 0 50%;
+  }
+}
+
+@keyframes snowSway {
+  from {
+    transform: translateX(-9px);
+  }
+  to {
+    transform: translateX(9px);
+  }
+}
+
+:root[data-theme="polar"] .topbar {
+  background: linear-gradient(180deg, rgba(190, 219, 248, 0.94) 0%, rgba(203, 226, 249, 0.6) 70%, rgba(214, 232, 250, 0) 100%);
+}
+
+:root[data-theme="polar"] .topbar-title h1 {
+  letter-spacing: -0.045em;
+}
+
+:root[data-theme="polar"] .topbar-title .eyebrow {
+  letter-spacing: 0.14em;
+  color: #3d6a9c;
+}
+
+/* Kleiner Eiskristall vor jeder Überschrift */
+:root[data-theme="polar"] .section-title > span:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 9px;
+  border-radius: 1.5px;
+  background: linear-gradient(135deg, #bae6fd 0 50%, #2563eb 50%);
+  box-shadow: 0 0 0 2.5px rgba(37, 99, 235, 0.12);
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+/* Glas: schräger Lichtreflex wie auf einer Eisfläche – liegt hinter dem Inhalt, damit Schrift klar bleibt */
+:root[data-theme="polar"] .glass,
+:root[data-theme="polar"] .icon-btn {
+  isolation: isolate;
+}
+
+:root[data-theme="polar"] .glass::after,
+:root[data-theme="polar"] .icon-btn::after {
+  z-index: -1;
+  background:
+    linear-gradient(118deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 26%),
+    linear-gradient(298deg, rgba(170, 212, 248, 0.42) 0%, rgba(170, 212, 248, 0) 28%);
+  mix-blend-mode: normal;
+  opacity: 1;
+}
+
+/* Bereichskarten: Gletscher – unten rechts ragt ein Eisberg mit geschliffenen Flächen auf */
 :root[data-theme="polar"] .area-card {
+  isolation: isolate;
   box-shadow:
-    inset 0 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.75),
+    inset 0 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.8),
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.35),
-    0 12px 28px rgba(var(--glow-rgb), 0.22);
+    inset 0 -34px 40px -30px rgba(8, 30, 90, 0.4),
+    0 14px 28px rgba(14, 116, 214, 0.26);
 }
 
 :root[data-theme="polar"] .area-card.privat {
   box-shadow:
-    inset 0 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.75),
+    inset 0 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.8),
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.35),
-    0 12px 28px rgba(236, 72, 153, 0.22);
+    inset 0 -34px 40px -30px rgba(80, 10, 70, 0.4),
+    0 14px 28px rgba(192, 38, 109, 0.26);
 }
 
+:root[data-theme="polar"] .area-card.claude {
+  box-shadow:
+    inset 0 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.8),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.35),
+    inset 0 -34px 40px -30px rgba(110, 40, 6, 0.35),
+    0 14px 28px rgba(217, 96, 28, 0.26);
+}
+
+:root[data-theme="polar"] .area-card::after {
+  z-index: -1;
+  width: 84px;
+  height: 86px;
+  right: -20px;
+  top: auto;
+  bottom: 0;
+  border-radius: 0;
+  background: conic-gradient(
+    from 90deg at 46% 10%,
+    rgba(255, 255, 255, 0.1) 0deg 62deg,
+    rgba(255, 255, 255, 0.24) 62deg 94deg,
+    rgba(255, 255, 255, 0.5) 94deg 128deg,
+    rgba(255, 255, 255, 0.32) 128deg 180deg,
+    rgba(255, 255, 255, 0) 180deg
+  );
+  -webkit-clip-path: polygon(0 100%, 13% 68%, 27% 76%, 46% 10%, 61% 42%, 72% 33%, 100% 100%);
+  clip-path: polygon(0 100%, 13% 68%, 27% 76%, 46% 10%, 61% 42%, 72% 33%, 100% 100%);
+  filter: none;
+}
+
+:root[data-theme="polar"] .area-card.claude::after {
+  width: 90px;
+  height: 68px;
+  right: 16px;
+}
+
+:root[data-theme="polar"] .area-card .area-icon {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+/* Ordner-Symbole wie geschliffenes Eis: eine helle, schräge Fläche */
 :root[data-theme="polar"] .folder-icon {
-  box-shadow: 0 4px 12px hsl(var(--h) 85% 50% / 0.25);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.34) 0 50%, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(135deg, hsl(var(--h) 82% 60%), hsl(calc(var(--h) + var(--folder-blend, 45)) 82% 50%));
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.5),
+    0 5px 12px hsl(var(--h) 80% 45% / 0.26);
 }
 
 :root[data-theme="polar"] .dot {
@@ -2779,32 +3236,29 @@ p {
 }
 
 :root[data-theme="polar"] .sheet {
-  box-shadow: 0 -12px 40px rgba(42, 54, 110, 0.12);
+  box-shadow: 0 -12px 40px rgba(30, 76, 128, 0.14);
 }
 
 :root[data-theme="polar"] .tab-indicator {
   background:
     radial-gradient(120% 90% at 30% -10%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 60%),
-    linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.16));
+    linear-gradient(135deg, rgba(37, 99, 235, 0.2), rgba(6, 182, 212, 0.18));
   box-shadow:
     inset 0 1.5px 0.5px -0.5px #fff,
-    inset 0 0 0 0.5px rgba(99, 102, 241, 0.22),
-    0 4px 14px rgba(99, 102, 241, 0.16);
+    inset 0 0 0 0.5px rgba(37, 99, 235, 0.24),
+    0 4px 14px rgba(14, 116, 214, 0.18);
 }
 
 :root[data-theme="polar"] .btn.primary,
 :root[data-theme="polar"] .fab {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    0 8px 22px rgba(99, 102, 241, 0.3);
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.3),
+    0 8px 22px rgba(14, 116, 214, 0.34);
   animation: popIn 0.5s var(--spring) both;
 }
 
-:root[data-theme="polar"] .topbar {
-  background: linear-gradient(180deg, rgba(var(--bg-rgb), 0.92) 0%, rgba(var(--bg-rgb), 0.6) 70%, rgba(var(--bg-rgb), 0) 100%);
-}
-
-:root[data-theme="polar"] .banner {
+:root[data-theme="polar"] .banner:not(.warn):not(.error):not(.ok) {
   border-color: rgba(var(--accent2-rgb), 0.35);
   background: rgba(var(--accent2-rgb), 0.08);
 }
@@ -2815,6 +3269,12 @@ p {
 
 :root[data-theme="polar"] .status-pill.err {
   background: rgba(225, 29, 72, 0.1);
+}
+
+:root[data-theme="polar"] .theme-card.on {
+  box-shadow:
+    inset 0 0 0 2px rgba(var(--accent-rgb), 0.9),
+    0 8px 22px rgba(14, 116, 214, 0.22);
 }
 
 /* ---------- Neon: schwarz, Raster, leuchtende Kanten ---------- */
@@ -2917,7 +3377,7 @@ p {
    Stimmungs-Ebene hinter allem (.aurora::before) – pro Design ein eigenes Motiv
    ========================================================================= */
 
-/* Aurora: wehender Nordlicht-Vorhang oben */
+/* Ausgangsbasis: weicher Lichtvorhang oben (jedes Design ersetzt ihn durch sein Motiv) */
 .aurora::before {
   content: "";
   position: absolute;
@@ -2988,37 +3448,6 @@ p {
   to {
     transform: translateY(-2vmin) scale(1.02);
     opacity: 0.4;
-  }
-}
-
-/* Polar: weiche Lichtstrahlen von oben, wie Sonne durch Eis */
-:root[data-theme="polar"] .aurora::before {
-  left: -40%;
-  right: -40%;
-  top: -60vh;
-  height: 140vh;
-  background: repeating-conic-gradient(
-    from 0deg at 50% 0%,
-    rgba(255, 255, 255, 0.95) 0deg 2.5deg,
-    rgba(255, 255, 255, 0) 5deg 8deg,
-    rgba(129, 140, 248, 0.16) 9.5deg 11deg,
-    rgba(255, 255, 255, 0) 13deg 15deg
-  );
-  -webkit-mask: radial-gradient(70% 50% at 50% 46%, #000 0%, transparent 72%);
-  mask: radial-gradient(70% 50% at 50% 46%, #000 0%, transparent 72%);
-  filter: blur(3px);
-  mix-blend-mode: normal;
-  opacity: 0.85;
-  transform-origin: 50% 0;
-  animation: rays 40s linear infinite alternate;
-}
-
-@keyframes rays {
-  from {
-    transform: rotate(-8deg);
-  }
-  to {
-    transform: rotate(8deg);
   }
 }
 
@@ -3778,12 +4207,13 @@ p {
 .compass-needle {
   transform-box: view-box;
   transform-origin: 60px 60px;
-  animation: needleSpin 1.4s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+  transform: rotate(var(--to, 0deg));
+  animation: needleSpin 1.5s cubic-bezier(0.3, 1.4, 0.5, 1) both;
 }
 
 @keyframes needleSpin {
   from {
-    transform: rotate(-300deg);
+    transform: rotate(calc(var(--to, 0deg) - 300deg));
   }
 }
 
@@ -3829,6 +4259,54 @@ p {
   animation: spin 10s linear infinite;
 }
 
+/* Aurora: feiner Strahlenkranz um den Ring – zwei Lagen drehen gegeneinander, dadurch flackert er leicht */
+.donut-rays {
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: raysIn 1.5s var(--ease) both;
+}
+
+.donut-rays::before,
+.donut-rays::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #34d399, #22d3ee, #a78bfa, #f472b6, #a78bfa, #22d3ee, #34d399);
+}
+
+.donut-rays::before {
+  -webkit-mask:
+    repeating-conic-gradient(rgba(0, 0, 0, 0) 0deg 1.6deg, #000 2.3deg 2.9deg, rgba(0, 0, 0, 0) 3.6deg 6deg),
+    radial-gradient(circle closest-side, transparent 76%, #000 79%, rgba(0, 0, 0, 0.5) 88%, transparent 99%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  animation: spin 80s linear infinite;
+}
+
+.donut-rays::after {
+  -webkit-mask:
+    repeating-conic-gradient(rgba(0, 0, 0, 0) 0deg 3deg, #000 3.8deg 4.6deg, rgba(0, 0, 0, 0) 5.4deg 9deg),
+    radial-gradient(circle closest-side, transparent 76%, #000 79%, rgba(0, 0, 0, 0.6) 84%, transparent 91%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  opacity: 0.8;
+  animation: spin 55s linear infinite reverse;
+}
+
+@keyframes raysIn {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+
+.donut-aurora .donut-track {
+  stroke: rgba(var(--tint-rgb), 0.1);
+}
+
 /* Sunset: Sonne am Horizont */
 .sun-svg .donut-track,
 .sun-svg .donut-seg {
@@ -3856,11 +4334,29 @@ p {
   padding-bottom: 3px;
 }
 
-/* Polar: Kompass */
+/* Polar: Kompass auf einer Eisscheibe – Windrose in der Mitte, der Zeiger steht am Ende des Verbrauchs */
 .compass-inner {
-  fill: none;
-  stroke: rgba(var(--tint-rgb), 0.1);
+  stroke: rgba(var(--accent-rgb), 0.16);
   stroke-width: 1;
+  filter: drop-shadow(0 3px 6px rgba(30, 76, 128, 0.14));
+}
+
+.compass-rose {
+  fill: rgba(var(--accent-rgb), 0.07);
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  animation: roseIn 1.1s var(--spring) both;
+}
+
+.compass-rose.shade {
+  fill: rgba(var(--accent-rgb), 0.09);
+}
+
+@keyframes roseIn {
+  from {
+    transform: rotate(-45deg) scale(0.5);
+    opacity: 0;
+  }
 }
 
 .tick {
@@ -3870,7 +4366,7 @@ p {
 }
 
 .tick:not(.on) {
-  stroke: rgba(var(--tint-rgb), 0.13);
+  stroke: rgba(var(--tint-rgb), 0.14);
 }
 
 .tick.major {
@@ -3878,7 +4374,8 @@ p {
 }
 
 .compass-needle {
-  fill: rgb(var(--accent-rgb));
+  fill: #f97316;
+  filter: drop-shadow(0 1px 2px rgba(194, 65, 12, 0.45));
 }
 
 /* Neon: Arcade-Anzeige */
@@ -4036,7 +4533,11 @@ p {
 /* ---------- Hintergrund still (unter „Design → Bewegung“) ---------- */
 .still-bg .aurora i,
 .still-bg .aurora::before,
-.still-bg .donut-shimmer {
+.still-bg .aurora::after,
+:root.still-bg[data-theme="aurora"] .area-card::after,
+.still-bg .donut-shimmer,
+.still-bg .donut-rays::before,
+.still-bg .donut-rays::after {
   animation-play-state: paused;
 }
 
@@ -5079,13 +5580,6 @@ p {
 }
 
 /* ---------- Claude-Karte in den einzelnen Designs ---------- */
-:root[data-theme="polar"] .area-card.claude {
-  box-shadow:
-    inset 0 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.75),
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.35),
-    0 12px 28px rgba(249, 115, 22, 0.22);
-}
-
 :root[data-theme="neon"] .area-card.claude {
   color: #fed7aa;
   border-color: rgba(251, 146, 60, 0.65);
@@ -5109,8 +5603,8 @@ p {
   box-shadow: inset 0 0 0 1px rgba(242, 239, 232, 0.16);
 }
 
-/* ---------- Aurora & Sunset: Titel leuchtet leicht ---------- */
-:root:not([data-theme="polar"]):not([data-theme="riso"]):not([data-theme="neon"]) .topbar-title h1 .grad-text {
+/* ---------- Dunkle Designs: Titel leuchtet leicht (Aurora regelt das selbst) ---------- */
+:root:not([data-theme="aurora"]):not([data-theme="polar"]):not([data-theme="riso"]):not([data-theme="neon"]) .topbar-title h1 .grad-text {
   filter: drop-shadow(0 0 16px rgba(var(--glow-rgb), 0.35));
 }
 
