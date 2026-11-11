@@ -52,6 +52,8 @@ function Aurora() {
       <i />
       <i />
       <i />
+      {/* Horizont – Bergkamm (Aurora) bzw. Eisberge (Polar) */}
+      <b />
     </div>
   );
 }
