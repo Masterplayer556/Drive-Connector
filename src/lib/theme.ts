@@ -109,11 +109,11 @@ export const THEMES: ThemeInfo[] = [
     id: "neon",
     pair: "polar",
     name: "Neon",
-    description: "Schwarz, Raster, leuchtende Kanten",
+    description: "Nachtstadt – Skyline, Raster, Leuchtreklame",
     light: false,
     themeColor: "#000000",
     preview: {
-      bg: "radial-gradient(100% 50% at 50% 115%, rgba(217,70,239,.35), #000 70%)",
+      bg: "linear-gradient(180deg,rgba(0,0,0,0) 66%,#22d3ee 66%,#f0abfc 67%,rgba(0,0,0,0) 67.5%),radial-gradient(110% 34% at 50% 66%, rgba(217,70,239,.5), rgba(217,70,239,0) 70%),linear-gradient(180deg,#03010b,#150726 66%,#000 66%)",
       blobs: ["transparent", "transparent", "transparent"],
       overlay:
         "linear-gradient(rgba(163,230,53,.13) 1px,transparent 1px) 0 0/12px 12px,linear-gradient(90deg,rgba(163,230,53,.13) 1px,transparent 1px) 0 0/12px 12px",
@@ -175,7 +175,7 @@ export const THEMES: ThemeInfo[] = [
     id: "botanik",
     pair: "aurora",
     name: "Botanik",
-    description: "Gewächshaus – Salbei, Creme, Terrakotta",
+    description: "Gewächshaus mit Palmen und Topfpflanzen",
     light: true,
     themeColor: "#e8ede0",
     preview: {
@@ -218,7 +218,7 @@ export const THEMES: ThemeInfo[] = [
     id: "tiefsee",
     pair: "polar",
     name: "Tiefsee",
-    description: "Licht von oben, Blasen, leuchtende Quallen",
+    description: "Riff am Meeresgrund, Fischschwarm, Quallen",
     light: false,
     themeColor: "#03161d",
     preview: {
@@ -231,7 +231,7 @@ export const THEMES: ThemeInfo[] = [
       cardShadow: "inset 0 1px 0 rgba(200,255,255,.45), inset 0 0 0 .5px rgba(200,255,255,.25)",
       ring: "conic-gradient(#5ad1e6 0 18%,transparent 0 20%,#14b8a6 0 32%,transparent 0 34%,#a78bfa 0 42%,rgba(160,240,255,.12) 0)",
       line: "rgba(200,255,255,.35)",
-      areas: ["linear-gradient(150deg,#0e7490,#14b8a6)", "linear-gradient(150deg,#6d28d9,#db2777)"],
+      areas: ["linear-gradient(180deg,#19b8a8,#0e7f95 46%,#0a4a66)", "linear-gradient(180deg,#c026d3,#7e3adb 46%,#3a1c7c)"],
       areaShadow: "inset 0 1px 0 rgba(255,255,255,.4)",
       radius: 9,
     },
@@ -240,11 +240,11 @@ export const THEMES: ThemeInfo[] = [
     id: "kosmos",
     pair: "polar",
     name: "Kosmos",
-    description: "Sternenhimmel, Planeten, Sternschnuppen",
+    description: "Planet am Horizont, Sternbilder",
     light: false,
     themeColor: "#05050f",
     preview: {
-      bg: "radial-gradient(90% 70% at 85% 0%, #2a1b5c 0%, #0b0b24 55%, #04040d 100%)",
+      bg: "radial-gradient(120% 40% at 50% 118%, #05050f 0 62%, #d6ceff 63%, rgba(124,108,255,.55) 66%, rgba(124,108,255,0) 82%),radial-gradient(90% 70% at 85% 0%, #2a1b5c 0%, #0b0b24 55%, #04040d 100%)",
       blobs: ["transparent", "#4c1d95", "transparent"],
       overlay:
         "radial-gradient(1px 1px at 12% 20%,#fff,transparent),radial-gradient(1px 1px at 40% 8%,#fff,transparent),radial-gradient(1.4px 1.4px at 70% 30%,#fff,transparent),radial-gradient(1px 1px at 92% 64%,#cfe0ff,transparent),radial-gradient(1px 1px at 28% 88%,#fff,transparent),radial-gradient(1.4px 1.4px at 58% 96%,#ffe9c9,transparent)",
@@ -253,7 +253,7 @@ export const THEMES: ThemeInfo[] = [
       cardShadow: "inset 0 0 0 .5px rgba(190,180,255,.4), 0 0 18px rgba(110,90,255,.2)",
       ring: "conic-gradient(#7c6cff 0 18%,transparent 0 20%,#22d3ee 0 32%,transparent 0 34%,#ff7ab8 0 42%,rgba(190,180,255,.12) 0)",
       line: "rgba(190,180,255,.4)",
-      areas: ["radial-gradient(circle at 75% 25%,#7c6cff,#2b1d78 70%)", "radial-gradient(circle at 75% 25%,#ff7ab8,#5a1747 70%)"],
+      areas: ["linear-gradient(160deg,#5a45d6,#2f1f8f 48%,#140d45)", "linear-gradient(160deg,#d6459a,#86256a 48%,#3a0f33)"],
       areaShadow: "inset 0 1px 0 rgba(255,255,255,.3)",
       radius: 9,
     },
