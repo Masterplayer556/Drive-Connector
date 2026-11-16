@@ -2115,6 +2115,9 @@ p {
   display: flex;
   gap: 14px;
   padding: 10px 0;
+  /* Einträge ausserhalb des Bildschirms nicht zeichnen (jede Glas-Karte ist eine eigene Grafik-Ebene) */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
 }
 
 .tl-icon {
@@ -2138,6 +2141,11 @@ p {
   border-radius: 16px;
   word-break: break-word;
   font-size: 0.92rem;
+}
+
+/* Kein zusätzlicher Glanz mit Mischmodus pro Eintrag – spart bei langen Listen viel Grafikspeicher */
+.timeline .tl-body::after {
+  content: none;
 }
 
 .tl-details {
