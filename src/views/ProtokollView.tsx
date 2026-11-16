@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Icon, { type IconName } from "../components/Icon";
 import { LineSkeleton } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
@@ -34,19 +34,37 @@ const STYLE: Record<LogKind, { icon: IconName; bg: string }> = {
   app: { icon: "sparkles", bg: "linear-gradient(135deg,#0ea5e9,#22c55e)" },
 };
 
+/** Einträge pro Portion – alles auf einmal (bis ~700 Glas-Karten) sprengt auf dem iPhone den Arbeitsspeicher */
+const PAGE = 40;
+
 export default function ProtokollView() {
   const [kind, setKind] = useState<LogKind | null>(null);
   const [entries, setEntries] = useState<LogEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<number | null>(null);
+  const [shown, setShown] = useState(PAGE);
+  const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setEntries(null);
+    setShown(PAGE);
     // App-Updates stehen nicht in der Datenbank, sondern kommen aus der Git-Historie (beim Bauen eingelesen)
     (kind === "app" ? Promise.resolve(withAppChanges([])) : fetchLog(kind).then((e) => (kind ? e : withAppChanges(e))))
       .then(setEntries)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [kind]);
+
+  // Weitere Einträge erst beim Herunterscrollen aufbauen
+  const total = entries?.length ?? 0;
+  useEffect(() => {
+    const el = moreRef.current;
+    if (!el || shown >= total) return;
+    const io = new IntersectionObserver((e) => e.some((x) => x.isIntersecting) && setShown((n) => n + PAGE), {
+      rootMargin: "800px 0px",
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [shown, total]);
 
   return (
     <div className="view page-fade">
@@ -74,25 +92,28 @@ export default function ProtokollView() {
           <strong>Noch keine Einträge</strong>
         </div>
       ) : (
-        <ul className="timeline stagger">
-          {entries.map((e, i) => {
-            const st = STYLE[e.kind] ?? STYLE.sync;
-            return (
-              <li key={e.id} style={{ ["--i" as string]: i }} onClick={() => setOpen(open === e.id ? null : e.id)}>
-                <span className="tl-icon" style={{ background: st.bg }}>
-                  <Icon name={st.icon} size={18} />
-                </span>
-                <div className="tl-body glass">
-                  <div>{e.message}</div>
-                  <div className="faint small">{formatDateTime(e.created_at)}</div>
-                  {open === e.id && e.details != null && (
-                    <pre className="tl-details">{JSON.stringify(e.details, null, 2)}</pre>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <ul className="timeline stagger">
+            {entries.slice(0, shown).map((e, i) => {
+              const st = STYLE[e.kind] ?? STYLE.sync;
+              return (
+                <li key={e.id} style={{ ["--i" as string]: i }} onClick={() => setOpen(open === e.id ? null : e.id)}>
+                  <span className="tl-icon" style={{ background: st.bg }}>
+                    <Icon name={st.icon} size={18} />
+                  </span>
+                  <div className="tl-body glass">
+                    <div>{e.message}</div>
+                    <div className="faint small">{formatDateTime(e.created_at)}</div>
+                    {open === e.id && e.details != null && (
+                      <pre className="tl-details">{JSON.stringify(e.details, null, 2)}</pre>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {shown < entries.length && <div ref={moreRef} className="grid-more" aria-hidden />}
+        </>
       )}
     </div>
   );
