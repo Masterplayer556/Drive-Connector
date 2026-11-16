@@ -116,6 +116,7 @@ Ordner können gesperrt werden. Gesperrte Ordner werden **nie** verschoben oder 
 - Duplikat-Liste mit Vorschaubildern nebeneinander (einzige „Ansehen“-Ausnahme), ich entscheide, welche Kopien bleiben (antippen = behalten/entfernen, mindestens eine bleibt).
 - Fokus: gleiche Fotos **im selben Ordner** (eine bleibt) und – als Ausnahme – Kopien im Ordner **„Random“**, wenn das Foto auch woanders liegt (die Random-Kopie kommt weg). Kopien in verschiedenen normalen Ordnern sind eingeklappt („In verschiedenen Ordnern“).
 - Ab 3 gleichen Fotos: „Nur 1 entfernen“ (zuerst die Random-Kopie bzw. die doppelte im selben Ordner).
+- **„Sieht gleich aus“**: dasselbe Bild als andere Datei (zweimal gespeichert, anders benannt, andere Auflösung) hat eine andere Prüfsumme. Dafür wird auf dem Gerät von jedem Foto ein winziges Abbild aus der Vorschau verglichen (ohne KI, einmalig alle Fotos, danach nur neue). Gleiche Fokus-Regeln wie oben; im Ordner bleibt die grösste Datei, entfernt wird nur pro Gruppe (kein „Alle aufräumen“). Das Auge auf der Kachel zeigt die Fotos gross zum Vergleichen.
 
 ### Regel 10 – Speicher und Warnungen
 - Jedes Konto wird bis **100 %** gefüllt. Gmail und Google Fotos müssen nicht funktionieren.

@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import {
   BLEND_DEFAULT,
   BLEND_MAX,
+  dayKey,
+  PREFS_EVENT,
   readFolderBlend,
   readPrefs,
   readStillBackground,
   resolveTheme,
+  rollThemes,
   saveFolderBlend,
   savePrefs,
   saveStillBackground,
@@ -49,15 +52,32 @@ export function ThemePreview({ t }: { t: ThemeInfo }) {
  * Leiste mit allen Designs zum Durchwischen – ohne Einrasten: ein kräftiger Wisch fliegt bis ans Ende.
  * Das gewählte Design wird beim Öffnen in die Mitte geholt.
  */
-function ThemeStrip({ selected, onPick, label }: { selected: ThemeId; onPick: (id: ThemeId) => void; label: string }) {
+function ThemeStrip({
+  selected,
+  onPick,
+  label,
+  rolled = 0,
+}: {
+  selected: ThemeId;
+  onPick: (id: ThemeId) => void;
+  label: string;
+  /** Zählt bei jedem Würfeln hoch → das neue Design gleitet in die Mitte */
+  rolled?: number;
+}) {
   const strip = useRef<HTMLDivElement>(null);
+  const first = useRef(true);
   useEffect(() => {
     const el = strip.current;
     const card = el?.querySelector<HTMLElement>(".theme-card.on");
-    if (el && card) el.scrollLeft = card.offsetLeft - (el.clientWidth - card.offsetWidth) / 2;
-    // nur beim Öffnen – nicht bei jedem Antippen herumspringen
+    if (el && card) {
+      const left = card.offsetLeft - (el.clientWidth - card.offsetWidth) / 2;
+      if (first.current || !el.scrollTo) el.scrollLeft = left;
+      else el.scrollTo({ left, behavior: "smooth" });
+    }
+    first.current = false;
+    // nur beim Öffnen und nach dem Würfeln – nicht bei jedem Antippen herumspringen
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [rolled]);
   return (
     <div className="theme-strip" ref={strip} role="listbox" aria-label={label}>
       {THEMES.map((t) => {
@@ -91,12 +111,30 @@ export default function ThemePicker() {
     saveFolderBlend(v);
   };
 
+  const [rolled, setRolled] = useState(0);
+
   const update = (next: ThemePrefs) => {
     setPrefs(next);
     savePrefs(next);
   };
   // Automatik aus: das gerade sichtbare Design bleibt (kein Sprung)
   const toggleAuto = (auto: boolean) => update(auto ? { ...prefs, auto } : { ...prefs, auto, theme: resolveTheme(prefs) });
+  /** Einmal würfeln: ein anderes Design als jetzt (mit Automatik je eines für hell und dunkel) */
+  const roll = (base: ThemePrefs = prefs) => {
+    update({ ...rollThemes(base), day: dayKey() });
+    setRolled((n) => n + 1);
+  };
+  // „Jeden Tag neu“ einschalten würfelt gleich das erste Mal
+  const toggleDaily = (daily: boolean) => (daily ? roll({ ...prefs, daily }) : update({ ...prefs, daily }));
+  // Mitternacht vorbei, während die Seite offen ist → neue Wahl übernehmen
+  useEffect(() => {
+    const on = () => {
+      setPrefs(readPrefs());
+      setRolled((n) => n + 1);
+    };
+    window.addEventListener(PREFS_EVENT, on);
+    return () => window.removeEventListener(PREFS_EVENT, on);
+  }, []);
 
   return (
     <>
@@ -116,18 +154,42 @@ export default function ThemePicker() {
         </span>
       </label>
 
+      <div className="switch-row glass roll-row" style={{ margin: "10px 18px 0" }}>
+        <label className="roll-daily">
+          <span>
+            <strong>Jeden Tag ein neues Design</strong>
+            <div className="muted small">
+              {!prefs.daily
+                ? prefs.auto
+                  ? "Würfelt täglich ein helles und ein dunkles Design"
+                  : "Würfelt täglich ein Design aus allen"
+                : prefs.auto
+                  ? `Heute: ${nameOf(prefs.light)} (hell) und ${nameOf(prefs.dark)} (dunkel)`
+                  : `Heute: ${nameOf(prefs.theme)}`}
+            </div>
+          </span>
+          <span className="switch">
+            <input type="checkbox" checked={prefs.daily} onChange={(e) => toggleDaily(e.target.checked)} />
+            <span />
+          </span>
+        </label>
+        <button className="btn block roll-btn" onClick={() => roll()}>
+          <Icon name="dice" size={18} /> Jetzt würfeln
+        </button>
+      </div>
+
       {prefs.auto ? (
         <>
           <div className="section-title">
             <span>☀︎ Bei hellem iPhone</span>
             <span className="faint">{nameOf(prefs.light)}</span>
           </div>
-          <ThemeStrip label="Design bei hellem iPhone" selected={prefs.light} onPick={(light) => update({ ...prefs, light })} />
+          <ThemeStrip rolled={rolled} label="Design bei hellem iPhone" selected={prefs.light} onPick={(light) => update({ ...prefs, light })} />
           <div className="section-title">
             <span>☾ Bei dunklem iPhone</span>
             <span className="faint">{nameOf(prefs.dark)}</span>
           </div>
-          <ThemeStrip label="Design bei dunklem iPhone" selected={prefs.dark} onPick={(dark) => update({ ...prefs, dark })} />
+          <ThemeStrip rolled={rolled} label="Design bei dunklem iPhone" selected={prefs.dark} onPick={(dark) => update({ ...prefs, dark })} />
         </>
       ) : (
         <>
@@ -136,6 +198,7 @@ export default function ThemePicker() {
             <span className="faint">{THEMES.length}</span>
           </div>
           <ThemeStrip
+            rolled={rolled}
             label="Design"
             selected={prefs.theme}
             onPick={(theme) => update({ ...prefs, theme })}

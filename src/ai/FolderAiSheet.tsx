@@ -176,18 +176,16 @@ export default function FolderAiSheet({ folder, accounts, onClose }: { folder: L
         </div>
       </div>
       {viewer !== null && items[viewer] && (
-        <div className="ai-similar-viewer">
-          <Suspense fallback={null}>
-            <Viewer
-              items={items}
-              index={viewer}
-              accounts={accounts}
-              onIndex={setViewer}
-              onClose={() => setViewer(null)}
-              action={{ label: `In „${folder.name}“ verschieben`, icon: "move", run: (f) => setMoving(f) }}
-            />
-          </Suspense>
-        </div>
+        <Suspense fallback={null}>
+          <Viewer
+            items={items}
+            index={viewer}
+            accounts={accounts}
+            onIndex={setViewer}
+            onClose={() => setViewer(null)}
+            action={{ label: `In „${folder.name}“ verschieben`, icon: "move", run: (f) => setMoving(f) }}
+          />
+        </Suspense>
       )}
       {moving && (
         // Über der Foto-Ansicht

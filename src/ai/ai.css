@@ -93,12 +93,6 @@
   overflow: hidden;
   flex-shrink: 0;
 }
-/* Ein aus „Ähnliche Fotos“ geöffnetes Foto liegt über dem Fenster */
-.ai-similar-viewer {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-}
 /* Suchart-Menü im Suchfenster – das Suchfeld darf schmaler werden, damit „Fertig“ Platz hat */
 .search-bar .search-field {
   min-width: 0;

@@ -1,7 +1,7 @@
 // Universell: Solange ein Fenster offen ist (Sheet, Menü, Dialog, Foto-Ansicht), bewegt sich die Seite
 // dahinter nicht mehr. Auf dem iPhone scrollte sonst beim Wischen im Fenster oft die Seite dahinter mit
 // (z. B. der Ordner, in dem „Hochladen“ gedrückt wurde).
-const OVERLAYS = ".sheet-backdrop, .modal-backdrop, .menu-backdrop, .viewer, .ai-similar-viewer, .lock-screen";
+const OVERLAYS = ".sheet-backdrop, .modal-backdrop, .menu-backdrop, .viewer, .lock-screen";
 
 let lockedAt: number | null = null;
 

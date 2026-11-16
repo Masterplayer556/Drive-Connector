@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dupKey, inRandom, pickOne, suggestRemoval } from "./duplicates";
+import { biggerFirst, dupKey, inRandom, lookKey, pickOne, suggestRemoval } from "./duplicates";
 import type { Item } from "./types";
 
 const it_ = (id: string, path: string): Item => {
@@ -47,5 +47,14 @@ describe("Duplikate", () => {
   it("nur 1 entfernen: zuerst Random, sonst die doppelte im selben Ordner", () => {
     expect(pickOne([it_("1", "A/x.jpg"), it_("2", "B/x.jpg"), it_("3", "Random/x.jpg")])).toBe("a|3");
     expect(pickOne([it_("1", "A/x.jpg"), it_("2", "A/x (1).jpg"), it_("3", "B/x.jpg")])).toBe("a|2");
+  });
+  it("sieht gleich aus: im selben Ordner bleibt die grösste Datei", () => {
+    const g = [{ ...it_("1", "A/klein.jpg"), size: 100 }, { ...it_("2", "A/gross-kopie.jpg"), size: 900 }, { ...it_("3", "B/x.jpg"), size: 50 }];
+    expect(keys(suggestRemoval(g, biggerFirst))).toEqual([dupKey(g[0])]);
+    expect(pickOne(g, biggerFirst)).toBe("a|1");
+  });
+  it("Schlüssel einer „Sieht gleich aus“-Gruppe hängt nicht von der Reihenfolge ab", () => {
+    expect(lookKey(["b", "a", "b"])).toBe("look:a+b");
+    expect(lookKey(["a", "b"])).toBe(lookKey(["b", "a"]));
   });
 });

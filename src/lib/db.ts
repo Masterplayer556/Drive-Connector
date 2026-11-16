@@ -225,6 +225,50 @@ export async function unignoreDuplicate(md5: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+// „Sieht gleich aus“ (andere Datei, gleiches Bild): Fotos zu den gefundenen Prüfsummen und „bewusst behalten“.
+// Gemerkt wird in derselben Tabelle wie bei den exakten Duplikaten – Schlüssel „look:…“ statt einer Prüfsumme.
+
+/** Alle Fotos mit einer dieser Prüfsummen. */
+export async function fetchItemsByMd5(md5s: string[]): Promise<Item[]> {
+  const out: Item[] = [];
+  const unique = [...new Set(md5s)];
+  for (let i = 0; i < unique.length; i += 150) {
+    const part = unique.slice(i, i + 150);
+    out.push(
+      ...(await fetchAll<Item>((from, to) =>
+        supabase
+          .from("items")
+          .select(ITEM_COLS)
+          .eq("is_folder", false)
+          .not("path", "is", null)
+          .in("md5", part)
+          .order("account_id")
+          .order("drive_id")
+          .range(from, to),
+      )),
+    );
+  }
+  return out;
+}
+
+/** Bewusst behaltene „Sieht gleich aus“-Gruppen: Schlüssel → Ordner, in denen die Fotos damals lagen. */
+export async function fetchLookIgnores(): Promise<Map<string, string[]>> {
+  const rows = await fetchAll<{ md5: string; parent_keys: string[] }>((from, to) =>
+    supabase.from("duplicate_ignores").select("md5,parent_keys").like("md5", "look:%").order("md5").range(from, to),
+  );
+  return new Map(rows.map((r) => [r.md5, r.parent_keys]));
+}
+
+export async function ignoreLook(key: string, parentKeys: string[]): Promise<void> {
+  const { data: s } = await supabase.auth.getSession();
+  const owner_id = s.session?.user.id;
+  if (!owner_id) throw new Error("Nicht angemeldet");
+  const { error } = await supabase
+    .from("duplicate_ignores")
+    .upsert({ owner_id, md5: key, parent_keys: parentKeys, created_at: new Date().toISOString() }, { onConflict: "owner_id,md5" });
+  if (error) throw new Error(error.message);
+}
+
 export interface Settings {
   trash_auto_days: number | null;
 }

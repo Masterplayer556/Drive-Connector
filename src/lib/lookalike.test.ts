@@ -1,0 +1,83 @@
+import { describe, expect, it } from "vitest";
+import { groupLookalikes, sameLook, signature, SOURCE, type Sig } from "./lookalike";
+
+/** Kleiner, fester Zufallsgenerator */
+const rng = (seed: number) => () => {
+  seed = (seed * 1664525 + 1013904223) >>> 0;
+  return seed / 2 ** 32;
+};
+
+type Paint = (x: number, y: number) => [number, number, number];
+
+/** Testbild: weiche Farbflecken (wie ein Foto), aus `seed` */
+function photo(seed: number): Paint {
+  const r = rng(seed);
+  const blobs = Array.from({ length: 7 }, () => ({ x: r(), y: r(), s: 0.08 + r() * 0.25, c: [r() * 255, r() * 255, r() * 255] }));
+  return (x, y) => {
+    const out: [number, number, number] = [30, 30, 30];
+    for (const b of blobs) {
+      const w = Math.exp(-((x - b.x) ** 2 + (y - b.y) ** 2) / (2 * b.s * b.s));
+      for (let i = 0; i < 3; i++) out[i] += w * b.c[i];
+    }
+    return [Math.min(255, out[0]), Math.min(255, out[1]), Math.min(255, out[2])];
+  };
+}
+
+/** Abbild eines gemalten Bildes; `noise` = Kompressionsrauschen, `ar` = Seitenverhältnis */
+function sigOf(paint: Paint, { noise = 0, seed = 1, ar = 0.75 } = {}): Sig {
+  const r = rng(seed);
+  const px = new Uint8ClampedArray(SOURCE * SOURCE * 4);
+  for (let y = 0; y < SOURCE; y++) {
+    for (let x = 0; x < SOURCE; x++) {
+      const c = paint((x + 0.5) / SOURCE, (y + 0.5) / SOURCE);
+      for (let i = 0; i < 3; i++) px[(y * SOURCE + x) * 4 + i] = c[i] + (r() - 0.5) * 2 * noise;
+      px[(y * SOURCE + x) * 4 + 3] = 255;
+    }
+  }
+  return signature(px, ar);
+}
+
+describe("Sieht gleich aus", () => {
+  it("gleiches Bild, anders komprimiert → gleich", () => {
+    for (let s = 1; s <= 8; s++) expect(sameLook(sigOf(photo(s)), sigOf(photo(s), { noise: 6, seed: 99 }))).toBe(true);
+  });
+  it("verschiedene Bilder → nicht gleich", () => {
+    for (let s = 1; s <= 8; s++) expect(sameLook(sigOf(photo(s)), sigOf(photo(s + 20)))).toBe(false);
+  });
+  it("anderes Format (zugeschnitten) → nicht gleich", () => {
+    expect(sameLook(sigOf(photo(3)), sigOf(photo(3), { ar: 1 }))).toBe(false);
+    expect(sameLook(sigOf(photo(3)), sigOf(photo(3), { ar: 0.76 }))).toBe(true);
+  });
+  it("gleiche Zeichnung in anderen Farben → nicht gleich", () => {
+    const p = photo(5);
+    // Farbkanäle vertauscht, Helligkeit bleibt ähnlich
+    const recolor: Paint = (x, y) => {
+      const [r, g, b] = p(x, y);
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      return [lum * 1.25, lum * 0.95, lum * 0.6];
+    };
+    expect(sameLook(sigOf(p), sigOf(recolor))).toBe(false);
+  });
+  it("gespiegelt, heller → nicht gleich", () => {
+    const p = photo(6);
+    expect(sameLook(sigOf(p), sigOf((x, y) => p(1 - x, y)))).toBe(false);
+    expect(sameLook(sigOf(p), sigOf((x, y) => p(x, y).map((v) => Math.min(255, v * 1.15)) as [number, number, number]))).toBe(false);
+  });
+  it("fast einfarbige Bilder gelten nie als gleich", () => {
+    const blank: Paint = () => [250, 250, 250];
+    expect(sameLook(sigOf(blank), sigOf(blank, { noise: 2, seed: 4 }))).toBe(false);
+  });
+  it("Gruppen: nur gleich aussehende, quer über Formate nichts", async () => {
+    const entries = [
+      { id: "a1", sig: sigOf(photo(1)) },
+      { id: "a2", sig: sigOf(photo(1), { noise: 5, seed: 7 }) },
+      { id: "a3", sig: sigOf(photo(1), { noise: 5, seed: 8 }) },
+      { id: "b1", sig: sigOf(photo(2)) },
+      { id: "c1", sig: sigOf(photo(3), { ar: 1.5 }) },
+      { id: "c2", sig: sigOf(photo(3), { ar: 1.5, noise: 4, seed: 3 }) },
+      { id: "c3", sig: sigOf(photo(3), { ar: 0.5 }) },
+    ];
+    const groups = await groupLookalikes(entries);
+    expect(groups.sort((x, y) => x[0].localeCompare(y[0]))).toEqual([["a1", "a2", "a3"], ["c1", "c2"]]);
+  });
+});

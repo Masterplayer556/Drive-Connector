@@ -10,7 +10,7 @@ import { expandNameKeys, FOLDER_KEY, folderKey, isFolderKey, learnedNames, proto
 import { inFolder, parseQuery } from "./query";
 import { frequentConcepts, pickCards, sample, type Term } from "./train";
 import { allTags, inheritsTag, loadFolderTags, loadTags, markerColor, tagHits, tagKey } from "../lib/tags";
-import { applyFeedback, fuse, groupSimilar, rank, scoreAll, spread, type Adjust, type Hit } from "./rank";
+import { applyFeedback, fuse, rank, scoreAll, spread, type Adjust, type Hit } from "./rank";
 import { allFeedback, allVectors, deleteFeedback, getMeta, itemKey, putFeedback, putMeta, type Feedback } from "./store";
 
 export interface AiResult {
@@ -230,20 +230,6 @@ export async function similarTo(item: Item, { exclude }: { exclude?: Set<string>
   // Bild-zu-Bild: sehr ähnlich ≈ 0.9+, gleiche Art Szene ≈ 0.8, Unpassendes ≈ 0.5–0.7
   const hits = rank(v, map, { limit: 40, floor: 0.72, window: 0.25, skip: itemKey(item) });
   return hits.map((h) => items.get(h.key)).filter((x): x is Item => !!x);
-}
-
-/** Gruppen fast gleicher Fotos, die NICHT schon exakt gleich sind (die zeigt die normale Duplikat-Suche). */
-export async function similarGroups(): Promise<Item[][]> {
-  const [map, items] = await Promise.all([loadVectors(), catalog(true)]);
-  // Nach Aufnahmezeit (sonst Name) sortiert: Serienbilder liegen so nebeneinander
-  const entries = [...items.values()]
-    .filter((it) => map.has(itemKey(it)))
-    .sort((a, b) => (a.taken_at ?? "").localeCompare(b.taken_at ?? "") || a.name.localeCompare(b.name))
-    .map((it) => ({ key: itemKey(it), vec: map.get(itemKey(it))! }));
-  const groups = await groupSimilar(entries);
-  return groups
-    .map((g) => g.map((k) => items.get(k)).filter((x): x is Item => !!x))
-    .filter((g) => g.length > 1 && new Set(g.map((i) => i.md5 ?? i.drive_id)).size > 1);
 }
 
 // ---- Namen von der Foto-Ansicht aus ----

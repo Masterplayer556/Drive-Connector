@@ -267,10 +267,14 @@ export interface ThemePrefs {
   light: ThemeId;
   /** Design bei dunklem iPhone (mit Automatik) */
   dark: ThemeId;
+  /** Jeden Tag ein neues, zufälliges Design (mit Automatik: je eines für hell und dunkel) */
+  daily: boolean;
+  /** Tag (JJJJ-MM-TT), an dem zuletzt gewürfelt wurde */
+  day: string;
 }
 
 const KEY = "drivepool.theme";
-const DEFAULT: ThemePrefs = { theme: "aurora", auto: false, light: "polar", dark: "aurora" };
+const DEFAULT: ThemePrefs = { theme: "aurora", auto: false, light: "polar", dark: "aurora", daily: false, day: "" };
 const known = (id: unknown): id is ThemeId => THEMES.some((t) => t.id === id);
 /** Früheres Design „Riso“ wurde durch „Düne“ ersetzt – gespeicherte Einstellungen wandern mit. */
 const renamed = (id: unknown): unknown => (id === "riso" ? "duene" : id);
@@ -287,6 +291,8 @@ export function readPrefs(): ThemePrefs {
         auto: !!raw.auto,
         light: known(raw.light) ? raw.light : pair.light,
         dark: known(raw.dark) ? raw.dark : pair.dark,
+        daily: !!raw.daily,
+        day: typeof raw.day === "string" ? raw.day : "",
       };
     }
   } catch {
@@ -308,6 +314,38 @@ export function autoPair(theme: ThemeId): { light: ThemeId; dark: ThemeId } {
 export function resolveTheme(prefs: ThemePrefs): ThemeId {
   if (!prefs.auto) return prefs.theme;
   return lightQuery()?.matches ? prefs.light : prefs.dark;
+}
+
+// ---- Würfeln: zufälliges Design, auf Wunsch jeden Tag ein neues ----
+
+/** Heutiges Datum (Ortszeit) als JJJJ-MM-TT. */
+export function dayKey(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** Ein anderes Design aus der Auswahl als das bisherige (gibt es nur eines, bleibt es). */
+function another(pool: ThemeId[], current: ThemeId, rnd: () => number): ThemeId {
+  const rest = pool.filter((id) => id !== current);
+  const from = rest.length ? rest : pool;
+  return from[Math.min(from.length - 1, Math.floor(rnd() * from.length))] ?? current;
+}
+
+/**
+ * Neu würfeln – immer etwas anderes als bisher.
+ * Mit „Automatisch hell/dunkel“: ein helles Design fürs helle und ein dunkles fürs dunkle iPhone.
+ * Ohne: irgendein Design aus allen.
+ */
+export function rollThemes(prefs: ThemePrefs, rnd: () => number = Math.random): ThemePrefs {
+  const ids = (light?: boolean) => THEMES.filter((t) => light === undefined || t.light === light).map((t) => t.id);
+  if (prefs.auto) return { ...prefs, light: another(ids(true), prefs.light, rnd), dark: another(ids(false), prefs.dark, rnd) };
+  return { ...prefs, theme: another(ids(), prefs.theme, rnd) };
+}
+
+/** „Jeden Tag neu“: ist seit dem letzten Würfeln ein neuer Tag angebrochen, wird neu gewürfelt (sonst unverändert). */
+export function rollIfNewDay(prefs: ThemePrefs, today = dayKey(), rnd: () => number = Math.random): ThemePrefs {
+  if (!prefs.daily || prefs.day === today) return prefs;
+  return { ...rollThemes(prefs, rnd), day: today };
 }
 
 /** Wird bei jedem Designwechsel ausgelöst (z. B. für das Speicher-Diagramm). */
@@ -343,15 +381,38 @@ export function savePrefs(prefs: ThemePrefs) {
   applyTheme(prefs, true);
 }
 
+/** Wird ausgelöst, wenn sich die Einstellungen von selbst ändern (neuer Tag → neues Design). */
+export const PREFS_EVENT = "drivepool:theme-prefs";
+
+/** Neuer Tag? Dann würfeln, speichern und anwenden. */
+function dailyCheck(animate: boolean) {
+  const prefs = readPrefs();
+  const next = rollIfNewDay(prefs);
+  if (next === prefs) return;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(next));
+  } catch {
+    /* ignorieren */
+  }
+  applyTheme(next, animate);
+  window.dispatchEvent(new CustomEvent(PREFS_EVENT));
+}
+
 /** Beim Start aufrufen: Design setzen und auf Hell/Dunkel-Wechsel des iPhones reagieren. */
 export function initTheme() {
   applyTheme(readPrefs());
+  dailyCheck(false);
   applyFolderBlend(readFolderBlend());
   applyStillBackground(readStillBackground());
   lightQuery()?.addEventListener?.("change", () => {
     const prefs = readPrefs();
     if (prefs.auto) applyTheme(prefs, true);
   });
+  // App bleibt oft tagelang offen: beim Zurückkommen (und sonst stündlich) schauen, ob ein neuer Tag ist
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") dailyCheck(true);
+  });
+  setInterval(() => document.visibilityState === "visible" && dailyCheck(true), 3600_000);
 }
 
 /** Feste, kräftige Farben pro Konto (Reihenfolge der Verbindung). */

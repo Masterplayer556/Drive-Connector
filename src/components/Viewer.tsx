@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { formatBytes, formatDateTime } from "../lib/format";
 import { accessToken, downloadBlob } from "../lib/google";
 import { accountColor } from "../lib/theme";
@@ -411,7 +412,9 @@ export default function Viewer({
     opacity: 1 - Math.min(Math.abs(dx) / 600, 0.4),
   };
 
-  return (
+  // Direkt an <body>: so liegt das Foto immer über dem ganzen Bildschirm – auch wenn es aus einem Fenster
+  // (Suche, KI-Treffer) geöffnet wird, das seinen Inhalt sonst abschneidet oder darüber liegt.
+  return createPortal(
     <div className={`viewer ${closing ? "closing" : ""}`}>
       <div className="viewer-top">
         <button className="icon-btn glass" onClick={close} aria-label="Schliessen">
@@ -546,6 +549,7 @@ export default function Viewer({
           <SimilarSheet item={item} accounts={accounts} onClose={() => setSimilar(false)} />
         </Suspense>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

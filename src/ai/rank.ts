@@ -190,29 +190,3 @@ export function applyFeedback(
   for (let i = 0; i < q.length; i++) q[i] = query[i] + (0.6 * shift[i]) / Math.max(1, weight);
   return { query: normalize(q), adjust };
 }
-
-/**
- * Gruppen fast gleicher Fotos (Serienbilder, bearbeitete Kopien …). Verglichen wird jedes Foto mit den
- * nächsten `window` Fotos in der gegebenen Reihenfolge (z. B. nach Aufnahmezeit) – sonst wären es bei
- * tausenden Fotos zu viele Vergleiche.
- */
-export async function groupSimilar(
-  entries: { key: string; vec: Float32Array }[],
-  { threshold = 0.95, window = 40, yieldEvery = 400 }: { threshold?: number; window?: number; yieldEvery?: number } = {},
-): Promise<string[][]> {
-  const parent = entries.map((_, i) => i);
-  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
-  for (let i = 0; i < entries.length; i++) {
-    for (let j = i + 1; j < Math.min(entries.length, i + 1 + window); j++) {
-      if (dot(entries[i].vec, entries[j].vec) >= threshold) parent[find(j)] = find(i);
-    }
-    // Zwischendurch Luft holen, damit die App bedienbar bleibt
-    if (yieldEvery && i % yieldEvery === yieldEvery - 1) await new Promise((r) => setTimeout(r, 0));
-  }
-  const groups = new Map<number, string[]>();
-  entries.forEach((e, i) => {
-    const r = find(i);
-    groups.set(r, [...(groups.get(r) ?? []), e.key]);
-  });
-  return [...groups.values()].filter((g) => g.length > 1);
-}
