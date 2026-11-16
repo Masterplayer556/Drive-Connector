@@ -1554,7 +1554,8 @@ p {
      solange die Seite dahinter gesperrt ist (100lvh = volle Höhe, auch unter dem Home-Balken) */
   height: 100vh;
   height: 100lvh;
-  z-index: 40;
+  /* Über den Fenstern (Suche, Ähnliche Fotos …), unter Dialogen und Meldungen */
+  z-index: 45;
   display: flex;
   flex-direction: column;
   background: #000;
@@ -1593,6 +1594,11 @@ p {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+  /* Der Grund ist immer schwarz – auch in hellen Designs hell schreiben */
+  color: #f4f6ff;
+}
+.viewer-top > .muted {
+  color: rgba(244, 246, 255, 0.7);
 }
 
 .viewer-stage {
@@ -1741,6 +1747,24 @@ p {
   padding: 0;
 }
 
+/* Als App auf dem Home-Bildschirm: Fenster bis ganz an den unteren Bildschirmrand ziehen. Solange die Seite
+   dahinter gesperrt ist, misst iOS das Fenster um den Home-Balken zu kurz – unten blieb ein Streifen der
+   Seite sichtbar (gleiches Mittel wie bei der Foto-Ansicht: 100lvh = volle Höhe). */
+@media (display-mode: standalone) {
+  @supports (height: 100lvh) {
+    .sheet-backdrop,
+    .modal-backdrop,
+    .menu-backdrop {
+      bottom: auto;
+      height: 100lvh;
+    }
+    .sheet {
+      bottom: auto;
+      height: calc(100lvh - 18px - var(--safe-top));
+    }
+  }
+}
+
 .progress-ring {
   position: relative;
   width: 168px;
@@ -1886,6 +1910,24 @@ p {
 
 .switch input:checked + span::after {
   transform: translateX(20px);
+}
+
+/* Design würfeln: Schalter „Jeden Tag neu“ und darunter der Knopf „Jetzt würfeln“ */
+.roll-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+.roll-daily {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.roll-btn:active .icon {
+  transform: rotate(90deg);
+}
+.roll-btn .icon {
+  transition: transform 0.35s var(--spring);
 }
 
 .choice {
@@ -7580,6 +7622,51 @@ body.drag-moving {
 .dup-one {
   align-self: flex-start;
   margin: 2px 0 6px;
+}
+/* Duplikate: Foto gross ansehen (Auge auf der Kachel) */
+.dup-cell {
+  position: relative;
+  min-width: 0;
+}
+.dup-cell .dup-item {
+  display: block;
+  width: 100%;
+}
+.dup-zoom {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.dup-zoom:active {
+  transform: scale(0.9);
+}
+/* „Sieht gleich aus“: Fortschritt beim Prüfen */
+.look-scan {
+  margin: 4px 18px 0;
+}
+.look-bar {
+  height: 6px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: rgba(var(--tint-rgb), 0.12);
+}
+.look-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--grad);
+  transition: width 0.4s ease;
 }
 
 /* ---------- Assistent „Neues Google-Konto“ ---------- */

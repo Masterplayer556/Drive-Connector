@@ -75,11 +75,9 @@ export default function SimilarSheet({ item, accounts, onClose }: { item: Item; 
         </div>
       </div>
       {viewer !== null && items && items[viewer] && (
-        <div className="ai-similar-viewer">
-          <Suspense fallback={null}>
-            <Viewer items={items} index={viewer} accounts={accounts} onIndex={setViewer} onClose={() => setViewer(null)} />
-          </Suspense>
-        </div>
+        <Suspense fallback={null}>
+          <Viewer items={items} index={viewer} accounts={accounts} onIndex={setViewer} onClose={() => setViewer(null)} />
+        </Suspense>
       )}
     </>
   );

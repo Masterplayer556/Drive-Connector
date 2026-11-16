@@ -15,7 +15,6 @@ Fotos per Beschreibung finden (auf Englisch: „dog in the snow“, „worksheet
 | Menü im Suchfeld: mit KI oder nach Namen suchen (gemerkt); private Konten nur per Häkchen (nur KI-Suche, gilt bis zum Schliessen) | `SearchModeMenu.tsx`, Filter `privateAccounts` in `search.ts` |
 | 👍/👎 bei Treffern (Knöpfe abschaltbar in den KI-Einstellungen, Standard: an – bisherige Bewertungen wirken immer): schiebt die Suche zu den gelobten Fotos, blendet abgelehnte aus – auch für ähnliche Suchen | `rank.ts` (`applyFeedback`), gespeichert in IndexedDB (`feedback`) |
 | „Ähnliche Fotos“ (✨ in der Foto-Ansicht; private Fotos nur, wenn das Ausgangsfoto privat ist) | `SimilarSheet.tsx`, `search.ts` (`similarTo`) |
-| „Fast gleiche Fotos“ in den Duplikaten (Serienbilder, bearbeitete Kopien) | `AiSimilarDuplicates.tsx`, `rank.ts` (`groupSimilar`) |
 | Filter im Suchtext: „O: Ferien Strand“ (nur Ordner mit „Ferien“ im Namen, inkl. Unterordner; mit Leerzeichen: `O: "Ferien 2024"`), „Video Strand“ (nur Videos); nur Filter ohne Beschreibung → neueste zuerst | `query.ts`, `search.ts` |
 | Suche ans Modell: mehrere Formulierungen gemittelt („a photo of …“, „a picture of …“ …) statt einer | `prompts.ts`, `worker.ts` |
 | Stichwort-Suche („dog snow mountain“): zusätzlich ein Vektor pro Stichwort – Fotos, auf denen alle zu sehen sind, kommen nach oben | `dict.ts` (`keywordsOf`), `rank.ts` (`keywords`) |

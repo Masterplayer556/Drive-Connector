@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyFeedback, dot, fuse, groupSimilar, rank, relatedness } from "./rank";
+import { applyFeedback, dot, fuse, rank, relatedness } from "./rank";
 
 const v = (...xs: number[]) => {
   const a = new Float32Array(xs);
@@ -82,26 +82,6 @@ describe("KI-Suche: Feedback", () => {
     expect(relatedness(1)).toBe(1);
     expect(relatedness(0.94)).toBeCloseTo(0.5);
     expect(relatedness(0.85)).toBe(0);
-  });
-});
-
-describe("KI-Suche: ähnliche Duplikate", () => {
-  it("gruppiert fast gleiche Fotos, trennt verschiedene", async () => {
-    const entries = [
-      { key: "a1", vec: v(1, 0, 0) },
-      { key: "a2", vec: v(1, 0.05, 0) },
-      { key: "b", vec: v(0, 1, 0) },
-      { key: "a3", vec: v(1, 0, 0.05) },
-      { key: "c", vec: v(0, 0, 1) },
-    ];
-    const groups = await groupSimilar(entries, { threshold: 0.95, window: 3, yieldEvery: 0 });
-    expect(groups.map((g) => g.sort())).toEqual([["a1", "a2", "a3"]]);
-  });
-
-  it("vergleicht nur innerhalb des Fensters", async () => {
-    const unit = (i: number) => v(...Array.from({ length: 8 }, (_, j) => (j === i ? 1 : 0)));
-    const entries = [{ key: "x", vec: unit(0) }, ...Array.from({ length: 5 }, (_, i) => ({ key: `o${i}`, vec: unit(i + 1) })), { key: "y", vec: unit(0) }];
-    expect(await groupSimilar(entries, { window: 2, yieldEvery: 0 })).toEqual([]);
   });
 });
 
