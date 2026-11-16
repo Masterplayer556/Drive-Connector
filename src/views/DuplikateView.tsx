@@ -49,6 +49,19 @@ export function defaultKeep(items: Item[]): string {
   return key([...pool].sort((a, b) => (a.path ?? "").length - (b.path ?? "").length)[0]);
 }
 
+/** Pfad mit Umbruchstellen nach jedem „/“ – lange Pfade laufen so über mehrere Zeilen statt abgeschnitten zu werden. */
+const breakable = (path: string) =>
+  path.split("/").map((part, i, all) => (
+    <span key={i}>
+      {part}
+      {i < all.length - 1 && (
+        <>
+          /<wbr />
+        </>
+      )}
+    </span>
+  ));
+
 /** Bei nur gleich aussehenden Fotos bleibt im Ordner die grösste Datei (meist die beste Qualität). */
 const preferOf = (g: Pick<Group, "look">) => (g.look ? biggerFirst : undefined);
 const suggest = (g: Group) => suggestRemoval(g.items, preferOf(g));
@@ -293,8 +306,13 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
                   <span className={`dup-keep ${on ? "" : "gone"}`}>{on ? "Behalten" : "Entfernen"}</span>
                   <span className="dup-path">
                     <span className="dot" style={{ background: accountColor(ai), color: accountColor(ai) }} />
-                    {g.look && `${formatBytes(it.size)} · `}
-                    {it.path}
+                    <span className="dup-path-text">
+                      <span className="dup-folder">{breakable(folderOf(it))}</span>
+                      <span className="dup-file">
+                        {g.look && `${formatBytes(it.size)} · `}
+                        {it.name}
+                      </span>
+                    </span>
                   </span>
                 </button>
                 <button className="dup-zoom" onClick={() => setViewing({ items: g.items, index: ii })} aria-label="Gross ansehen und vergleichen">
@@ -409,8 +427,8 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
                 </div>
                 <div className="stack" style={{ gap: 2, minWidth: 0 }}>
                   {g.items.map((it) => (
-                    <span key={key(it)} className="small ellipsis">
-                      {folderOf(it)}
+                    <span key={key(it)} className="small dup-folder">
+                      {breakable(folderOf(it))}
                     </span>
                   ))}
                 </div>
