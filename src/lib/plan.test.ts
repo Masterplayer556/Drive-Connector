@@ -122,4 +122,15 @@ describe("Duplikate trotzdem hochladen", () => {
     const r = planUpload({ ...base, allowPoolDuplicates: true, folderMd5: new Set(["m2"]) });
     expect(r.map((e) => e.status)).toEqual(["upload", "duplicate", "duplicate"]);
   });
+
+  it("lädt mit allowDuplicates alle Duplikate trotzdem hoch", () => {
+    const r = planUpload({
+      ...base,
+      allowPoolDuplicates: true,
+      folderMd5: new Set(["x"]),
+      allowDuplicates: true,
+      files: [f("a", "A.jpg", 1, "x"), f("b", "B.jpg", 1, "y"), f("c", "C.jpg", 1, "y")],
+    });
+    expect(r.map((e) => e.status)).toEqual(["upload", "upload", "upload"]);
+  });
 });

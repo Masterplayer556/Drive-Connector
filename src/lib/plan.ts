@@ -41,6 +41,8 @@ export interface PlanInput {
   allowPoolDuplicates?: boolean;
   /** Prüfsummen, die im Zielordner selbst schon liegen – die werden immer übersprungen */
   folderMd5?: Set<string>;
+  /** Alle Duplikate trotzdem hochladen (auch solche im Zielordner und doppelte in der Auswahl) */
+  allowDuplicates?: boolean;
   /** Gesamtgrösse der Fotos, die direkt im Zielordner liegen */
   folderBytes: number;
   folderHasSubfolders: boolean;
@@ -82,9 +84,11 @@ export function planUpload(input: PlanInput): PlanEntry[] {
 
   // 1. Duplikate (im Pool oder doppelt in der Auswahl)
   const seenMd5 = new Set(input.allowPoolDuplicates ? (input.folderMd5 ?? []) : input.knownMd5);
-  for (const e of entries) {
-    if (seenMd5.has(e.md5)) e.status = "duplicate";
-    else seenMd5.add(e.md5);
+  if (!input.allowDuplicates) {
+    for (const e of entries) {
+      if (seenMd5.has(e.md5)) e.status = "duplicate";
+      else seenMd5.add(e.md5);
+    }
   }
 
   // 2. Ordner ohne Unterordner: Grenze 15 GB (Regel 4)

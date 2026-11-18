@@ -21,10 +21,8 @@ interface Batch {
   target: Crumb;
   input: PlanInput;
   known: Set<string>;
-  /** Anzahl Fotos, die wirklich hochgeladen werden */
-  count: number;
-  /** davon Fotos / Videos (für „Fotos“, „Videos“ oder „Dateien“) */
-  media: MediaCount;
+  /** Duplikate in diesem Stapel trotzdem hochladen (Häkchen gilt nur für diese Auswahl) */
+  force: boolean;
 }
 
 const NO_MEDIA: MediaCount = { photos: 0, videos: 0 };
@@ -61,6 +59,10 @@ export default function UploadSheet({
   const [orderMode, setOrderMode] = useState(false);
   const [order, setOrder] = useState<string[]>([]);
   const [conflictMode, setConflictMode] = useState<"skip" | "rename">("skip");
+  // Duplikate trotzdem hochladen: Häkchen nur für die aktuelle Auswahl (bei mehreren Ordnern) …
+  const [forceDups, setForceDups] = useState(false);
+  // … oder Regler für alle Duplikate (ohne „Noch Fotos für andere Ordner“)
+  const [forceAll, setForceAll] = useState(false);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [result, setResult] = useState<{ upload: UploadResult; plan: PlanEntry[]; folders: number; media: MediaCount } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -133,11 +135,16 @@ export default function UploadSheet({
     }),
     [planFiles, orderMode, order, content, known, conflictMode],
   );
-  const plan = useMemo(() => planUpload(baseInput), [baseInput]);
+  /** Gilt „Duplikate trotzdem hochladen“ für die aktuelle Auswahl bzw. einen vorgemerkten Stapel? */
+  const forceNow = more ? forceDups : forceAll;
+  const forceOf = (b: Batch) => b.force || (!more && forceAll);
+  const rawPlan = useMemo(() => planUpload(baseInput), [baseInput]);
+  const plan = useMemo(() => (forceNow ? planUpload({ ...baseInput, allowDuplicates: true }) : rawPlan), [baseInput, rawPlan, forceNow]);
   const sum = summarize(plan);
+  const dupIds = new Set(rawPlan.filter((e) => e.status === "duplicate").map((e) => e.id));
   const conflictsWithoutRename = useMemo(
-    () => summarize(planUpload({ ...baseInput, conflictMode: "skip" })).conflict,
-    [baseInput],
+    () => summarize(planUpload({ ...baseInput, allowDuplicates: forceNow, conflictMode: "skip" })).conflict,
+    [baseInput, forceNow],
   );
 
   const toggleOrder = (id: string) =>
@@ -146,14 +153,26 @@ export default function UploadSheet({
   /** Fotos/Videos der Einträge, die hochgeladen werden */
   const mediaOf = (ids: string[], from: Map<string, File>) => countMedia(ids.map((id) => from.get(id)).filter((f): f is File => !!f));
   const upMedia = mediaOf(plan.filter((e) => e.status === "upload").map((e) => e.id), byId);
-  const snapshot = (): Batch => ({ byId, target, input: baseInput, known, count: sum.upload, media: upMedia });
-  const allMedia = batches.reduce((m, b) => addMedia(m, b.media), upMedia);
+  const snapshot = (): Batch => ({ byId, target, input: baseInput, known, force: forceDups });
+  /** Was von einem Stapel wirklich hochgeladen wird (je nach Duplikat-Häkchen/-Regler) */
+  const batchInfo = (b: Batch, force: boolean) => {
+    const p = planUpload({ ...b.input, allowDuplicates: force });
+    const up = p.filter((e) => e.status === "upload").map((e) => e.id);
+    return { count: up.length, media: mediaOf(up, b.byId), dups: force ? 0 : summarize(p).duplicate };
+  };
+  const batchInfos = batches.map((b) => batchInfo(b, forceOf(b)));
+  const allMedia = batchInfos.reduce((m, x) => addMedia(m, x.media), upMedia);
+  /** Duplikate, die (noch) übersprungen würden – in dieser Auswahl und in den vorgemerkten Stapeln */
+  const rawDups = summarize(rawPlan).duplicate;
+  const allRawDups = rawDups + batches.reduce((n, b) => n + summarize(planUpload(b.input)).duplicate, 0);
 
   /** „Weiter“: aktuellen Stapel vormerken und mit neuen Fotos von vorne beginnen (anderer Ordner). */
   const next = (list: File[]) => {
     if (!list.length) return;
-    if (sum.upload > 0) setBatches((b) => [...b, snapshot()]);
+    // Auch reine Duplikat-Stapel vormerken – der Regler „Alle Duplikate“ kann sie später noch mitnehmen
+    if (sum.upload > 0 || rawDups > 0) setBatches((b) => [...b, snapshot()]);
     setFiles(videosLast(list));
+    setForceDups(false); // Häkchen gilt nur für die eben vorgemerkte Auswahl
     setPhase("analyse");
     setAnalysed(0);
     setPlanFiles([]);
@@ -165,18 +184,23 @@ export default function UploadSheet({
   };
 
   /** Einen Stapel hochladen; Protokoll + Index laufen danach im Hintergrund weiter. */
-  const runBatch = async (b: Batch, onProgress: (p: UploadProgress) => void) => {
+  const runBatch = async (b: Batch, force: boolean, onProgress: (p: UploadProgress) => void) => {
     let reserved: number[] = [];
+    const input: PlanInput = { ...b.input, allowDuplicates: force };
     try {
-      const numbered = summarize(planUpload(b.input)).numbered;
+      const numbered = summarize(planUpload(input)).numbered;
       let finalPlan: PlanEntry[];
-      if (b.input.orderMode && numbered > 0) {
+      if (input.orderMode && numbered > 0) {
         const first = await reserveNumbers(b.target.key, numbered);
         reserved = Array.from({ length: numbered }, (_, i) => first + i);
-        finalPlan = planUpload({ ...b.input, startNumber: first, now: new Date() });
+        finalPlan = planUpload({ ...input, startNumber: first, now: new Date() });
       } else {
-        finalPlan = planUpload({ ...b.input, now: new Date() });
+        finalPlan = planUpload({ ...input, now: new Date() });
       }
+      // Duplikate, die ohne Häkchen/Regler übersprungen worden wären
+      const forcedMd5 = force
+        ? new Set(planUpload({ ...b.input, allowDuplicates: false }).filter((e) => e.status === "duplicate").map((e) => e.md5))
+        : new Set<string>();
 
       const upload = await executeUpload({ target: b.target, entries: finalPlan, files: b.byId, accounts, onProgress });
 
@@ -188,6 +212,7 @@ export default function UploadSheet({
           message: `${mediaCount(mediaOf(upload.uploaded.map((u) => u.id), b.byId), "Fotos/Videos")} nach „${b.target.path}“ hochgeladen`,
           details: {
             duplikate: s.duplicate,
+            ...(force ? { duplikate_hochgeladen: upload.uploaded.filter((u) => forcedMd5.has(u.md5)).length } : {}),
             konflikte: s.conflict,
             blockiert: s.limit,
             fehler: upload.failed.map((f) => `${f.entry.originalName}: ${f.error}`),
@@ -216,7 +241,7 @@ export default function UploadSheet({
       const toRelease = reserved;
       reserved = [];
       // Bewusst doppelt hochgeladene Fotos gleich als „bewusst behalten“ markieren (nach dem Abgleich)
-      const intended = [...new Set(upload.uploaded.filter((u) => b.known.has(u.md5)).map((u) => u.md5))];
+      const intended = [...new Set(upload.uploaded.filter((u) => b.known.has(u.md5) || forcedMd5.has(u.md5)).map((u) => u.md5))];
       const bg = Promise.all([
         writeLogs(logs),
         (upload.accountIds.length ? syncAccounts(upload.accountIds) : Promise.resolve()).then(() =>
@@ -235,16 +260,19 @@ export default function UploadSheet({
   const start = async () => {
     setPhase("upload");
     setError(null);
-    const all = [...batches, snapshot()].filter((b) => b.count > 0);
-    const total = all.reduce((n, b) => n + b.count, 0);
+    const all = [
+      ...batches.map((b, i) => ({ b, force: forceOf(b), count: batchInfos[i].count })),
+      { b: snapshot(), force: forceNow, count: sum.upload },
+    ].filter((x) => x.count > 0);
+    const total = all.reduce((n, x) => n + x.count, 0);
     const merged: UploadResult = { uploaded: [], failed: [], accountIds: [], createdFolders: [] };
     const plans: PlanEntry[] = [];
     const bgs: Promise<unknown>[] = [];
     let media = NO_MEDIA;
     let before = { done: 0, failed: 0 };
     try {
-      for (const b of all) {
-        const r = await runBatch(b, (p) => setProgress({ done: before.done + p.done, failed: before.failed + p.failed, total }));
+      for (const { b, force } of all) {
+        const r = await runBatch(b, force, (p) => setProgress({ done: before.done + p.done, failed: before.failed + p.failed, total }));
         merged.uploaded.push(...r.upload.uploaded);
         merged.failed.push(...r.upload.failed);
         merged.accountIds = [...new Set([...merged.accountIds, ...r.upload.accountIds])];
@@ -260,7 +288,7 @@ export default function UploadSheet({
       if (merged.uploaded.length || merged.failed.length) setResult({ upload: merged, plan: plans, folders: all.length, media });
     } finally {
       background.current = Promise.all(bgs);
-      setTargetsDone(all.map((b) => b.target.key));
+      setTargetsDone(all.map((x) => x.b.target.key));
       setPhase("done");
     }
   };
@@ -351,7 +379,11 @@ export default function UploadSheet({
                   <span className="ellipsis small" style={{ flex: 1 }}>
                     {b.target.path}
                   </span>
-                  <span className="faint small">{mediaCount(b.media)}</span>
+                  <span className="faint small">
+                    {mediaCount(batchInfos[i].media)}
+                    {batchInfos[i].dups > 0 && ` · ${batchInfos[i].dups} doppelt`}
+                    {forceOf(b) && summarize(planUpload(b.input)).duplicate > 0 && " · mit Duplikaten"}
+                  </span>
                   <button
                     className="icon-btn"
                     style={{ width: 28, height: 28 }}
@@ -425,7 +457,7 @@ export default function UploadSheet({
                     >
                       <div className="thumb-wrap">
                         <img className="thumb loaded" src={previews.get(f.id)} alt={f.name} />
-                        {entry.status === "duplicate" && <span className="tag">Duplikat</span>}
+                        {dupIds.has(f.id) && <span className="tag">Duplikat</span>}
                         {entry.status === "conflict" && <span className="tag">Konflikt</span>}
                         {entry.status === "limit" && <span className="tag">15 GB</span>}
                       </div>
@@ -467,9 +499,9 @@ export default function UploadSheet({
                 <span className="stat-chip">
                   <b>{sum.upload}</b> neu · {formatBytes(totalBytes)}
                 </span>
-                {sum.duplicate > 0 && (
+                {rawDups > 0 && (
                   <span className="stat-chip">
-                    <b>{sum.duplicate}</b> Duplikate
+                    <b>{rawDups}</b> {forceNow ? "Duplikate kommen mit" : "Duplikate"}
                   </span>
                 )}
                 {sum.renamed > 0 && (
@@ -540,6 +572,33 @@ export default function UploadSheet({
                   <span className="faint small"> – „Weiter“ merkt diese hier vor, am Schluss wird alles zusammen hochgeladen</span>
                 </span>
               </label>
+
+              {more && rawDups > 0 && (
+                <label className="check-row">
+                  <input type="checkbox" checked={forceDups} onChange={(e) => setForceDups(e.target.checked)} />
+                  <span>
+                    {rawDups} Duplikat{rawDups === 1 ? "" : "e"} trotzdem hochladen
+                    <span className="faint small"> – gilt nur für diese Auswahl, bei der nächsten wieder neu ankreuzen</span>
+                  </span>
+                </label>
+              )}
+
+              {!more && allRawDups > 0 && (
+                <label className="switch-row glass">
+                  <span>
+                    <strong>Alle Duplikate hochladen</strong>
+                    <div className="muted small">
+                      {forceAll
+                        ? `${allRawDups} Duplikat${allRawDups === 1 ? "" : "e"} werden mit hochgeladen`
+                        : `${allRawDups} Duplikat${allRawDups === 1 ? "" : "e"} werden übersprungen`}
+                    </div>
+                  </span>
+                  <span className="switch">
+                    <input type="checkbox" checked={forceAll} onChange={(e) => setForceAll(e.target.checked)} />
+                    <span />
+                  </span>
+                </label>
+              )}
             </>
           )}
 
