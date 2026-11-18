@@ -3,7 +3,7 @@ import { searchItems } from "../lib/db";
 import { allTags, taggedItems, tagHits, useTags } from "../lib/tags";
 import { TagDots } from "./TagSheet";
 import { SelectCheck, SelectionBar, SelectToggle, useSelection } from "./Selection";
-import { hueOf } from "../lib/folderColors";
+import { hueOf, useFolderColors } from "../lib/folderColors";
 import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
 import Thumb from "./Thumb";
@@ -23,6 +23,7 @@ export default function SearchSheet({
   onOpenPath: (path: string) => void;
   onClose: () => void;
 }) {
+  useFolderColors();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Item[] | null>(null);
   const [busy, setBusy] = useState(false);

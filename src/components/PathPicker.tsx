@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadFolder } from "../lib/cache";
-import { hueOf } from "../lib/folderColors";
+import { hueOf, useFolderColors } from "../lib/folderColors";
 import { childKey, childPath, validFolderName } from "../lib/naming";
 import type { Crumb, FolderContent } from "../lib/types";
 import Icon from "./Icon";
@@ -44,6 +44,7 @@ export default function PathPicker({
   onCancel: () => void;
 }) {
   const ui = useUI();
+  useFolderColors(); // eigene Ordnerfarben, neu zeichnen sobald geladen
   const [stack, setStack] = useState<Crumb[]>(start);
   const current = stack[stack.length - 1];
   const [content, setContent] = useState<FolderContent | null>(null);

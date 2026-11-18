@@ -8,7 +8,7 @@ import { moveWithin } from "../lib/google";
 import { planMove } from "../lib/move";
 import { childKey, childPath } from "../lib/naming";
 import { DRIVE_PARALLEL, mapPool } from "../lib/pool";
-import { folderHue } from "../lib/theme";
+import { hueOf, useFolderColors } from "../lib/folderColors";
 import type { Account, Crumb, FolderContent, Item, LogicalFolder } from "../lib/types";
 import Icon from "./Icon";
 import Ring from "./Ring";
@@ -32,6 +32,7 @@ export default function MoveSheet({
   accounts: Account[];
   onClose: (changed: boolean) => void;
 }) {
+  useFolderColors(); // eigene Ordnerfarben (wie im Drive), neu zeichnen sobald geladen
   const [stack, setStack] = useState<Crumb[]>(() => (target?.length ? [ROOT, ...target.filter((c) => c.key)] : [ROOT]));
   const current = stack[stack.length - 1];
   const [content, setContent] = useState<FolderContent | null>(null);
@@ -241,7 +242,7 @@ export default function MoveSheet({
                     <button
                       key={f.key}
                       className="folder"
-                      style={{ ["--i" as string]: i, ["--h" as string]: folderHue(f.name) }}
+                      style={{ ["--i" as string]: i, ["--h" as string]: hueOf(f.key, f.name) }}
                       onClick={() =>
                         setStack((s) => [...s, { name: f.name, path: f.path || childPath(current.path, f.name), key: childKey(current.key, f.name) }])
                       }
