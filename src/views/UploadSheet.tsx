@@ -11,7 +11,6 @@ import { planUpload, summarize, type PlanEntry, type PlanFile, type PlanInput } 
 import { executeUpload, type UploadProgress, type UploadResult } from "../lib/upload";
 import type { Account, Crumb, FolderContent } from "../lib/types";
 import { useKeepAwake } from "../lib/wakelock";
-import { useLocalThumbs } from "../lib/localThumb";
 import { countMedia, mediaCount, mediaWord, videosLast, type MediaCount } from "../lib/media";
 
 type Phase = "analyse" | "review" | "upload" | "done";
@@ -89,8 +88,8 @@ export default function UploadSheet({
   };
 
   const byId = useMemo(() => new Map(files.map((f, i) => [`f${i}`, f])), [files]);
-  // Kleine Vorschaubilder statt der Originale – grosse Fotos in voller Grösse liessen Kacheln leer
-  const previews = useLocalThumbs(byId);
+  const previews = useMemo(() => new Map([...byId].map(([id, f]) => [id, URL.createObjectURL(f)])), [byId]);
+  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
 
   // 1. Prüfsummen berechnen und mit dem Pool vergleichen
   useEffect(() => {
@@ -449,7 +448,6 @@ export default function UploadSheet({
                 {planFiles.map((f, i) => {
                   const entry = plan.find((e) => e.id === f.id)!;
                   const pos = order.indexOf(f.id);
-                  const preview = previews.get(f.id);
                   return (
                     <button
                       key={f.id}
@@ -457,16 +455,8 @@ export default function UploadSheet({
                       style={{ ["--i" as string]: i }}
                       onClick={() => orderMode && entry.status === "upload" && toggleOrder(f.id)}
                     >
-                      <div className={`thumb-wrap ${preview === undefined ? "skeleton" : ""}`}>
-                        {preview ? (
-                          <img className="thumb loaded" src={preview} alt={f.name} decoding="async" />
-                        ) : (
-                          preview === null && (
-                            <div className="thumb-placeholder">
-                              <Icon name={byId.get(f.id)?.type.startsWith("video/") ? "play" : "image"} />
-                            </div>
-                          )
-                        )}
+                      <div className="thumb-wrap">
+                        <img className="thumb loaded" src={previews.get(f.id)} alt={f.name} />
                         {dupIds.has(f.id) && <span className="tag">Duplikat</span>}
                         {entry.status === "conflict" && <span className="tag">Konflikt</span>}
                         {entry.status === "limit" && <span className="tag">15 GB</span>}
