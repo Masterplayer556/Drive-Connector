@@ -52,7 +52,13 @@ async function linksFor(accountId: string, folderId: string | null, ids: string[
   return merged;
 }
 
-async function direct(accountId: string, folderId: string | null, ids: string[], size: number): Promise<Map<string, Blob>> {
+async function direct(
+  accountId: string,
+  folderId: string | null,
+  ids: string[],
+  size: number,
+  onBlob?: (id: string, blob: Blob) => void,
+): Promise<Map<string, Blob>> {
   const out = new Map<string, Blob>();
   const links = await linksFor(accountId, folderId, ids);
   let tried = 0;
@@ -64,7 +70,10 @@ async function direct(accountId: string, folderId: string | null, ids: string[],
         const res = await fetch(sized(links.get(id)!, size), { credentials: "omit", referrerPolicy: "no-referrer" });
         if (!res.ok) continue;
         const blob = await res.blob();
-        if (blob.size && blob.type.startsWith("image/")) out.set(id, blob);
+        if (blob.size && blob.type.startsWith("image/")) {
+          out.set(id, blob);
+          onBlob?.(id, blob);
+        }
       } catch {
         /* z. B. von Google blockiert → über Supabase */
       }
@@ -89,16 +98,17 @@ function dataUrlToBlob(dataUrl: string): Blob {
 /**
  * Vorschaubilder mehrerer Fotos desselben Kontos/Ordners (max. 40) – direkt von Google, Rest über Supabase.
  * Fehlende Bilder sind im Ergebnis einfach nicht enthalten.
+ * `onBlob` meldet jedes Bild, sobald es da ist – so muss ein Bild nicht auf die übrigen im Paket warten.
  */
 export async function fetchThumbBlobs(
   accountId: string,
   folderId: string | null,
   ids: string[],
   size: number,
-  { timeout }: { timeout?: number } = {},
+  { timeout, onBlob }: { timeout?: number; onBlob?: (id: string, blob: Blob) => void } = {},
 ): Promise<Map<string, Blob>> {
   let out = new Map<string, Blob>();
-  if (!directBlocked()) out = await direct(accountId, folderId, ids, size).catch(() => out);
+  if (!directBlocked()) out = await direct(accountId, folderId, ids, size, onBlob).catch(() => out);
   thumbStats.direct += out.size;
   const missing = ids.filter((id) => !out.has(id));
   if (missing.length) {
@@ -109,7 +119,10 @@ export async function fetchThumbBlobs(
     );
     for (const id of missing) {
       const data = r.thumbs[id];
-      if (data) out.set(id, dataUrlToBlob(data));
+      if (!data) continue;
+      const blob = dataUrlToBlob(data);
+      out.set(id, blob);
+      onBlob?.(id, blob);
     }
     thumbStats.viaSupabase += missing.length;
   }

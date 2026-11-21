@@ -64,7 +64,11 @@ export function peekThumb(item: Item, size = GRID_SIZE): string | null {
   return hit?.url ?? null;
 }
 
-export function getThumb(item: Item, size = GRID_SIZE): Promise<string> {
+/**
+ * Vorschaubild holen. `urgent`: wird gerade angezeigt → vor alle wartenden (vorgeladenen) Bilder stellen
+ * und ohne die kurze Sammelpause losschicken.
+ */
+export function getThumb(item: Item, size = GRID_SIZE, { urgent = false }: { urgent?: boolean } = {}): Promise<string> {
   const key = keyOf(item, size);
   const hit = mem.get(key);
   if (hit) {
@@ -72,24 +76,50 @@ export function getThumb(item: Item, size = GRID_SIZE): Promise<string> {
     return Promise.resolve(hit.url);
   }
   const waiting = inflight.get(key);
-  if (waiting) return waiting;
+  if (waiting) {
+    if (urgent) promote(key);
+    return waiting;
+  }
 
   const p = (async () => {
     const cache = await deviceCache();
     const cached = await cache?.match(cacheUrl(key)).catch(() => undefined);
     if (cached) {
+      urgentKeys.delete(key);
       const blob = await cached.blob();
       const url = URL.createObjectURL(blob);
       remember(key, url, blob.size);
       return url;
     }
     return new Promise<string>((resolve, reject) => {
-      queue.push({ item, size, resolve, reject });
-      if (!timer) timer = setTimeout(flush, 30);
+      const pending = { item, size, resolve, reject };
+      if (urgent || urgentKeys.delete(key)) {
+        queue.unshift(pending);
+        if (timer) clearTimeout(timer);
+        flush();
+      } else {
+        queue.push(pending);
+        if (!timer) timer = setTimeout(flush, 30);
+      }
     });
   })().finally(() => inflight.delete(key));
   inflight.set(key, p);
   return p;
+}
+
+/** Schlüssel, die dringend wurden, während sie noch im Gerätespeicher gesucht werden */
+const urgentKeys = new Set<string>();
+
+/** Ein schon wartendes Bild nach vorne holen (z. B. vorgeladen, jetzt aber angezeigt). */
+function promote(key: string) {
+  const i = queue.findIndex((p) => keyOf(p.item, p.size) === key);
+  if (i < 0) {
+    urgentKeys.add(key); // noch in der Cache-Abfrage – kommt gleich vorne in die Warteschlange
+    return;
+  }
+  if (i > 0) queue.unshift(...queue.splice(i, 1));
+  if (timer) clearTimeout(timer);
+  flush();
 }
 
 function flush() {
@@ -121,23 +151,27 @@ function pump() {
 async function runBatch(batch: Pending[]) {
   const { item, size } = batch[0];
   const ids = [...new Set(batch.map((b) => b.item.drive_id))];
-  try {
-    const blobs = await fetchThumbBlobs(item.account_id, item.parent_drive_id ?? null, ids, size);
-    const cache = await deviceCache();
+  const done = new Set<Pending>();
+  // Jedes Bild sofort ausliefern, sobald es da ist – nicht erst, wenn das ganze Paket fertig ist
+  const deliver = (id: string, blob: Blob) => {
     for (const b of batch) {
-      const blob = blobs.get(b.item.drive_id);
-      if (!blob) {
-        b.reject(new Error("Keine Vorschau"));
-        continue;
-      }
+      if (b.item.drive_id !== id || done.has(b)) continue;
+      done.add(b);
       const key = keyOf(b.item, size);
       const url = mem.get(key)?.url ?? URL.createObjectURL(blob);
       remember(key, url, blob.size);
-      void cache?.put(cacheUrl(key), new Response(blob, { headers: { "Content-Type": blob.type } })).catch(() => undefined);
+      void deviceCache().then((cache) =>
+        cache?.put(cacheUrl(key), new Response(blob, { headers: { "Content-Type": blob.type } })).catch(() => undefined),
+      );
       b.resolve(url);
     }
+  };
+  try {
+    const blobs = await fetchThumbBlobs(item.account_id, item.parent_drive_id ?? null, ids, size, { onBlob: deliver });
+    for (const [id, blob] of blobs) deliver(id, blob);
+    for (const b of batch) if (!done.has(b)) b.reject(new Error("Keine Vorschau"));
   } catch (e) {
-    for (const b of batch) b.reject(e instanceof Error ? e : new Error(String(e)));
+    for (const b of batch) if (!done.has(b)) b.reject(e instanceof Error ? e : new Error(String(e)));
   }
 }
 
