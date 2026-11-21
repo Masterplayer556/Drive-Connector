@@ -1,5 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { clearPending, readPending } from "../lib/newaccount";
+import { useEffect, useRef, useState } from "react";
 import Donut from "../components/Donut";
 import Icon from "../components/Icon";
 import Segmented from "../components/Segmented";
@@ -8,15 +7,13 @@ import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
 import { AREA_LABEL, ROLES } from "../lib/areas";
 import { invalidateAll } from "../lib/cache";
-import { fetchAccounts, setAccountRole, syncAccounts } from "../lib/db";
+import { setAccountRole, syncAccounts } from "../lib/db";
 import { formatBytes, formatDateTime } from "../lib/format";
 import { clearParams } from "../lib/route";
 import { callFunction } from "../lib/supabase";
 import { accountColor } from "../lib/theme";
 import type { Account, Role } from "../lib/types";
 import { fetchGrowth, healthOf } from "../lib/health";
-
-const NewAccountSheet = lazy(() => import("../components/NewAccountSheet"));
 
 /** Ampel pro Konto: Zugriff, letzter Abgleich, Füllstand und wann es beim aktuellen Tempo voll ist. */
 function HealthLight({ account, added30, ready }: { account: Account; added30: number; ready: boolean }) {
@@ -56,7 +53,6 @@ export default function KontenView({
 }) {
   const ui = useUI();
   const [busy, setBusy] = useState<string | null>(null);
-  const [newOpen, setNewOpen] = useState(false);
   const [growth, setGrowth] = useState<Map<string, number> | null>(null);
   useEffect(() => {
     fetchGrowth().then(setGrowth).catch(() => setGrowth(new Map()));
@@ -93,20 +89,7 @@ export default function KontenView({
     if (failed) ui.toast(failed, "error");
     else {
       ui.toast(`${connected} verbunden`, "ok");
-      void (async () => {
-        // Über den Assistenten „Neues Google-Konto“ erstellt → gleich in den gewählten Bereich
-        const pending = readPending();
-        if (pending && connected && pending.email.toLowerCase() === connected.toLowerCase()) {
-          clearPending();
-          try {
-            const acc = (await fetchAccounts()).find((a) => a.email.toLowerCase() === connected.toLowerCase());
-            if (acc && acc.role !== pending.role) await setAccountRole(acc.id, pending.role);
-          } catch (e) {
-            ui.toast(e instanceof Error ? e.message : String(e), "error");
-          }
-        }
-        await sync();
-      })();
+      void sync();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
@@ -215,25 +198,10 @@ export default function KontenView({
           {busy === "Weiterleitung zu Google …" ? <span className="spinner" /> : <Icon name="plus" size={19} />}
           Konto verbinden
         </button>
-        <button className="btn block" disabled={!!busy} onClick={() => setNewOpen(true)}>
-          <Icon name="sparkles" size={18} /> Neues Google-Konto erstellen
-        </button>
         <p className="faint small" style={{ textAlign: "center" }}>
           Google zeigt „nicht überprüft“ → „Erweitert“ → „Weiter zu Drive Pool“ und das Drive-Häkchen setzen.
         </p>
       </div>
-      {newOpen && (
-        <Suspense fallback={null}>
-          <NewAccountSheet
-            accounts={accounts}
-            onConnect={() => {
-              setNewOpen(false);
-              void connect();
-            }}
-            onClose={() => setNewOpen(false)}
-          />
-        </Suspense>
-      )}
     </div>
   );
 }
