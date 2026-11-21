@@ -48,6 +48,16 @@ const RUBBER = 0.35;
 /** So lange gleitet ein schnell losgelassenes Bild nach (ms) */
 const GLIDE_MS = 220;
 
+/** So viele Bilder in Blätterrichtung vorladen */
+const PRELOAD_AHEAD = 4;
+/** Zuletzt vorab dekodiertes Bild – festhalten, damit der Browser das Dekodierte nicht gleich verwirft */
+const predecoded: HTMLImageElement[] = [];
+function predecode(url: string) {
+  const img = new Image();
+  img.src = url;
+  predecoded.splice(0, predecoded.length, img);
+  return img.decode().catch(() => undefined);
+}
 const tf = (n: Zoom) => (n.s !== 1 || n.x || n.y ? `translate3d(${n.x}px, ${n.y}px, 0) scale(${n.s})` : "");
 const rubber = (v: number, lo: number, hi: number) => (v > hi ? hi + (v - hi) * RUBBER : v < lo ? lo - (lo - v) * RUBBER : v);
 
@@ -158,7 +168,7 @@ export default function Viewer({
     setHigh(peekThumb(item, VIEW_SIZE));
     if (!peekThumb(item)) void getThumb(item).then((u) => alive && setLow(u)).catch(() => undefined);
     if (!peekThumb(item, VIEW_SIZE)) {
-      getThumb(item, VIEW_SIZE)
+      getThumb(item, VIEW_SIZE, { urgent: true })
         .then((u) => alive && setHigh(u))
         .catch(() =>
           // Keine Google-Vorschau → Original laden (bei Videos nicht: das lädt erst „Abspielen“)
@@ -177,11 +187,21 @@ export default function Viewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemKey]);
 
-  // Nachbarbilder vorladen → Wischen fühlt sich sofort an
+  // Bilder vorladen → Wischen fühlt sich sofort an. In Blätterrichtung mehrere Seiten voraus
+  // (z. B. Comics: man liest schneller, als ein einzelnes Bild nachlädt), eines zurück.
+  const lastIndex = useRef(index);
   useEffect(() => {
-    for (const j of [index + 1, index - 1]) {
-      if (items[j]) void getThumb(items[j], VIEW_SIZE).catch(() => undefined);
-    }
+    const dir = index < lastIndex.current ? -1 : 1;
+    lastIndex.current = index;
+    const order = [...Array.from({ length: PRELOAD_AHEAD }, (_, k) => index + dir * (k + 1)), index - dir];
+    order.forEach((j, k) => {
+      const it = items[j];
+      if (!it) return;
+      const p = getThumb(it, VIEW_SIZE);
+      // Das nächste Bild gleich fertig dekodieren → beim Wischen kein kurzes Leerbild
+      if (k === 0) void p.then((u) => predecode(u)).catch(() => undefined);
+      else void p.catch(() => undefined);
+    });
   }, [index, items]);
 
   // Grösse des Bildes bei 100 % (eingepasst) und maximale Zoomstufe:
