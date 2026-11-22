@@ -52,7 +52,7 @@ describe("planUpload", () => {
     });
   });
 
-  it("Reihenfolge-Upload zählt ab startNumber in der angetippten Reihenfolge (Regel 11)", () => {
+  it("Reihenfolge-Upload nummeriert nur angetippte Fotos ab startNumber (Regel 11)", () => {
     const r = planUpload({
       ...base,
       orderMode: true,
@@ -63,8 +63,25 @@ describe("planUpload", () => {
     expect(r.map((e) => [e.id, e.targetName])).toEqual([
       ["c", "81.png"],
       ["a", "82.jpg"],
-      ["b", "83.png"],
+      ["b", "IMG_2.png"],
     ]);
+  });
+
+  it("nicht angetippte Fotos zwischen den neuen Nummern bekommen „Foto_“ vorne dran", () => {
+    const files = Array.from({ length: 10 }, (_, i) => f(`s${i}`, `IMG_${i}.png`));
+    const r = planUpload({
+      ...base,
+      orderMode: true,
+      order: files.map((x) => x.id),
+      files: [...files, f("x", "9MDID_JJD.png"), f("y", "Urlaub.png"), f("z", "10b.png")],
+    });
+    expect(r.filter((e) => e.renamed === "reihenfolge").map((e) => e.targetName)).toEqual(
+      Array.from({ length: 10 }, (_, i) => `${i + 1}.png`),
+    );
+    expect(r.find((e) => e.id === "x")).toMatchObject({ targetName: "Foto_9MDID_JJD.png", renamed: "dazwischen" });
+    expect(r.find((e) => e.id === "y")).toMatchObject({ targetName: "Urlaub.png", renamed: null });
+    expect(r.find((e) => e.id === "z")).toMatchObject({ targetName: "10b.png", renamed: null });
+    expect(summarize(r)).toMatchObject({ numbered: 10, renamed: 1 });
   });
 
   it("Duplikate verbrauchen keine Nummer", () => {
@@ -72,6 +89,7 @@ describe("planUpload", () => {
       ...base,
       orderMode: true,
       startNumber: 1,
+      order: ["a", "b"],
       knownMd5: new Set(["dup"]),
       files: [f("a", "a.png", 1, "dup"), f("b", "b.png")],
     });

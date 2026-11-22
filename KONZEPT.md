@@ -133,6 +133,8 @@ Ordner können gesperrt werden. Gesperrte Ordner werden **nie** verschoben oder 
 ### Regel 11 – Reihenfolge-Upload (optional)
 - Schalter **„Reihenfolge festlegen“** beim Upload.
 - Fotos werden in der gewünschten Reihenfolge angetippt (Badges ① ② ③) oder per Drag & Drop sortiert.
+- **Nur angetippte Fotos werden nummeriert**, die übrigen behalten ihren Namen (Zahlen-Schutz und Namenskonflikt gelten für sie wie sonst).
+- Nicht angetippte Fotos, die sonst zwischen den neuen Nummern stünden (z. B. `9MDID_JJD.png` zwischen `9.png` und `10.png`), bekommen `Foto_` vorne dran.
 - Die App sucht die **höchste reine Zahl** im Zielordner (über alle Konten-Hälften) und zählt weiter, **ohne führende Nullen**: `0080.png` → `81.png`, `82.png` …
 - Ohne nummerierte Dateien im Ordner: Start bei `1`.
 - Dateiendung bleibt erhalten. Originalname wird in der Google-Beschreibung der Datei gespeichert.
