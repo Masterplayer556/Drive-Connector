@@ -1,5 +1,5 @@
 // Upload-Plan: Duplikate, 15-GB-Grenze, Nummerierung, Zahlen-Schutz und Namenskonflikte.
-import { protectedName, pureNumber, splitExt } from "./naming";
+import { naturalCompare, protectedName, pureNumber, splitExt } from "./naming";
 
 export const FOLDER_LIMIT_BYTES = 15 * 1024 ** 3;
 
@@ -11,7 +11,7 @@ export interface PlanFile {
 }
 
 export type EntryStatus = "upload" | "duplicate" | "conflict" | "limit";
-export type RenameReason = "reihenfolge" | "zahlenschutz" | "konflikt";
+export type RenameReason = "reihenfolge" | "zahlenschutz" | "konflikt" | "dazwischen";
 
 export interface PlanEntry {
   id: string;
@@ -29,7 +29,7 @@ export interface PlanInput {
   files: PlanFile[];
   /** Reihenfolge-Upload aktiv (Regel 11) */
   orderMode: boolean;
-  /** Vom Nutzer angetippte Reihenfolge (IDs); nicht angetippte folgen danach */
+  /** Vom Nutzer angetippte Reihenfolge (IDs); nur diese werden nummeriert, die übrigen behalten ihren Namen */
   order: string[];
   /** Erste Nummer für den Reihenfolge-Upload */
   startNumber: number;
@@ -101,12 +101,13 @@ export function planUpload(input: PlanInput): PlanEntry[] {
     }
   }
 
-  // 3. Namen
+  // 3. Namen – im Reihenfolge-Modus bekommen nur angetippte Fotos eine Nummer
+  const tapped = new Set(input.orderMode ? input.order : []);
   const taken = new Set(input.existingNames.map((n) => n.toLowerCase()));
   let next = input.startNumber;
   for (const e of entries) {
     if (e.status !== "upload") continue;
-    if (input.orderMode) {
+    if (tapped.has(e.id)) {
       e.number = next;
       e.targetName = `${next}${splitExt(e.originalName).ext}`;
       e.renamed = "reihenfolge";
@@ -124,6 +125,26 @@ export function planUpload(input: PlanInput): PlanEntry[] {
       }
     }
     taken.add(e.targetName.toLowerCase());
+  }
+
+  // 4. Nicht angetippte Fotos, die sonst zwischen den neuen Nummern stünden
+  //    (z. B. „9MDID_JJD.png“ zwischen 9.png und 10.png), bekommen „Foto_“ vorne dran.
+  const numbered = entries.filter((e) => e.status === "upload" && e.renamed === "reihenfolge").map((e) => e.targetName);
+  if (numbered.length) {
+    numbered.sort(naturalCompare);
+    const lo = numbered[0];
+    const hi = numbered[numbered.length - 1];
+    for (const e of entries) {
+      if (e.status !== "upload" || e.renamed === "reihenfolge") continue;
+      if (naturalCompare(lo, e.targetName) >= 0 || naturalCompare(e.targetName, hi) >= 0) continue;
+      const { base, ext } = splitExt(e.targetName);
+      let name = `Foto_${base}${ext}`;
+      for (let i = 2; taken.has(name.toLowerCase()); i++) name = `Foto_${base}_${i}${ext}`;
+      taken.delete(e.targetName.toLowerCase());
+      taken.add(name.toLowerCase());
+      e.targetName = name;
+      e.renamed = "dazwischen";
+    }
   }
   return entries;
 }

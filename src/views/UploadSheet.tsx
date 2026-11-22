@@ -31,6 +31,7 @@ const addMedia = (a: MediaCount, b: MediaCount): MediaCount => ({ photos: a.phot
 const REASON: Record<string, string> = {
   reihenfolge: "Reihenfolge",
   zahlenschutz: "Zahlen-Schutz",
+  dazwischen: "lag zwischen den Nummern",
   konflikt: "Namenskonflikt",
 };
 
@@ -429,7 +430,8 @@ export default function UploadSheet({
               {orderMode && (
                 <div className="stack" style={{ gap: 8 }}>
                   <span className="muted small">
-                    Tippe die Fotos in der gewünschten Reihenfolge an ({order.filter((id) => plan.find((e) => e.id === id)?.status === "upload").length}/{sum.numbered} gewählt).
+                    Tippe die Fotos in der gewünschten Reihenfolge an ({sum.numbered}/{sum.upload} gewählt). Nur angetippte
+                    werden nummeriert, die anderen behalten ihren Namen.
                   </span>
                   <div className="row">
                     <button className="btn small" onClick={() => setOrder(planFiles.map((f) => f.id))}>
@@ -469,7 +471,7 @@ export default function UploadSheet({
               </div>
 
 
-              {conflictsWithoutRename > 0 && !orderMode && (
+              {conflictsWithoutRename > 0 && (
                 <div className="card glass stack" style={{ margin: 0 }}>
                   <strong>
                     {conflictsWithoutRename} Name{conflictsWithoutRename === 1 ? "" : "n"} gibt es hier schon
