@@ -141,8 +141,9 @@ Ordner können gesperrt werden. Gesperrte Ordner werden **nie** verschoben oder 
 
 ### Regel 12 – Sortieren-Knopf (bestehende Dateien)
 1. Dateien im Ordner markieren → **Sortieren**.
-2. Mini-Menü mit Vorschaubildern, Reihenfolge per Drag & Drop festlegen.
-3. Die App sucht die höchste reine Zahl im Ordner (die gerade markierten Dateien zählen nicht mit) und zählt weiter, ohne führende Nullen.
+2. Mini-Menü mit Vorschaubildern, Reihenfolge durch Antippen festlegen. **Nur angetippte Fotos werden nummeriert**, die übrigen behalten ihren Namen.
+3. Die App sucht die höchste reine Zahl im Ordner (die angetippten Dateien zählen nicht mit) und zählt weiter, ohne führende Nullen.
+   Fotos, die sonst zwischen den neuen Nummern stünden (z. B. `9MDID_JJD.png` zwischen `9.png` und `10.png`), bekommen `Foto_` vorne dran und rutschen hinter alle Zahlen.
 4. Vorschau („`IMG_4821.jpg` → `81.jpg`“), Umbenennen erst nach Bestätigung.
 5. Originalname wird in der Beschreibung gespeichert, Eintrag im Protokoll.
 
