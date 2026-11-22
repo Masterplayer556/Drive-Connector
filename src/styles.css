@@ -672,7 +672,7 @@ p {
   position: absolute;
   inset: -10px;
   border-radius: 34px;
-  background: conic-gradient(from 0deg, #0f766e, #f2c14e, #fff1d6, #0f766e);
+  background: conic-gradient(from 0deg, #20c79c, #ffc840, #fff5e0, #20c79c);
   filter: blur(14px);
   opacity: 0.7;
   animation: spin 3s linear infinite;
