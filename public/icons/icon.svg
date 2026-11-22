@@ -1,53 +1,99 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!-- Drive Pool: ein Tropfen fällt in den Pool. Quelle für icon-192/512 und apple-touch-icon. -->
   <defs>
+    <!-- Hintergrund: sattes Smaragd → Petrol -->
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#17866e"/>
-      <stop offset=".5" stop-color="#0b5245"/>
-      <stop offset="1" stop-color="#042520"/>
+      <stop offset="0" stop-color="#20c79c"/>
+      <stop offset=".45" stop-color="#0a8a70"/>
+      <stop offset="1" stop-color="#03302b"/>
     </linearGradient>
-    <radialGradient id="light" cx=".2" cy=".08" r=".75">
-      <stop offset="0" stop-color="#9af0d4" stop-opacity=".42"/>
-      <stop offset=".65" stop-color="#9af0d4" stop-opacity="0"/>
+    <radialGradient id="light" cx=".18" cy=".06" r=".8">
+      <stop offset="0" stop-color="#c8ffec" stop-opacity=".55"/>
+      <stop offset=".55" stop-color="#c8ffec" stop-opacity="0"/>
     </radialGradient>
+    <radialGradient id="vignette" cx=".5" cy=".45" r=".75">
+      <stop offset=".6" stop-color="#011a16" stop-opacity="0"/>
+      <stop offset="1" stop-color="#011a16" stop-opacity=".45"/>
+    </radialGradient>
+    <!-- Wasser: leuchtet von innen -->
     <radialGradient id="pool" cx=".5" cy=".5" r=".5">
-      <stop offset="0" stop-color="#02160f" stop-opacity=".6"/>
-      <stop offset="1" stop-color="#02160f" stop-opacity="0"/>
+      <stop offset="0" stop-color="#4dffd2" stop-opacity=".5"/>
+      <stop offset=".55" stop-color="#1fd6a8" stop-opacity=".2"/>
+      <stop offset="1" stop-color="#1fd6a8" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="drop" x1=".2" y1="0" x2=".8" y2="1">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset=".6" stop-color="#fdf3dc"/>
-      <stop offset="1" stop-color="#f4d58c"/>
+    <!-- Tropfen: hell oben, sattes Gold unten -->
+    <linearGradient id="drop" x1=".3" y1="0" x2=".6" y2="1">
+      <stop offset="0" stop-color="#fffaea"/>
+      <stop offset=".45" stop-color="#ffe08a"/>
+      <stop offset="1" stop-color="#f9a825"/>
     </linearGradient>
-    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#fdf3dc" stop-opacity=".2"/>
-      <stop offset=".5" stop-color="#fdf3dc"/>
-      <stop offset="1" stop-color="#fdf3dc" stop-opacity=".2"/>
+    <!-- Lichtbündel unten im Tropfen (Licht scheint durch die Flüssigkeit) -->
+    <radialGradient id="caustic" cx=".56" cy=".8" r=".32">
+      <stop offset="0" stop-color="#fffbe6" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#fffbe6" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Ränder etwas dunkler → Volumen -->
+    <radialGradient id="volume" cx=".45" cy=".62" r=".6">
+      <stop offset=".6" stop-color="#c86a00" stop-opacity="0"/>
+      <stop offset="1" stop-color="#c86a00" stop-opacity=".45"/>
+    </radialGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe7a6"/>
+      <stop offset="1" stop-color="#d9800f"/>
     </linearGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffe29a"/>
-      <stop offset="1" stop-color="#e9a93a"/>
+    <!-- Ringe: hinten gedämpft, vorne hell -->
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d8fff1" stop-opacity=".25"/>
+      <stop offset=".55" stop-color="#d8fff1" stop-opacity=".7"/>
+      <stop offset="1" stop-color="#ffffff"/>
     </linearGradient>
-    <linearGradient id="refl" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fdf3dc" stop-opacity=".35"/>
-      <stop offset="1" stop-color="#fdf3dc" stop-opacity="0"/>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e0901c"/>
+      <stop offset=".5" stop-color="#ffc840"/>
+      <stop offset="1" stop-color="#fff0b0"/>
     </linearGradient>
-    <clipPath id="inner"><ellipse cx="512" cy="712" rx="120" ry="40"/></clipPath>
+    <radialGradient id="splash" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#fff6cf" stop-opacity=".95"/>
+      <stop offset=".5" stop-color="#ffd36b" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#ffd36b" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+    <clipPath id="dropClip">
+      <path d="M512 150 C512 150 378 334 378 452 A134 134 0 0 0 646 452 C646 334 512 150 512 150 Z"/>
+    </clipPath>
   </defs>
+
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#light)"/>
+  <rect width="1024" height="1024" fill="url(#vignette)"/>
+
   <!-- Pool mit Wellenringen -->
-  <ellipse cx="512" cy="712" rx="400" ry="150" fill="url(#pool)"/>
-  <ellipse cx="512" cy="712" rx="344" ry="120" fill="none" stroke="url(#ring)" stroke-width="22" opacity=".45"/>
-  <ellipse cx="512" cy="712" rx="240" ry="82" fill="none" stroke="url(#ring)" stroke-width="28" opacity=".8"/>
-  <ellipse cx="512" cy="712" rx="136" ry="45" fill="none" stroke="url(#gold)" stroke-width="32"/>
-  <!-- Spiegelung des Tropfens im Wasser -->
-  <g clip-path="url(#inner)">
-    <path d="M512 816 C512 816 456 740 456 712 A56 56 0 0 1 568 712 C568 740 512 816 512 816 Z" fill="url(#refl)" transform="translate(0 -30)"/>
-  </g>
+  <ellipse cx="512" cy="712" rx="420" ry="160" fill="url(#pool)"/>
+  <ellipse cx="512" cy="712" rx="344" ry="120" fill="none" stroke="url(#ring)" stroke-width="18" opacity=".55"/>
+  <ellipse cx="512" cy="712" rx="240" ry="82" fill="none" stroke="url(#ring)" stroke-width="24" opacity=".85"/>
+  <ellipse cx="512" cy="712" rx="136" ry="45" fill="none" stroke="#ffc840" stroke-width="40" opacity=".55" filter="url(#glow)"/>
+  <ellipse cx="512" cy="712" rx="136" ry="45" fill="none" stroke="url(#gold)" stroke-width="30"/>
+  <ellipse cx="512" cy="712" rx="96" ry="26" fill="url(#splash)"/>
+
+  <!-- Lichtschein des Tropfens auf dem Wasser -->
+  <ellipse cx="512" cy="600" rx="150" ry="40" fill="#ffd36b" opacity=".28" filter="url(#glow)"/>
+
   <!-- Tropfen -->
-  <path d="M512 150 C512 150 378 334 378 452 A134 134 0 0 0 646 452 C646 334 512 150 512 150 Z" fill="#02160f" opacity=".35" transform="translate(10 26)"/>
+  <path d="M512 150 C512 150 378 334 378 452 A134 134 0 0 0 646 452 C646 334 512 150 512 150 Z" fill="#ffc840" opacity=".45" filter="url(#glow)"/>
   <path d="M512 150 C512 150 378 334 378 452 A134 134 0 0 0 646 452 C646 334 512 150 512 150 Z" fill="url(#drop)"/>
-  <path d="M512 150 C512 150 378 334 378 452 A134 134 0 0 0 646 452 C646 334 512 150 512 150 Z" fill="none" stroke="url(#gold)" stroke-width="10" opacity=".9"/>
-  <path d="M446 432 C446 388 470 342 492 308" fill="none" stroke="#fff" stroke-width="24" stroke-linecap="round" opacity=".9"/>
+  <g clip-path="url(#dropClip)">
+    <rect x="370" y="140" width="290" height="460" fill="url(#volume)"/>
+    <rect x="370" y="140" width="290" height="460" fill="url(#caustic)"/>
+    <!-- weiche Glanzfläche links oben -->
+    <ellipse cx="462" cy="392" rx="34" ry="92" fill="#fff" opacity=".7" transform="rotate(22 462 392)" filter="url(#soft)"/>
+  </g>
+  <path d="M512 150 C512 150 378 334 378 452 A134 134 0 0 0 646 452 C646 334 512 150 512 150 Z" fill="none" stroke="url(#edge)" stroke-width="6" opacity=".8"/>
+  <!-- harte Glanzlichter -->
+  <path d="M446 436 C446 392 468 348 490 314" fill="none" stroke="#fff" stroke-width="20" stroke-linecap="round"/>
+  <circle cx="586" cy="500" r="11" fill="#fff" opacity=".85"/>
 </svg>

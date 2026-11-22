@@ -2,7 +2,7 @@
 // - Dateien mit Hash im Namen (assets/) ändern sich nie → direkt aus dem Cache
 // - Startseite: kurz übers Netz versuchen, sonst die zuletzt geladene Version
 //   (immer unter "./" gespeichert – früher konnte eine uralte Kopie von der Installation erscheinen)
-const CACHE = "drive-pool-v6";
+const CACHE = "drive-pool-v7";
 const SHELL = ["./", "./manifest.webmanifest", "./icons/icon-192.png"];
 const SHELL_KEY = new URL("./", self.location).toString();
 // Dateien dieser App-Version unter assets/ – wird beim Bauen eingesetzt (vite.config.ts). Ohne Bauen: null.
