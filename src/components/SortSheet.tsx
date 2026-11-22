@@ -12,7 +12,10 @@ import { useKeepAwake } from "../lib/wakelock";
 
 const key = (i: Item) => `${i.account_id}|${i.drive_id}`;
 
-/** Sortieren-Knopf (Regel 12): markierte Fotos ordnen und ab der höchsten Zahl nummerieren. */
+/**
+ * Sortieren-Knopf (Regel 12): nur die angetippten Fotos werden ab der höchsten Zahl nummeriert.
+ * Fotos, die sonst zwischen den neuen Nummern stünden, bekommen „Foto_“ vorne dran.
+ */
 export default function SortSheet({
   selected,
   folderFiles,
@@ -31,26 +34,32 @@ export default function SortSheet({
   const [done, setDone] = useState(0);
   const [failed, setFailed] = useState<string[]>([]);
 
-  const byKey = useMemo(() => new Map(selected.map((i) => [key(i), i])), [selected]);
-  const ordered = useMemo(() => {
-    const out = order.map((k) => byKey.get(k)!).filter(Boolean);
-    for (const i of selected) if (!order.includes(key(i))) out.push(i);
-    return out;
-  }, [order, byKey, selected]);
+  // alle Fotos im Ordner (auch umbenannte, die zwischen den neuen Nummern liegen)
+  const byKey = useMemo(() => new Map([...folderFiles, ...selected].map((i) => [key(i), i])), [folderFiles, selected]);
+  const ordered = useMemo(() => order.map((k) => byKey.get(k)!).filter(Boolean), [order, byKey]);
 
-  const selectedKeys = new Set(selected.map(key));
-  const otherNames = folderFiles.filter((f) => !selectedKeys.has(key(f))).map((f) => f.name);
-  const plan = planSort(
-    ordered.map((i) => ({ id: key(i), name: i.name })),
-    otherNames,
-  );
+  const plan = useMemo(() => {
+    const tapped = new Set(order);
+    const others = [...byKey.values()].filter((i) => !tapped.has(key(i))).map((i) => ({ id: key(i), name: i.name }));
+    return planSort(
+      ordered.map((i) => ({ id: key(i), name: i.name })),
+      others,
+    );
+  }, [order, ordered, byKey]);
+  const numbered = plan.filter((p) => p.reason === "nummer");
+  const between = plan.filter((p) => p.reason === "dazwischen");
 
   const toggle = (k: string) => setOrder((o) => (o.includes(k) ? o.filter((x) => x !== k) : [...o, k]));
 
   const run = async () => {
     const ok = await ui.confirm({
       title: `${plan.length} Foto${plan.length === 1 ? "" : "s"} umbenennen?`,
-      message: `Neue Namen ${plan[0]?.to} bis ${plan[plan.length - 1]?.to}. Der alte Name wird in der Beschreibung gespeichert.`,
+      message:
+        `Neue Namen ${numbered[0]?.to} bis ${numbered[numbered.length - 1]?.to}.` +
+        (between.length
+          ? ` ${between.length} weitere${between.length === 1 ? "s" : ""} Foto${between.length === 1 ? "" : "s"} stünde${between.length === 1 ? "" : "n"} dazwischen und bekomm${between.length === 1 ? "t" : "en"} „Foto_“ vorne dran.`
+          : "") +
+        " Der alte Name wird in der Beschreibung gespeichert.",
       confirmLabel: "Umbenennen",
     });
     if (!ok) return;
@@ -63,7 +72,8 @@ export default function SortSheet({
       try {
         if (step.from !== step.to) {
           await updateItem(item.account_id, item.drive_id, { name: step.to, description: `Originalname: ${step.from}` });
-          logs.push({ kind: "rename" as const, message: `„${step.from}“ → „${step.to}“ (Sortieren)`, details: { ordner: folderPath } });
+          const why = step.reason === "nummer" ? "Sortieren" : "Sortieren, lag dazwischen";
+          logs.push({ kind: "rename" as const, message: `„${step.from}“ → „${step.to}“ (${why})`, details: { ordner: folderPath } });
           renamed.push(item);
         }
       } catch (e) {
@@ -73,7 +83,7 @@ export default function SortSheet({
     }
     setFailed(errors);
     await writeLogs(logs);
-    await syncAccounts([...new Set(selected.map((i) => i.account_id))]).catch(() => undefined);
+    await syncAccounts([...new Set(plan.map((p) => byKey.get(p.id)!.account_id))]).catch(() => undefined);
     setPhase("done");
     if (renamed.length) offerUndo(`${renamed.length} Foto${renamed.length === 1 ? "" : "s"} sortiert`, undoFileRenames(renamed));
   };
@@ -98,8 +108,14 @@ export default function SortSheet({
           {phase === "order" && (
             <>
               <p className="muted small">
-                Tippe die Fotos in der richtigen Reihenfolge an ({order.length}/{selected.length}). Nicht angetippte folgen
-                danach. Nummeriert wird ab <strong>{plan[0]?.to.replace(/\.[^.]*$/, "")}</strong>.
+                Tippe die Fotos in der richtigen Reihenfolge an ({order.length}/{selected.length}). Nur angetippte werden
+                nummeriert, die anderen behalten ihren Namen.
+                {numbered.length > 0 && (
+                  <>
+                    {" "}
+                    Nummeriert wird ab <strong>{numbered[0].to.replace(/\.[^.]*$/, "")}</strong>.
+                  </>
+                )}
               </p>
               <div className="row">
                 <button className="btn small" onClick={() => setOrder(selected.map(key))}>
@@ -115,7 +131,7 @@ export default function SortSheet({
                 {selected.map((it, i) => {
                   const k = key(it);
                   const pos = order.indexOf(k);
-                  const target = plan.find((p) => p.id === k)?.to;
+                  const target = plan.find((p) => p.id === k)?.to ?? it.name;
                   return (
                     <button
                       key={k}
@@ -131,14 +147,29 @@ export default function SortSheet({
                 })}
               </div>
               <ul className="names">
-                {plan.map((p) => (
+                {numbered.map((p) => (
                   <li key={p.id}>
                     {p.from} → <strong>{p.to}</strong>
                   </li>
                 ))}
               </ul>
-              <button className="btn primary block" onClick={run}>
-                <Icon name="sortNum" size={19} /> {plan.length} umbenennen
+              {between.length > 0 && (
+                <>
+                  <p className="muted small">
+                    {between.length === 1 ? "Dieses Foto stünde" : "Diese Fotos stünden"} sonst zwischen den neuen Nummern
+                    und {between.length === 1 ? "rutscht" : "rutschen"} mit „Foto_“ ans Ende:
+                  </p>
+                  <ul className="names">
+                    {between.map((p) => (
+                      <li key={p.id}>
+                        {p.from} → <strong>{p.to}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <button className="btn primary block" onClick={run} disabled={!plan.length}>
+                <Icon name="sortNum" size={19} /> {plan.length ? `${plan.length} umbenennen` : "Fotos antippen"}
               </button>
             </>
           )}
