@@ -74,6 +74,17 @@ function predecode(url: string) {
   predecoded.splice(0, predecoded.length, img);
   return img.decode().catch(() => undefined);
 }
+/** Farbe der Statusleiste im aktuellen Design */
+const designColor = () => THEMES.find((t) => t.id === currentTheme())?.themeColor ?? "#000000";
+/** Zwei #rrggbb-Farben mischen (t = 0 → a, t = 1 → b) */
+function mixHex(a: string, b: string, t: number): string {
+  if (t <= 0) return a;
+  if (t >= 1) return b;
+  const ch = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+  return `#${[0, 1, 2]
+    .map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
 const tf = (n: Zoom) => (n.s !== 1 || n.x || n.y ? `translate3d(${n.x}px, ${n.y}px, 0) scale(${n.s})` : "");
 const rubber = (v: number, lo: number, hi: number) => (v > hi ? hi + (v - hi) * RUBBER : v < lo ? lo - (lo - v) * RUBBER : v);
 
@@ -202,16 +213,16 @@ export default function Viewer({
   const cancelToggle = () => clearTimeout(tapTimer.current);
   useEffect(() => () => clearTimeout(tapTimer.current), []);
   // Statusleiste (Uhr, Akku) und Browserleiste in der Farbe des Hintergrunds – sonst bliebe sie im hellen
-  // Design hell, während das Foto nach dem Antippen auf Schwarz liegt. Beim Schliessen wieder die des Designs.
+  // Design hell, während das Foto nach dem Antippen auf Schwarz liegt. Beim Herunterwischen blendet sie
+  // mit dem Hintergrund zur Farbe des Designs über, beim Schliessen ganz zurück.
   const bgColor = light && !immersive ? "#ffffff" : "#000000";
+  const statusFade = closing ? 1 : dy ? Math.min(dy / 350, 0.9) : 0;
   useEffect(() => {
-    const meta = document.querySelector('meta[name="theme-color"]');
-    meta?.setAttribute("content", bgColor);
-  }, [bgColor]);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", mixHex(bgColor, designColor(), statusFade));
+  }, [bgColor, statusFade]);
   useEffect(
     () => () => {
-      const id = currentTheme();
-      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEMES.find((t) => t.id === id)?.themeColor ?? "#000000");
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", designColor());
     },
     [],
   );
