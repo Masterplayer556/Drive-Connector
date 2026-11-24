@@ -8116,8 +8116,10 @@ label.btn.disabled {
   left: 14px;
   right: 14px;
   bottom: calc(96px + var(--safe-bottom));
-  z-index: 35;
+  /* Über der Foto-Ansicht (45), unter Dialogen (50) */
+  z-index: 48;
   max-width: 520px;
+  touch-action: none;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -8129,6 +8131,21 @@ label.btn.disabled {
     var(--lg-fill),
     rgba(var(--surface-rgb), 0.94);
   animation: fadeUp 0.35s var(--spring) both;
+}
+
+/* Wegwischen: folgt dem Finger, federt zurück oder gleitet hinaus */
+.undo-bar.moved {
+  animation: none;
+  transition:
+    transform 0.22s var(--ease),
+    opacity 0.22s ease;
+}
+.undo-bar.dragging {
+  transition: none;
+}
+/* In der Foto-Ansicht gibt es keine Tab-Leiste: weiter unten */
+body:has(.viewer) .undo-bar {
+  bottom: calc(16px + var(--safe-bottom));
 }
 
 .undo-text {
