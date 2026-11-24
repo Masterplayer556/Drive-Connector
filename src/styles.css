@@ -1668,9 +1668,26 @@ p {
 .viewer-menu .menu-count {
   margin-left: auto;
 }
-.sheet.viewer-info-sheet {
+.viewer-info-layer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 100%;
+  height: 100lvh;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+.viewer-info-layer > .sheet.viewer-info-sheet {
+  position: relative;
   top: auto;
+  bottom: auto;
+  height: auto;
   max-height: calc(100% - 60px - var(--safe-top));
+  pointer-events: auto;
 }
 .info-list {
   display: flex;
@@ -2772,11 +2789,57 @@ p {
   justify-content: center;
   /* backwards statt both: sonst hielte die Animation „transform: none“ fest und das Foto folgte dem Finger nicht */
   animation: zoomIn 0.4s var(--ease) backwards;
-  transition: transform 0.35s var(--spring), opacity 0.3s;
+  transition: transform 0.3s var(--ease);
 }
 
 .viewer-frame.dragging {
   transition: none;
+}
+/* Blättern: nur seitwärts schieben – das alte Foto gleitet hinaus, das neue von der anderen Seite herein */
+.viewer-frame.enter-next {
+  animation: slideFromRight 0.28s var(--ease) backwards;
+}
+.viewer-frame.enter-prev {
+  animation: slideFromLeft 0.28s var(--ease) backwards;
+}
+.viewer-frame.leaving {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: none;
+  transition: none;
+}
+.viewer-frame.leaving.to-left {
+  animation: slideOutLeft 0.28s var(--ease) both;
+}
+.viewer-frame.leaving.to-right {
+  animation: slideOutRight 0.28s var(--ease) both;
+}
+@keyframes slideFromRight {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes slideFromLeft {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes slideOutLeft {
+  from {
+    transform: translateX(var(--from, 0px));
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+@keyframes slideOutRight {
+  from {
+    transform: translateX(var(--from, 0px));
+  }
+  to {
+    transform: translateX(100%);
+  }
 }
 
 .viewer-frame img {

@@ -43,6 +43,9 @@ export default function ViewerInfo({
   return (
     <>
       <div className="sheet-backdrop" onClick={onClose} />
+      {/* Eigene Ebene über die ganze Bildschirmhöhe: das Fenster sitzt unten und ist nur so hoch wie nötig
+          (als App auf dem Home-Bildschirm misst iOS „unten“ sonst falsch – siehe .sheet in styles.css) */}
+      <div className="viewer-info-layer">
       <div className="sheet viewer-info-sheet">
         <div className="sheet-grip" />
         <div className="sheet-head">
@@ -108,6 +111,7 @@ export default function ViewerInfo({
             <Icon name="externalLink" size={17} /> In Google Drive öffnen
           </a>
         </div>
+      </div>
       </div>
     </>
   );
