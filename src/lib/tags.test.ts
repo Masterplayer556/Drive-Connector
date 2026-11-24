@@ -43,6 +43,9 @@ describe("Tags ohne #", () => {
   it("findet Tags als ganze Wörter", () => {
     expect(tagHits("ferien strand", tags)).toEqual([{ tag: "Ferien", count: 12, query: "#Ferien strand" }]);
     expect(tagHits("Ferien 2024", tags).map((t) => t.query)).toEqual(["#Ferien 2024", '#"Ferien 2024"']);
+    // KI-Namen: gleich, aber mit „@“; schon gewählter Tag oder Name → keine Vorschläge mehr
+    expect(tagHits("ferien", tags, "@").map((t) => t.query)).toEqual(["@Ferien"]);
+    expect(tagHits("@Ferien", tags)).toEqual([]);
     expect(tagHits("Ferienhaus", tags)).toEqual([]);
     expect(tagHits("#Ferien", tags)).toEqual([]);
   });

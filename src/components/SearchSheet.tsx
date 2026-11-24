@@ -41,6 +41,23 @@ export default function SearchSheet({
   // Tags ohne „#“: passt die Suche zu einem Tag, oben einen Knopf dafür zeigen
   const hits = tagHits(q, tags);
   const tagQuery = !kiMode && q.trim().startsWith("#") ? q.trim().slice(1).replace(/^["“„«]|["”“»]$/g, "").trim() : null;
+  // KI-Namen („Luca“, „Pikachu“) wie Tags: „@Luca“ zeigt alle so benannten Fotos, ohne „@“ ein Knopf dafür
+  const [names, setNames] = useState<{ tag: string; count: number; color: null }[]>([]);
+  useEffect(() => {
+    if (!ai) return;
+    let alive = true;
+    void import("../ai/search")
+      .then((m) => m.allNames())
+      .then((all) => alive && setNames(all.filter((n) => n.count > 0).map((n) => ({ tag: n.label, count: n.count, color: null }))))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [ai]);
+  const nameHits = ai && !kiMode ? tagHits(q, names, "@") : [];
+  const nameQuery = ai && !kiMode && q.trim().startsWith("@") ? q.trim().slice(1).replace(/^["“„«]|["”“»]$/g, "").trim() : null;
+  // Nach Löschen/Umbenennen/Verschieben in der Foto-Ansicht neu suchen
+  const [rev, setRev] = useState(0);
 
   useEffect(() => {
     setTimeout(() => input.current?.focus(), 150);
@@ -48,7 +65,7 @@ export default function SearchSheet({
 
   useEffect(() => {
     const term = q.trim();
-    if ((term.length < 2 && !tagQuery) || kiMode || tagQuery === "") {
+    if ((term.length < 2 && !tagQuery && !nameQuery) || kiMode || tagQuery === "" || nameQuery === "") {
       setResults(null);
       setBusy(false);
       return;
@@ -56,14 +73,14 @@ export default function SearchSheet({
     const n = ++seq.current;
     setBusy(true);
     const t = setTimeout(() => {
-      (tagQuery ? taggedItems(tagQuery) : searchItems(term))
+      (tagQuery ? taggedItems(tagQuery) : nameQuery ? import("../ai/search").then((m) => m.namedItems(nameQuery)) : searchItems(term))
         .then((r) => n === seq.current && setResults(r))
         .catch(() => n === seq.current && setResults([]))
         .finally(() => n === seq.current && setBusy(false));
     }, 220);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, kiMode]);
+  }, [q, kiMode, rev]);
 
   // Ordner aus mehreren Konten zusammenführen
   const folders = [...new Map((results ?? []).filter((r) => r.is_folder).map((r) => [(r.path ?? "").toLowerCase(), r])).values()];
@@ -107,6 +124,16 @@ export default function SearchSheet({
               <span className="faint small">Nur Fotos mit diesem Tag</span>
             </div>
           )}
+          {nameHits.length > 0 && (
+            <div className="tag-chips tag-hits">
+              {nameHits.map((h) => (
+                <button key={h.tag} className="tag-chip on" onClick={() => setQ(h.query)}>
+                  <Icon name="user" size={13} /> {h.tag} <span className="faint">{h.count}</span>
+                </button>
+              ))}
+              <span className="faint small">Nur Fotos mit diesem Namen</span>
+            </div>
+          )}
           {/* KI-SUCHE: im KI-Modus nur die KI-Treffer */}
           {kiMode ? (
             <>
@@ -129,8 +156,10 @@ export default function SearchSheet({
             <>
               <p className="muted small" style={{ textAlign: "center", marginTop: 24 }}>
                 Mindestens 2 Zeichen – z. B. „Mathe“, „2024“ oder „IMG_45“. Eigene Tags mit „#“, z. B. „#Ferien“.
+                {names.length > 0 && ` Namen mit „@“, z. B. „@${names[0].tag}“.`}
               </p>
               {tags.length > 0 && <TagChips tags={tags} onPick={(t) => setQ(`#${t.includes(" ") ? `"${t}"` : t}`)} />}
+              {names.length > 0 && <TagChips tags={names} prefix="@" onPick={(t) => setQ(`@${t.includes(" ") ? `"${t}"` : t}`)} />}
             </>
           ) : results.length === 0 ? (
             <div className="empty">
@@ -173,7 +202,7 @@ export default function SearchSheet({
               {files.length > 0 && (
                 <>
                   <div className="section-title" style={{ padding: "4px 0" }}>
-                    <span>{tagQuery ? `#${tagQuery}` : "Fotos"}</span>
+                    <span>{tagQuery ? `#${tagQuery}` : nameQuery ? `@${nameQuery}` : "Fotos"}</span>
                     <span className="row" style={{ gap: 10 }}>
                       <SelectToggle sel={sel} />
                       {files.length}
@@ -208,7 +237,14 @@ export default function SearchSheet({
       </div>
       {viewer !== null && files[viewer] && (
         <Suspense fallback={null}>
-          <Viewer items={files} index={viewer} accounts={accounts} onIndex={setViewer} onClose={() => setViewer(null)} />
+          <Viewer
+            items={files}
+            index={viewer}
+            accounts={accounts}
+            onIndex={setViewer}
+            onClose={() => setViewer(null)}
+            onChanged={() => setRev((r) => r + 1)}
+          />
         </Suspense>
       )}
     </>
@@ -216,12 +252,21 @@ export default function SearchSheet({
 }
 
 /** Alle eigenen Tags zum Antippen (Merkzeichen als Farbpunkt). */
-function TagChips({ tags, onPick }: { tags: { tag: string; count: number; color: string | null }[]; onPick: (tag: string) => void }) {
+function TagChips({
+  tags,
+  prefix = "#",
+  onPick,
+}: {
+  tags: { tag: string; count: number; color: string | null }[];
+  /** „@“ für KI-Namen */
+  prefix?: string;
+  onPick: (tag: string) => void;
+}) {
   return (
     <div className="tag-chips" style={{ justifyContent: "center", marginTop: 12 }}>
       {tags.map((t) => (
         <button key={t.tag} className="tag-chip" onClick={() => onPick(t.tag)}>
-          {t.color ? <i className="tag-chip-dot" style={{ background: t.color }} /> : "#"}
+          {t.color ? <i className="tag-chip-dot" style={{ background: t.color }} /> : prefix}
           {t.tag} <span className="faint">{t.count}</span>
         </button>
       ))}

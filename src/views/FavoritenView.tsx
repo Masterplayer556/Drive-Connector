@@ -62,7 +62,7 @@ export default function FavoritenView({ accounts }: { accounts: Account[] }) {
       )}
       {viewer !== null && items?.[viewer] && (
         <Suspense fallback={null}>
-          <Viewer items={items} index={viewer} accounts={accounts} onIndex={setViewer} onClose={() => setViewer(null)} />
+          <Viewer items={items} index={viewer} accounts={accounts} onIndex={setViewer} onClose={() => setViewer(null)} onChanged={() => void load()} />
         </Suspense>
       )}
     </div>

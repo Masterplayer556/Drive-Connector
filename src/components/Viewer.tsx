@@ -1,8 +1,12 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatBytes, formatDateTime } from "../lib/format";
-import { accessToken, downloadBlob } from "../lib/google";
-import { accountColor } from "../lib/theme";
+import { accessToken, downloadBlob, updateItem } from "../lib/google";
+import { accountColor, currentTheme, isLight } from "../lib/theme";
+import { cachedFolder, invalidateAll } from "../lib/cache";
+import { syncAccounts, writeLogs } from "../lib/db";
+import { trashFiles } from "../lib/folders";
+import { offerUndo, undoFileRenames } from "../lib/undo";
 import { getThumb, peekThumb, VIEW_SIZE } from "../lib/thumbs";
 import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
@@ -14,6 +18,8 @@ import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
 const ShareSheet = lazy(() => import("./ShareSheet"));
 const SimilarSheet = lazy(() => import("../ai/SimilarSheet")); // KI-SUCHE
 const TagSheet = lazy(() => import("./TagSheet"));
+const MoveSheet = lazy(() => import("./MoveSheet"));
+const ViewerInfo = lazy(() => import("./ViewerInfo"));
 
 interface Zoom {
   s: number;
@@ -38,6 +44,8 @@ interface Gesture {
   ly?: number;
   /** Fing auf einem Knopf an (Abspielen …) → kein Antippen zum Ein-/Ausblenden */
   onButton?: boolean;
+  /** Wischrichtung, sobald klar: seitwärts = blättern, nach unten = schliessen */
+  axis?: "x" | "y";
 }
 const NO_ZOOM: Zoom = { s: 1, x: 0, y: 0 };
 /** Obergrenze, egal wie gross das Original ist */
@@ -51,6 +59,10 @@ const RUBBER = 0.35;
 const GLIDE_MS = 220;
 /** So lange warten, ob ein zweiter Tipp folgt (Doppeltippen = Zoom), bevor die Leisten umschalten */
 const TAP_WAIT_MS = 280;
+/** Nach unten wischen: ab so weit (px) oder so schnell (px/ms) schliesst die Ansicht */
+const DISMISS_PX = 110;
+const DISMISS_SPEED = 0.6;
+const keyOf = (i: Item) => `${i.account_id}|${i.drive_id}`;
 
 /** So viele Bilder in Blätterrichtung vorladen */
 const PRELOAD_AHEAD = 4;
@@ -71,6 +83,7 @@ export default function Viewer({
   accounts,
   onIndex,
   onClose,
+  onChanged,
   action,
 }: {
   items: Item[];
@@ -78,10 +91,45 @@ export default function Viewer({
   accounts: Account[];
   onIndex: (i: number) => void;
   onClose: () => void;
+  /** Etwas wurde gelöscht, umbenannt oder verschoben – wird beim Schliessen gemeldet (Liste neu laden) */
+  onChanged?: () => void;
   /** Zusätzlicher Knopf unten, z. B. „In ‚Pikachu‘ verschieben“ */
   action?: { label: string; icon: string; run: (item: Item) => void };
 }) {
-  const item = items[index];
+  // Änderungen aus der Ansicht selbst (Umbenennen, Verschieben, Löschen) – die Liste des Aufrufers bleibt
+  // unangetastet, solange die Ansicht offen ist; beim Schliessen meldet onChanged, dass sie neu laden soll.
+  const [patches, setPatches] = useState<Map<string, Partial<Item>>>(() => new Map());
+  const [gone, setGone] = useState<Set<string>>(() => new Set());
+  const changed = useRef(false);
+  /** Laufende Drive-Aufrufe (Löschen, Abgleich) – erst danach die Listen neu laden */
+  const pending = useRef<Promise<unknown>[]>([]);
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
+  // Erst beim Schliessen neu laden: sonst verschöbe sich die Liste unter der offenen Ansicht
+  useEffect(
+    () => () => {
+      if (!changed.current) return;
+      void Promise.allSettled(pending.current).then(() => {
+        invalidateAll();
+        window.dispatchEvent(new Event("drivepool-changed"));
+        onChangedRef.current?.();
+      });
+    },
+    [],
+  );
+  const patchItem = (k: string, p: Partial<Item>) => {
+    changed.current = true;
+    setPatches((m) => new Map(m).set(k, { ...m.get(k), ...p }));
+  };
+  const raw = items[index];
+  const item: Item = patches.has(keyOf(raw)) ? { ...raw, ...patches.get(keyOf(raw)) } : raw;
+  /** Nächstes/voriges noch vorhandenes Foto */
+  const step = (dir: 1 | -1): number | null => {
+    for (let j = index + dir; j >= 0 && j < items.length; j += dir) if (!gone.has(keyOf(items[j]))) return j;
+    return null;
+  };
+  const visibleTotal = items.length - gone.size;
+  const visiblePos = items.slice(0, index).filter((i) => !gone.has(keyOf(i))).length + 1;
   // Nur ein anderes Foto (nicht ein neu geladenes Objekt desselben Fotos) setzt Zoom & Bilder zurück
   const itemKey = `${item.account_id}|${item.drive_id}`;
   // Sofort: kleine Vorschau aus dem Speicher, dann die scharfe Version
@@ -89,6 +137,8 @@ export default function Viewer({
   const [high, setHigh] = useState<string | null>(() => peekThumb(item, VIEW_SIZE));
   const [error, setError] = useState(false);
   const [dx, setDx] = useState(0);
+  // Nach unten wischen → Ansicht schliessen (Foto folgt dem Finger, Hintergrund wird durchsichtig)
+  const [dy, setDy] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [closing, setClosing] = useState(false);
   const startX = useRef<number | null>(null);
@@ -136,6 +186,11 @@ export default function Viewer({
   // Fingertipps erzeugen zusätzlich Maus-Ereignisse (dblclick) – die dürfen den Zoom nicht nochmals umschalten
   const lastTouch = useRef(0);
   const [sharing, setSharing] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [info, setInfo] = useState(false);
+  // Helles Design: weisser Hintergrund, bis man antippt (dann schwarz) – wie die Fotos-App auf dem iPhone
+  const light = isLight(currentTheme());
   // Antippen blendet Titel- und Infoleiste aus (wie in Google Drive) – das Foto nutzt dann den ganzen Bildschirm.
   // Bleibt beim Weiterwischen so, bis man wieder tippt.
   const [immersive, setImmersive] = useState(false);
@@ -180,11 +235,66 @@ export default function Viewer({
     }
   };
 
+  const rename = async () => {
+    const old = item;
+    const dot = old.name.lastIndexOf(".");
+    const ext = dot > 0 ? old.name.slice(dot) : "";
+    const taken = new Set(
+      (cachedFolder(old.parent_key ?? "")?.content.files ?? []).filter((f) => keyOf(f) !== keyOf(old)).map((f) => f.name.toLowerCase()),
+    );
+    const v = await ui.prompt({
+      title: "Umbenennen",
+      initial: old.name,
+      confirmLabel: "Umbenennen",
+      validate: (s) => (s.includes("/") ? "Kein „/“ im Namen" : null),
+    });
+    if (!v || v === old.name) return;
+    // Endung vergessen → die alte wieder anhängen
+    const name = ext && !/\.[a-z0-9]{2,5}$/i.test(v) ? v + ext : v;
+    if (taken.has(name.toLowerCase())) return ui.toast(`„${name}“ gibt es in diesem Ordner schon`, "error");
+    try {
+      await updateItem(old.account_id, old.drive_id, { name });
+      patchItem(keyOf(old), { name, path: old.path ? old.path.replace(/[^/]*$/, name) : old.path });
+      ui.toast("Umbenannt", "ok");
+      offerUndo(`„${old.name}“ → „${name}“`, async () => {
+        await undoFileRenames([old])();
+        patchItem(keyOf(old), { name: old.name, path: old.path });
+      });
+      void writeLogs([{ kind: "rename", message: `„${old.name}“ → „${name}“` }]).catch(() => undefined);
+      pending.current.push(syncAccounts([old.account_id]).catch(() => undefined));
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
+
+  const remove = async () => {
+    const it = item;
+    const ok = await ui.confirm({
+      title: `${isVideo ? "Video" : "Foto"} löschen?`,
+      message: "Es landet im Papierkorb des Google-Kontos.",
+      confirmLabel: "Löschen",
+      danger: true,
+    });
+    if (!ok) return;
+    const next = step(1) ?? step(-1);
+    changed.current = true;
+    setGone((g) => new Set(g).add(keyOf(it)));
+    if (next === null) close();
+    else onIndex(next);
+    ui.toast("Gelöscht", "ok");
+    const job = trashFiles([it]);
+    pending.current.push(job.catch(() => undefined));
+    job
+      .then((r) => r.failed.length && ui.toast(`Nicht gelöscht: ${r.failed[0]}`, "error"))
+      .catch((e) => ui.toast(e instanceof Error ? e.message : String(e), "error"));
+  };
+
   useEffect(() => {
     let alive = true;
     let revoke: string | null = null;
     setError(false);
     setDx(0);
+    setDy(0);
     commitZ(NO_ZOOM);
     setFull(null);
     setFullState("idle");
@@ -352,7 +462,17 @@ export default function Viewer({
       gs.ly = t[0].clientY;
       liveZ(softZ({ ...gs.z0, x: gs.z0.x + mx, y: gs.z0.y + my }));
     }
-    else if (gs.mode === "swipe" && startX.current !== null) setDx(t[0].clientX - startX.current);
+    else if (gs.mode === "swipe" && startX.current !== null) {
+      if (!gs.axis && Math.abs(mx) + Math.abs(my) > 10) gs.axis = my > 0 && Math.abs(my) > Math.abs(mx) ? "y" : "x";
+      if (gs.axis === "x") setDx(mx);
+      else if (gs.axis === "y") {
+        const now = performance.now();
+        if (gs.lt !== undefined) gs.vy = 0.7 * ((t[0].clientY - gs.ly!) / Math.max(1, now - gs.lt)) + 0.3 * (gs.vy ?? 0);
+        gs.lt = now;
+        gs.ly = t[0].clientY;
+        setDy(Math.max(0, my));
+      }
+    }
   };
   const onTouchEnd = (e: React.TouchEvent) => {
     const gs = g.current;
@@ -381,10 +501,19 @@ export default function Viewer({
     }
     if (gs.mode === "swipe") {
       setDragging(false);
-      if (dx > 70 && index > 0) onIndex(index - 1);
-      else if (dx < -70 && index < items.length - 1) onIndex(index + 1);
-      else setDx(0);
       startX.current = null;
+      if (gs.axis === "y") {
+        const fresh = gs.lt !== undefined && performance.now() - gs.lt < 80;
+        if (dy > DISMISS_PX || (fresh && (gs.vy ?? 0) > DISMISS_SPEED)) close();
+        else setDy(0);
+        g.current = null;
+        return;
+      }
+      const prev = step(-1);
+      const next = step(1);
+      if (dx > 70 && prev !== null) onIndex(prev);
+      else if (dx < -70 && next !== null) onIndex(next);
+      else setDx(0);
     }
     setZooming(false);
     g.current = null;
@@ -463,27 +592,40 @@ export default function Viewer({
   const accIndex = accounts.findIndex((a) => a.id === item.account_id);
   const account = accounts[accIndex];
   const style = {
-    transform: dx ? `translateX(${dx}px) rotate(${dx / 40}deg)` : undefined,
+    transform: dy
+      ? `translateY(${dy}px) scale(${1 - Math.min(dy / 1600, 0.25)})`
+      : dx
+        ? `translateX(${dx}px) rotate(${dx / 40}deg)`
+        : undefined,
     opacity: 1 - Math.min(Math.abs(dx) / 600, 0.4),
   };
+  /** Hintergrund beim Herunterwischen ausblenden – dahinter erscheint wieder die Liste */
+  const bgOpacity = dy ? 1 - Math.min(dy / 350, 0.9) : undefined;
 
   // Direkt an <body>: so liegt das Foto immer über dem ganzen Bildschirm – auch wenn es aus einem Fenster
   // (Suche, KI-Treffer) geöffnet wird, das seinen Inhalt sonst abschneidet oder darüber liegt.
   return createPortal(
-    <div className={`viewer ${closing ? "closing" : ""} ${immersive ? "immersive" : ""}`}>
+    <div className={`viewer ${closing ? "closing" : ""} ${immersive ? "immersive" : ""} ${light ? "light" : ""} ${dy ? "dismissing" : ""}`}>
+      <div className="viewer-bg" style={{ opacity: bgOpacity }} />
       <div ref={topEl} className="viewer-top" aria-hidden={immersive || undefined}>
         <button className="icon-btn glass" onClick={close} aria-label="Schliessen">
           <Icon name="x" />
         </button>
         <span className="viewer-title">{item.name}</span>
         <span className="muted small">
-          {index + 1}/{items.length}
+          {visiblePos}/{visibleTotal}
         </span>
         <button className={`icon-btn glass fav-btn ${fav ? "on" : ""}`} onClick={heart} aria-label="Favorit">
           <Icon name="heart" size={20} />
         </button>
-        <button className={`icon-btn glass tag-btn ${itemTags.length ? "on" : ""}`} onClick={() => setTagging(true)} aria-label="Tags">
-          <Icon name="tag" size={19} />
+        <button className="icon-btn glass" onClick={() => setMoving(true)} aria-label="Verschieben">
+          <Icon name="move" size={19} />
+        </button>
+        <button className="icon-btn glass" onClick={rename} aria-label="Umbenennen">
+          <Icon name="pencil" size={18} />
+        </button>
+        <button className="icon-btn glass tag-btn" onClick={() => setMenu(true)} aria-label="Mehr" aria-expanded={menu}>
+          <Icon name="more" size={20} />
           {markerDots.length > 0 && (
             <span className="tag-btn-dots">
               {markerDots.slice(0, 3).map((c) => (
@@ -492,16 +634,33 @@ export default function Viewer({
             </span>
           )}
         </button>
-        <button className="icon-btn glass" onClick={() => setSharing(true)} aria-label="Link teilen">
-          <Icon name="link" size={19} />
-        </button>
-        {/* KI-SUCHE */}
-        {ai && (
-          <button className="icon-btn glass" onClick={() => setSimilar(true)} aria-label="Ähnliche Fotos">
-            <Icon name="sparkles" size={19} />
-          </button>
-        )}
       </div>
+      {menu && (
+        <>
+          <div className="menu-backdrop viewer-menu-layer" onClick={() => setMenu(false)} />
+          <div className="menu glass viewer-menu" onClick={() => setMenu(false)}>
+            <button onClick={() => setTagging(true)}>
+              <Icon name="tag" size={19} /> Tags setzen
+              {itemTags.length > 0 && <span className="faint small menu-count">{itemTags.length}</span>}
+            </button>
+            {/* KI-SUCHE */}
+            {ai && (
+              <button onClick={() => setSimilar(true)}>
+                <Icon name="sparkles" size={19} /> Ähnliche Fotos
+              </button>
+            )}
+            <button onClick={() => setSharing(true)}>
+              <Icon name="link" size={19} /> Link teilen
+            </button>
+            <button onClick={() => setInfo(true)}>
+              <Icon name="info" size={19} /> Info
+            </button>
+            <button className="danger" onClick={remove}>
+              <Icon name="trash" size={19} /> Löschen
+            </button>
+          </div>
+        </>
+      )}
       <div
         ref={stageRef}
         className="viewer-stage"
@@ -612,6 +771,34 @@ export default function Viewer({
       {tagging && (
         <Suspense fallback={null}>
           <TagSheet items={[item]} onClose={() => setTagging(false)} />
+        </Suspense>
+      )}
+      {moving && (
+        <Suspense fallback={null}>
+          <MoveSheet
+            items={[item]}
+            accounts={accounts}
+            onClose={(didMove, moved) => {
+              setMoving(false);
+              const p = moved?.get(keyOf(item));
+              if (didMove && p) patchItem(keyOf(item), p);
+            }}
+          />
+        </Suspense>
+      )}
+      {info && (
+        <Suspense fallback={null}>
+          <ViewerInfo
+            item={item}
+            accounts={accounts}
+            tags={itemTags}
+            ai={ai}
+            onTags={() => {
+              setInfo(false);
+              setTagging(true);
+            }}
+            onClose={() => setInfo(false)}
+          />
         </Suspense>
       )}
       {/* KI-SUCHE */}
