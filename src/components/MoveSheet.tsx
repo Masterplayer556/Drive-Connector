@@ -30,7 +30,8 @@ export default function MoveSheet({
   /** Ausgewählte Ordner – wandern samt Inhalt, jeder Teil bleibt in seinem Konto */
   folders?: LogicalFolder[];
   accounts: Account[];
-  onClose: (changed: boolean) => void;
+  /** moved: neuer Stand der verschobenen Fotos (Name, Ordner, Pfad) – z. B. für die Foto-Ansicht */
+  onClose: (changed: boolean, moved?: Map<string, Partial<Item>>) => void;
 }) {
   useFolderColors(); // eigene Ordnerfarben (wie im Drive), neu zeichnen sobald geladen
   const [stack, setStack] = useState<Crumb[]>(() => (target?.length ? [ROOT, ...target.filter((c) => c.key)] : [ROOT]));
@@ -41,6 +42,7 @@ export default function MoveSheet({
   useKeepAwake(phase === "run"); // Bildschirm bleibt an, solange es läuft
   const [done, setDone] = useState(0);
   const [failed, setFailed] = useState<string[]>([]);
+  const movedTo = useRef(new Map<string, Partial<Item>>());
 
   useEffect(() => {
     setContent(null);
@@ -166,6 +168,13 @@ export default function MoveSheet({
         );
         gone.add(`${e.item.account_id}|${e.item.drive_id}`);
         movedFiles.push({ item: e.item, to: parent, renamed: e.renamed });
+        const name = e.renamed ? e.targetName : e.item.name;
+        movedTo.current.set(`${e.item.account_id}|${e.item.drive_id}`, {
+          name,
+          parent_drive_id: parent,
+          parent_key: current.key,
+          path: childPath(current.path, name),
+        });
         if (e.renamed) {
           logs.push({ kind: "rename", message: `„${e.item.name}“ → „${e.targetName}“ (Namenskonflikt beim Verschieben)` });
         }
@@ -212,7 +221,7 @@ export default function MoveSheet({
             <h2 className="ellipsis">{phase === "done" ? "Verschoben" : current.key ? current.name : "Ziel wählen"}</h2>
           </div>
           {phase !== "run" && (
-            <button className="icon-btn" onClick={() => onClose(phase === "done")} aria-label="Schliessen">
+            <button className="icon-btn" onClick={() => onClose(phase === "done", movedTo.current)} aria-label="Schliessen">
               <Icon name="x" />
             </button>
           )}
@@ -318,7 +327,7 @@ export default function MoveSheet({
                   </ul>
                 </div>
               )}
-              <button className="btn primary block" onClick={() => onClose(true)}>
+              <button className="btn primary block" onClick={() => onClose(true, movedTo.current)}>
                 Fertig
               </button>
             </>

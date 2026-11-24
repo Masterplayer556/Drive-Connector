@@ -1558,19 +1558,37 @@ p {
   z-index: 45;
   display: flex;
   flex-direction: column;
-  background: #000;
   animation: fadeIn 0.25s ease both;
 }
 
-/* Sicherheitsnetz: schwarz nach unten verlängert, falls iOS das Fenster trotzdem zu kurz misst */
-.viewer::after {
+/* Hintergrund als eigene Ebene: wird beim Herunterwischen durchsichtig.
+   Schwarz – in hellen Designs weiss, bis man antippt (dann schwarz, wie in der Fotos-App auf dem iPhone). */
+.viewer-bg {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  transition:
+    background-color 0.3s ease,
+    opacity 0.3s ease;
+}
+.viewer.dismissing .viewer-bg {
+  transition: none;
+}
+.viewer.light .viewer-bg {
+  background: #fff;
+}
+.viewer.light.immersive .viewer-bg {
+  background: #000;
+}
+/* Sicherheitsnetz: nach unten verlängert, falls iOS das Fenster trotzdem zu kurz misst */
+.viewer-bg::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
   top: 100%;
   height: 160px;
-  background: #000;
+  background: inherit;
   pointer-events: none;
 }
 
@@ -1630,6 +1648,61 @@ p {
 }
 .viewer-top > .muted {
   color: rgba(244, 246, 255, 0.7);
+}
+.viewer.light .viewer-title {
+  color: #14161f;
+}
+.viewer.light .viewer-top > .muted {
+  color: rgba(20, 22, 31, 0.6);
+}
+/* Beim Herunterwischen verschwinden die Leisten */
+.viewer.dismissing .viewer-top,
+.viewer.dismissing .viewer-bottom {
+  opacity: 0;
+  pointer-events: none;
+}
+.viewer-menu {
+  top: calc(60px + var(--safe-top));
+  right: 12px;
+}
+.viewer-menu .menu-count {
+  margin-left: auto;
+}
+.sheet.viewer-info-sheet {
+  top: auto;
+  max-height: calc(100% - 60px - var(--safe-top));
+}
+.info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+}
+.info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.info-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: rgba(var(--tint-rgb), 0.07);
+  color: var(--muted);
+}
+.info-row dd {
+  margin: 2px 0 0;
+  word-break: break-word;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.info-row .tag-chips {
+  padding: 0;
 }
 
 .viewer-stage {
@@ -2697,7 +2770,8 @@ p {
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: zoomIn 0.4s var(--ease) both;
+  /* backwards statt both: sonst hielte die Animation „transform: none“ fest und das Foto folgte dem Finger nicht */
+  animation: zoomIn 0.4s var(--ease) backwards;
   transition: transform 0.35s var(--spring), opacity 0.3s;
 }
 

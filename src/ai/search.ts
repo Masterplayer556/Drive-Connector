@@ -257,6 +257,18 @@ export async function allNames(): Promise<{ name: string; label: string; count: 
   })).sort((a, b) => byLabel(a.label, b.label));
 }
 
+/** Alle Fotos mit diesem Namen (selbst benannt oder aus einem verknüpften Ordner), neueste zuerst. */
+export async function namedItems(name: string): Promise<Item[]> {
+  const n = name.toLowerCase().trim().replace(/\s+/g, " ");
+  const [names, items] = await Promise.all([allFeedback().then(learnedNames), catalog().catch(() => new Map<string, Item>())]);
+  const hit = names.get(n);
+  if (!hit) return [];
+  return expandNameKeys(hit.keys, filesOf(items))
+    .map((k) => items.get(k))
+    .filter((i): i is Item => !!i && !i.is_folder)
+    .sort((a, b) => (b.taken_at ?? "").localeCompare(a.taken_at ?? ""));
+}
+
 /** [Schlüssel, Pfad] aller Fotos – zum Auflösen verknüpfter Ordner. */
 function filesOf(items: Map<string, Item>): [string, string | null][] {
   return [...items].map(([k, it]) => [k, it.path]);
