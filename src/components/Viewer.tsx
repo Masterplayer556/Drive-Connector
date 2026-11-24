@@ -36,6 +36,8 @@ interface Gesture {
   lt?: number;
   lx?: number;
   ly?: number;
+  /** Fing auf einem Knopf an (Abspielen …) → kein Antippen zum Ein-/Ausblenden */
+  onButton?: boolean;
 }
 const NO_ZOOM: Zoom = { s: 1, x: 0, y: 0 };
 /** Obergrenze, egal wie gross das Original ist */
@@ -47,6 +49,8 @@ const DOUBLE_TAP_ZOOM = 2.5;
 const RUBBER = 0.35;
 /** So lange gleitet ein schnell losgelassenes Bild nach (ms) */
 const GLIDE_MS = 220;
+/** So lange warten, ob ein zweiter Tipp folgt (Doppeltippen = Zoom), bevor die Leisten umschalten */
+const TAP_WAIT_MS = 280;
 
 /** So viele Bilder in Blätterrichtung vorladen */
 const PRELOAD_AHEAD = 4;
@@ -132,6 +136,28 @@ export default function Viewer({
   // Fingertipps erzeugen zusätzlich Maus-Ereignisse (dblclick) – die dürfen den Zoom nicht nochmals umschalten
   const lastTouch = useRef(0);
   const [sharing, setSharing] = useState(false);
+  // Antippen blendet Titel- und Infoleiste aus (wie in Google Drive) – das Foto nutzt dann den ganzen Bildschirm.
+  // Bleibt beim Weiterwischen so, bis man wieder tippt.
+  const [immersive, setImmersive] = useState(false);
+  const tapTimer = useRef(0);
+  const scheduleToggle = () => {
+    clearTimeout(tapTimer.current);
+    tapTimer.current = window.setTimeout(() => setImmersive((v) => !v), TAP_WAIT_MS);
+  };
+  const cancelToggle = () => clearTimeout(tapTimer.current);
+  useEffect(() => () => clearTimeout(tapTimer.current), []);
+  // Höhe der Leisten messen: so weit reicht das Foto im Normalzustand, ausgeblendet bis an den Rand
+  const topEl = useRef<HTMLDivElement>(null);
+  const bottomEl = useRef<HTMLDivElement>(null);
+  const [bars, setBars] = useState({ top: 0, bottom: 0 });
+  useLayoutEffect(() => {
+    const measure = () => setBars({ top: topEl.current?.offsetHeight ?? 0, bottom: bottomEl.current?.offsetHeight ?? 0 });
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (topEl.current) ro.observe(topEl.current);
+    if (bottomEl.current) ro.observe(bottomEl.current);
+    return () => ro.disconnect();
+  }, []);
   const ai = useAiEnabled(); // KI-SUCHE
   const [similar, setSimilar] = useState(false); // KI-SUCHE
   const [tagging, setTagging] = useState(false);
@@ -280,6 +306,7 @@ export default function Viewer({
       const a = rel(t[0].clientX, t[0].clientY);
       const b = rel(t[1].clientX, t[1].clientY);
       g.current = { mode: "pinch", d0: Math.hypot(a.x - b.x, a.y - b.y), m0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, z0: zRef.current, sx: 0, sy: 0, moved: true };
+      cancelToggle();
       setZooming(true);
       setDragging(false);
       setDx(0);
@@ -288,7 +315,8 @@ export default function Viewer({
     }
     if (t.length !== 1) return;
     const z0 = zRef.current;
-    g.current = { mode: z0.s > 1.01 ? "pan" : "swipe", d0: 0, m0: { x: 0, y: 0 }, z0, sx: t[0].clientX, sy: t[0].clientY, moved: false };
+    const onButton = !!(e.target as HTMLElement).closest("button, video");
+    g.current = { mode: z0.s > 1.01 ? "pan" : "swipe", d0: 0, m0: { x: 0, y: 0 }, z0, sx: t[0].clientX, sy: t[0].clientY, moved: false, onButton };
     if (z0.s > 1.01) setZooming(true);
     else {
       startX.current = t[0].clientX;
@@ -361,14 +389,19 @@ export default function Viewer({
     setZooming(false);
     g.current = null;
     // Doppeltippen: hineinzoomen an dieser Stelle bzw. zurück auf 100 %
-    if (!gs.moved) {
+    // Einfaches Tippen: Leisten ein-/ausblenden (erst wenn sicher kein zweiter Tipp kommt)
+    if (!gs.moved && !gs.onButton) {
       const now = Date.now();
       const p = rel(gs.sx, gs.sy);
       const prev = lastTap.current;
       if (prev && now - prev.t < 300 && Math.hypot(prev.x - p.x, prev.y - p.y) < 40) {
         lastTap.current = null;
+        cancelToggle();
         toggleZoom(p);
-      } else lastTap.current = { t: now, x: p.x, y: p.y };
+      } else {
+        lastTap.current = { t: now, x: p.x, y: p.y };
+        scheduleToggle();
+      }
     }
   };
   const toggleZoom = (p: { x: number; y: number }) => {
@@ -425,6 +458,8 @@ export default function Viewer({
     setTimeout(onClose, 180);
   };
 
+  /** Ordner, in dem das Foto liegt (Pfad ohne Dateinamen) */
+  const folderPath = item.path ? (item.path.includes("/") ? item.path.replace(/\/[^/]*$/, "") : "Drive") : null;
   const accIndex = accounts.findIndex((a) => a.id === item.account_id);
   const account = accounts[accIndex];
   const style = {
@@ -435,8 +470,8 @@ export default function Viewer({
   // Direkt an <body>: so liegt das Foto immer über dem ganzen Bildschirm – auch wenn es aus einem Fenster
   // (Suche, KI-Treffer) geöffnet wird, das seinen Inhalt sonst abschneidet oder darüber liegt.
   return createPortal(
-    <div className={`viewer ${closing ? "closing" : ""}`}>
-      <div className="viewer-top">
+    <div className={`viewer ${closing ? "closing" : ""} ${immersive ? "immersive" : ""}`}>
+      <div ref={topEl} className="viewer-top" aria-hidden={immersive || undefined}>
         <button className="icon-btn glass" onClick={close} aria-label="Schliessen">
           <Icon name="x" />
         </button>
@@ -470,6 +505,15 @@ export default function Viewer({
       <div
         ref={stageRef}
         className="viewer-stage"
+        style={immersive ? undefined : { top: bars.top, bottom: bars.bottom }}
+        // Grösse hat sich geändert (Leisten ein/aus) → Zoom-Ausschnitt wieder in die Grenzen holen
+        onTransitionEnd={(e) => e.target === e.currentTarget && zRef.current.s > 1.01 && commitZ(clampZ(zRef.current))}
+        onClick={(e) => {
+          // Maus: Klick blendet die Leisten um, Doppelklick zoomt
+          if (Date.now() - lastTouch.current < 800 || (e.target as HTMLElement).closest("button, video")) return;
+          if (e.detail === 1) scheduleToggle();
+          else cancelToggle();
+        }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -535,6 +579,7 @@ export default function Viewer({
           {z.s.toFixed(1)}×{fullState === "loading" ? " · lädt Original…" : atMax ? " · volle Auflösung" : ""}
         </div>
       )}
+      <div ref={bottomEl} className="viewer-bottom" aria-hidden={immersive || undefined}>
       {action && (
         <button className="btn primary viewer-action" onClick={() => action.run(item)}>
           <Icon name={action.icon} size={18} /> {action.label}
@@ -551,7 +596,13 @@ export default function Viewer({
             {account.email}
           </span>
         )}
+        {folderPath && (
+          <span className="chip-lite">
+            <Icon name="folder" size={15} /> {folderPath}
+          </span>
+        )}
         {item.description && <span className="chip-lite">{item.description}</span>}
+      </div>
       </div>
       {sharing && (
         <Suspense fallback={null}>
