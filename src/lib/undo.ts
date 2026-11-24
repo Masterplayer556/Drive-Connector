@@ -1,8 +1,8 @@
-// „Rückgängig“ nach Verschieben und Umbenennen: 10 Sekunden lang eine Leiste unten (wie bei Mail).
+// „Rückgängig“ nach Verschieben, Umbenennen und Löschen: 10 Sekunden lang eine Leiste unten (wie bei Mail).
 import { invalidateAll } from "./cache";
 import { syncAccounts, writeLog } from "./db";
 import { moveLogicalFolder, renameLogicalFolder } from "./folders";
-import { moveWithin, updateItem } from "./google";
+import { moveWithin, restoreItem, updateItem } from "./google";
 import { childKey, childPath } from "./naming";
 import { DRIVE_PARALLEL, mapPool } from "./pool";
 import type { Account, Crumb, Item, LogicalFolder } from "./types";
@@ -108,6 +108,15 @@ export function undoFileRenames(renamed: Item[]): () => Promise<void> {
     }
     await writeLog("rename", `Rückgängig: ${renamed.length} Foto${renamed.length === 1 ? "" : "s"} wieder wie vorher benannt`);
     await refresh(renamed.map((i) => i.account_id));
+  };
+}
+
+/** Gelöschte Fotos aus dem Papierkorb zurückholen. */
+export function undoTrash(items: Item[]): () => Promise<void> {
+  return async () => {
+    await mapPool(items, DRIVE_PARALLEL, (it) => restoreItem(it.account_id, it.drive_id));
+    await writeLog("move", `Rückgängig: ${items.length} Foto${items.length === 1 ? "" : "s"} aus dem Papierkorb zurückgeholt`);
+    await refresh(items.map((i) => i.account_id));
   };
 }
 

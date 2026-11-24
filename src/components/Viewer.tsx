@@ -2,11 +2,11 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "re
 import { createPortal } from "react-dom";
 import { formatBytes, formatDateTime } from "../lib/format";
 import { accessToken, downloadBlob, updateItem } from "../lib/google";
-import { accountColor, currentTheme, isLight } from "../lib/theme";
+import { accountColor, currentTheme, isLight, THEMES } from "../lib/theme";
 import { cachedFolder, invalidateAll } from "../lib/cache";
 import { syncAccounts, writeLogs } from "../lib/db";
 import { trashFiles } from "../lib/folders";
-import { offerUndo, undoFileRenames } from "../lib/undo";
+import { offerUndo, undoFileRenames, undoTrash } from "../lib/undo";
 import { getThumb, peekThumb, VIEW_SIZE } from "../lib/thumbs";
 import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
@@ -201,6 +201,20 @@ export default function Viewer({
   };
   const cancelToggle = () => clearTimeout(tapTimer.current);
   useEffect(() => () => clearTimeout(tapTimer.current), []);
+  // Statusleiste (Uhr, Akku) und Browserleiste in der Farbe des Hintergrunds – sonst bliebe sie im hellen
+  // Design hell, während das Foto nach dem Antippen auf Schwarz liegt. Beim Schliessen wieder die des Designs.
+  const bgColor = light && !immersive ? "#ffffff" : "#000000";
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    meta?.setAttribute("content", bgColor);
+  }, [bgColor]);
+  useEffect(
+    () => () => {
+      const id = currentTheme();
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEMES.find((t) => t.id === id)?.themeColor ?? "#000000");
+    },
+    [],
+  );
   // Höhe der Leisten messen: so weit reicht das Foto im Normalzustand, ausgeblendet bis an den Rand
   const topEl = useRef<HTMLDivElement>(null);
   const bottomEl = useRef<HTMLDivElement>(null);
@@ -281,9 +295,18 @@ export default function Viewer({
     setGone((g) => new Set(g).add(keyOf(it)));
     if (next === null) close();
     else onIndex(next);
-    ui.toast("Gelöscht", "ok");
     const job = trashFiles([it]);
     pending.current.push(job.catch(() => undefined));
+    offerUndo(`„${it.name}“ gelöscht`, async () => {
+      // Erst fertig löschen lassen, dann zurückholen
+      await job.catch(() => undefined);
+      await undoTrash([it])();
+      setGone((g) => {
+        const n = new Set(g);
+        n.delete(keyOf(it));
+        return n;
+      });
+    });
     job
       .then((r) => r.failed.length && ui.toast(`Nicht gelöscht: ${r.failed[0]}`, "error"))
       .catch((e) => ui.toast(e instanceof Error ? e.message : String(e), "error"));
