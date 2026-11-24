@@ -148,6 +148,20 @@ export default function Viewer({
   const [high, setHigh] = useState<string | null>(() => peekThumb(item, VIEW_SIZE));
   const [error, setError] = useState(false);
   const [dx, setDx] = useState(0);
+  // Blättern: aus welcher Richtung das neue Foto kommt, und das alte, das hinausgleitet
+  const [enter, setEnter] = useState<0 | 1 | -1>(0);
+  const [leaving, setLeaving] = useState<{ src: string; dir: 1 | -1; from: number; id: number } | null>(null);
+  const flip = (to: number, dir: 1 | -1) => {
+    // Nicht das Original: dessen Adresse wird beim Fotowechsel freigegeben
+    const src = high ?? low;
+    if (src) {
+      const id = Date.now();
+      setLeaving({ src, dir, from: dx, id });
+      setTimeout(() => setLeaving((l) => (l?.id === id ? null : l)), 300);
+    }
+    setEnter(dir);
+    onIndex(to);
+  };
   // Nach unten wischen → Ansicht schliessen (Foto folgt dem Finger, Hintergrund wird durchsichtig)
   const [dy, setDy] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -545,8 +559,8 @@ export default function Viewer({
       }
       const prev = step(-1);
       const next = step(1);
-      if (dx > 70 && prev !== null) onIndex(prev);
-      else if (dx < -70 && next !== null) onIndex(next);
+      if (dx > 70 && prev !== null) flip(prev, -1);
+      else if (dx < -70 && next !== null) flip(next, 1);
       else setDx(0);
     }
     setZooming(false);
@@ -625,13 +639,9 @@ export default function Viewer({
   const folderPath = item.path ? (item.path.includes("/") ? item.path.replace(/\/[^/]*$/, "") : "Drive") : null;
   const accIndex = accounts.findIndex((a) => a.id === item.account_id);
   const account = accounts[accIndex];
+  // Seitwärts: nur verschieben (kein Kippen, kein Ausblenden). Nach unten: verschieben und etwas kleiner.
   const style = {
-    transform: dy
-      ? `translateY(${dy}px) scale(${1 - Math.min(dy / 1600, 0.25)})`
-      : dx
-        ? `translateX(${dx}px) rotate(${dx / 40}deg)`
-        : undefined,
-    opacity: 1 - Math.min(Math.abs(dx) / 600, 0.4),
+    transform: dy ? `translateY(${dy}px) scale(${1 - Math.min(dy / 1600, 0.25)})` : dx ? `translateX(${dx}px)` : undefined,
   };
   /** Hintergrund beim Herunterwischen ausblenden – dahinter erscheint wieder die Liste */
   const bgOpacity = dy ? 1 - Math.min(dy / 350, 0.9) : undefined;
@@ -718,10 +728,23 @@ export default function Viewer({
           commitZ(zoomAt(zRef.current, zRef.current.s * Math.exp(-e.deltaY / 300), rel(e.clientX, e.clientY)));
         }}
       >
+        {leaving && (
+          <div
+            key={leaving.id}
+            className={`viewer-frame leaving ${leaving.dir === 1 ? "to-left" : "to-right"}`}
+            style={{ ["--from" as string]: `${leaving.from}px` }}
+          >
+            <img src={leaving.src} alt="" />
+          </div>
+        )}
         {error && !low && !isVideo ? (
           <p className="muted">Bild konnte nicht geladen werden.</p>
         ) : high || low || isVideo ? (
-          <div key={item.drive_id} className={`viewer-frame ${dragging ? "dragging" : ""}`} style={style}>
+          <div
+            key={item.drive_id}
+            className={`viewer-frame ${dragging ? "dragging" : ""} ${enter === 1 ? "enter-next" : enter === -1 ? "enter-prev" : ""}`}
+            style={style}
+          >
             <div ref={zoomEl} className={`viewer-zoom ${zooming ? "live" : ""}`}>
               {low && <img className={`viewer-low ${high || full ? "hide" : ""}`} src={low} alt="" />}
               {high && (
