@@ -2,6 +2,7 @@
 // und passende Fotos finden, die noch woanders liegen (zum Hineinverschieben).
 import "./ai.css";
 import { lazy, Suspense, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Icon from "../components/Icon";
 import Thumb from "../components/Thumb";
 import { childKey, childPath } from "../lib/naming";
@@ -187,8 +188,10 @@ export default function FolderAiSheet({ folder, accounts, onClose }: { folder: L
           />
         </Suspense>
       )}
-      {moving && (
-        // Über der Foto-Ansicht
+      {moving &&
+        // Über der Foto-Ansicht: direkt an <body> wie die Foto-Ansicht selbst – innerhalb von .app (eigene Ebene)
+        // läge das Fenster sonst unsichtbar hinter ihr
+        createPortal(
         <div className="ai-move-layer">
           <Suspense fallback={null}>
             <MoveSheet
@@ -206,7 +209,8 @@ export default function FolderAiSheet({ folder, accounts, onClose }: { folder: L
               }}
             />
           </Suspense>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

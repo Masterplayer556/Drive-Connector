@@ -274,7 +274,8 @@
 .ai-move-layer {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  /* Über der Foto-Ansicht (45), unter Rückgängig-Leiste (48), Dialogen (50) und Meldungen (60) */
+  z-index: 46;
 }
 
 /* ---------- KI trainieren (Wischen) ---------- */

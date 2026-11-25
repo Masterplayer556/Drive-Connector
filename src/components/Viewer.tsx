@@ -436,16 +436,19 @@ export default function Viewer({
     return s;
   };
   const loadFull = () => {
-    if (fullState !== "idle") return;
+    if (fullState !== "idle" || isVideo) return;
     setFullState("loading");
+    const key = itemKey;
     downloadBlob(item.account_id, item.drive_id)
       .then((b) => {
+        // Inzwischen weitergeblättert → nicht das Original des alten Fotos über das neue legen
+        if (key !== itemKeyRef.current) return;
         const url = URL.createObjectURL(b);
         fullUrls.current.push(url);
         setFull(url);
         setFullState("done");
       })
-      .catch(() => setFullState("error"));
+      .catch(() => key === itemKeyRef.current && setFullState("error"));
   };
   // Original nur für das aktuelle Foto im Speicher halten – beim nächsten Foto wieder freigeben
   const fullUrls = useRef<string[]>([]);
@@ -723,7 +726,7 @@ export default function Viewer({
         onTouchCancel={onTouchEnd}
         onDoubleClick={(e) => Date.now() - lastTouch.current > 800 && toggleZoom(rel(e.clientX, e.clientY))}
         onWheel={(e) => {
-          if (!e.ctrlKey && Math.abs(e.deltaY) < 1) return;
+          if (isVideo || (!e.ctrlKey && Math.abs(e.deltaY) < 1)) return;
           loadFull();
           commitZ(zoomAt(zRef.current, zRef.current.s * Math.exp(-e.deltaY / 300), rel(e.clientX, e.clientY)));
         }}

@@ -118,11 +118,24 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
   }, [stack]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
-  // Nach „Rückgängig“ den aktuellen Ordner neu laden
+  // Nach „Rückgängig“ den aktuellen Ordner neu laden – aber nicht unter der offenen Foto-Ansicht: die zeigt
+  // per Index in diese Liste, eine neu geladene Liste verschöbe sie auf ein anderes Foto. Erst beim Schliessen.
+  const viewerOpen = useRef(false);
+  viewerOpen.current = viewer !== null;
+  const staleWhileViewing = useRef(false);
   useEffect(() => {
-    window.addEventListener("drivepool-changed", reload);
-    return () => window.removeEventListener("drivepool-changed", reload);
+    const onChanged = () => {
+      if (viewerOpen.current) staleWhileViewing.current = true;
+      else reload();
+    };
+    window.addEventListener("drivepool-changed", onChanged);
+    return () => window.removeEventListener("drivepool-changed", onChanged);
   }, [reload]);
+  useEffect(() => {
+    if (viewer !== null || !staleWhileViewing.current) return;
+    staleWhileViewing.current = false;
+    reload();
+  }, [viewer, reload]);
 
   // Ordner laden: sofort aus dem Speicher, dann frisch vom Server
   useEffect(() => {
