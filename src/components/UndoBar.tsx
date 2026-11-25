@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { clearUndo, subscribeUndo, UNDO_MS, type UndoOffer } from "../lib/undo";
 import Icon from "./Icon";
 import { useUI } from "./ui";
@@ -62,7 +63,9 @@ export default function UndoBar() {
   };
   const pos = out ?? drag;
 
-  return (
+  // Direkt an <body>: .app ist eine eigene Ebene (z-index 1) – darin läge die Leiste unter der Foto-Ansicht
+  // (z-index 45, ebenfalls an <body>) und wäre dort unsichtbar.
+  return createPortal(
     <div
       key={offer.id}
       className={`undo-bar glass ${drag && !out ? "dragging" : ""} ${pos ? "moved" : ""}`}
@@ -78,6 +81,7 @@ export default function UndoBar() {
         {busy ? <span className="spinner" /> : <Icon name="rotateCcw" size={16} />} Rückgängig
       </button>
       {!busy && <span className="undo-timer" style={{ animationDuration: `${UNDO_MS}ms` }} />}
-    </div>
+    </div>,
+    document.body,
   );
 }
