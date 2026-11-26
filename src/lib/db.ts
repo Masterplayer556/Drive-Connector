@@ -107,7 +107,13 @@ export async function knownMd5(md5s: string[]): Promise<Set<string>> {
   const out = new Set<string>();
   const unique = [...new Set(md5s)];
   for (let i = 0; i < unique.length; i += 150) {
-    const { data, error } = await supabase.from("items").select("md5").in("md5", unique.slice(i, i + 150));
+    // Nur Fotos im Pool zählen: Dateien ausserhalb (Pfad null) sieht man in der App nicht – sonst würde ein
+    // Upload als „schon vorhanden“ übersprungen, obwohl das Foto im Pool fehlt
+    const { data, error } = await supabase
+      .from("items")
+      .select("md5")
+      .in("md5", unique.slice(i, i + 150))
+      .not("path", "is", null);
     if (error) throw new Error(error.message);
     for (const r of data ?? []) if (r.md5) out.add(r.md5);
   }
@@ -116,7 +122,8 @@ export async function knownMd5(md5s: string[]): Promise<Set<string>> {
 
 export async function rootLevelItems(): Promise<Item[]> {
   return fetchAll<Item>((from, to) =>
-    supabase.from("items").select(ITEM_COLS).eq("parent_key", "").order("name").range(from, to),
+    // Eindeutig sortieren: sonst kann beim seitenweisen Laden ein Eintrag fehlen oder doppelt kommen
+    supabase.from("items").select(ITEM_COLS).eq("parent_key", "").order("name").order("account_id").order("drive_id").range(from, to),
   );
 }
 
@@ -302,7 +309,10 @@ export async function fetchSubtreeFiles(path: string): Promise<Item[]> {
       .select(ITEM_COLS)
       .eq("is_folder", false)
       .ilike("path", `${escapeLike(path)}/%`)
+      // Eindeutig sortieren (gleicher Pfad in zwei Konten möglich) – sonst fehlen beim Seitenwechsel Fotos
       .order("path")
+      .order("account_id")
+      .order("drive_id")
       .range(from, to),
   );
   return rows.filter((r) => inSubtree(r.path, path));

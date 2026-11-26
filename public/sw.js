@@ -138,7 +138,9 @@ async function askToken(accountId, clientId, force) {
 async function streamVideo(req, url, clientId) {
   const [accountId, id] = url.pathname.split("/__video/")[1].split("/").map(decodeURIComponent);
   const size = Number(url.searchParams.get("size")) || 0;
-  const type = url.searchParams.get("type") || "video/mp4";
+  // Nur als Video ausliefern – sonst liesse sich eine Drive-Datei z. B. als text/html in der App-Adresse öffnen
+  const rawType = url.searchParams.get("type") || "video/mp4";
+  const type = /^video\/[\w.+-]+$/.test(rawType) ? rawType : "video/mp4";
   const range = req.headers.get("range");
   const load = (token) => {
     const headers = { Authorization: `Bearer ${token}` };
@@ -155,7 +157,7 @@ async function streamVideo(req, url, clientId) {
     res = await load(token);
   }
   if (!res.ok && res.status !== 206) return new Response(null, { status: res.status });
-  const out = new Headers({ "Content-Type": type, "Accept-Ranges": "bytes" });
+  const out = new Headers({ "Content-Type": type, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff" });
   // Content-Range selbst berechnen (Google gibt den Header nicht an Web-Apps heraus)
   const m = range && /bytes=(\d+)-(\d*)/.exec(range);
   if (m && size) {
@@ -175,6 +177,11 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.includes("/__video/")) {
+    // Nur für <video> der App – nie als Seite oder Rahmen öffnen (Link von aussen)
+    if (req.mode === "navigate" || req.destination === "document" || req.destination === "iframe") {
+      event.respondWith(new Response("Nicht erlaubt", { status: 403 }));
+      return;
+    }
     event.respondWith(streamVideo(req, url, event.clientId));
     return;
   }

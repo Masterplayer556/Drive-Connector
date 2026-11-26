@@ -61,6 +61,12 @@ Deno.serve(async (req) => {
       for (const acc of (accounts ?? []) as Account[]) {
         try {
           const { token } = await getAccessToken(admin, acc.id);
+          // „trashedTime“ füllt Google laut Doku nur bei geteilten Ablagen – sonst zählt, wann wir den Eintrag
+          // zum ersten Mal im Papierkorb gesehen haben (trash_seen, wie in der App)
+          const { data: seenRows } = await admin.from("trash_seen").select("drive_id, seen_at").eq("account_id", acc.id);
+          const seen = new Map((seenRows ?? []).map((r) => [r.drive_id as string, r.seen_at as string]));
+          const inTrash = new Set<string>();
+          let complete = false;
           // Nach „trashedTime“ lässt Google nicht suchen (kein gültiger Suchbegriff → Fehler 400).
           // Deshalb wie in der App: ganzen Papierkorb auflisten und hier nach dem Datum filtern.
           let pageToken: string | undefined;
@@ -75,7 +81,25 @@ Deno.serve(async (req) => {
               token,
               `${DRIVE}/files?${p}`,
             );
-            const old = r.files.filter((x) => x.explicitlyTrashed !== false && x.trashedTime && Date.parse(x.trashedTime) < cutoff);
+            const listed = r.files.filter((x) => x.explicitlyTrashed !== false);
+            for (const f of listed) inTrash.add(f.id);
+            const fresh = listed.filter((x) => !x.trashedTime && !seen.has(x.id));
+            if (fresh.length) {
+              await admin
+                .from("trash_seen")
+                .upsert(fresh.map((x) => ({ owner_id: ownerId, account_id: acc.id, drive_id: x.id })), {
+                  onConflict: "account_id,drive_id",
+                  ignoreDuplicates: true,
+                });
+            }
+            const since = (x: { id: string; trashedTime?: string }) => {
+              const t = Date.parse(x.trashedTime ?? seen.get(x.id) ?? "");
+              return Number.isNaN(t) ? null : t;
+            };
+            const old = listed.filter((x) => {
+              const t = since(x);
+              return t !== null && t < cutoff;
+            });
             for (const f of old) {
               if (timeLeft() < 10_000) break;
               const res = await fetch(`${DRIVE}/files/${f.id}`, {
@@ -83,10 +107,21 @@ Deno.serve(async (req) => {
                 headers: { Authorization: `Bearer ${token}` },
                 signal: AbortSignal.timeout(15_000),
               }).catch(() => null);
-              if (res?.ok) purged++;
+              if (res?.ok) {
+                purged++;
+                inTrash.delete(f.id);
+              }
             }
             pageToken = r.nextPageToken;
+            complete = !pageToken;
           } while (pageToken && timeLeft() > 10_000);
+          // Nicht mehr im Papierkorb (wiederhergestellt oder endgültig gelöscht) → vergessen
+          if (complete) {
+            const gone = [...seen.keys()].filter((id) => !inTrash.has(id));
+            for (let i = 0; i < gone.length; i += 200) {
+              await admin.from("trash_seen").delete().eq("account_id", acc.id).in("drive_id", gone.slice(i, i + 200));
+            }
+          }
         } catch (e) {
           failed.push(`Papierkorb ${acc.email}: ${e instanceof Error ? e.message : String(e)}`);
         }

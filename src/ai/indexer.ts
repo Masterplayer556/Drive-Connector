@@ -2,7 +2,7 @@
 // Portionsweise (ein Ordner, max. 30 Fotos). Normal: Pause bei Bedienung. „Schnell lernen“: keine Pausen,
 // Bildschirm bleibt an. Im Hintergrund friert iOS Web-Apps ein – dann geht es beim nächsten Öffnen weiter.
 import type { Item } from "../lib/types";
-import { catalog, thumbsFor } from "./catalog";
+import { catalog, catalogComplete, thumbsFor } from "./catalog";
 import { aiModel, learningDevice } from "./flag";
 import { fetchKeys, syncDown, uploadVectors } from "./cloud";
 import { MODELS } from "./protocol";
@@ -248,8 +248,9 @@ async function pass(stopped: () => boolean): Promise<"done" | "wait"> {
     }
   }
 
-  // Gelöschte Fotos aus dem Index entfernen
-  await removeKeys([...have, ...skips.keys()].filter((k) => !items.has(k)));
+  // Gelöschte Fotos aus dem Index entfernen – nur bei vollständigem Katalog (sonst gingen Fingerabdrücke von
+  // Fotos verloren, die nur gerade nicht mitgeladen wurden, und müssten neu gelernt werden)
+  if (catalogComplete()) await removeKeys([...have, ...skips.keys()].filter((k) => !items.has(k)));
 
   const now = Date.now();
   const todo = [...items.values()]

@@ -5,7 +5,7 @@
 // - mit einem zweiten Finger wischen = Seite scrollen (der Bildschirm bleibt nicht gesperrt)
 // - mit einem zweiten Finger weitere Fotos antippen = werden mitgenommen
 // Ziele markieren sich mit data-drop-key / data-drop-path / data-drop-name.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { haptic } from "../lib/haptic";
 import type { Crumb } from "../lib/types";
 
@@ -210,8 +210,8 @@ export function useDragToFolder<T>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging]);
 
-  /** Auf jedes Foto legen: {...bind} */
-  const bind = {
+  /** Die Griffe mit dem aktuellen Stand (disabled, begin …) – über `bind` stabil weitergereicht */
+  const handlers = {
     onTouchStart: (e: React.TouchEvent<HTMLElement>) => {
       // Welcher Finger hält das Foto? (Während des Ziehens: zweiter Finger → nicht neu beginnen)
       if (!active.current) dragTouch.current = e.changedTouches[0]?.identifier ?? null;
@@ -252,6 +252,22 @@ export function useDragToFolder<T>({
       e.stopPropagation();
     },
   };
+
+  const latestHandlers = useRef(handlers);
+  latestHandlers.current = handlers;
+  /** Auf jedes Foto legen: {...bind} – bleibt dasselbe Objekt, damit gemerkte Kacheln nicht neu zeichnen */
+  const bind = useMemo(
+    () => ({
+      onTouchStart: (e: React.TouchEvent<HTMLElement>) => latestHandlers.current.onTouchStart(e),
+      onPointerDown: (e: React.PointerEvent<HTMLElement>) => latestHandlers.current.onPointerDown(e),
+      onPointerMove: (e: React.PointerEvent<HTMLElement>) => latestHandlers.current.onPointerMove(e),
+      onPointerUp: (e: React.PointerEvent<HTMLElement>) => latestHandlers.current.onPointerUp(e),
+      onPointerCancel: (e: React.PointerEvent<HTMLElement>) => latestHandlers.current.onPointerCancel(e),
+      onContextMenu: (e: React.MouseEvent) => latestHandlers.current.onContextMenu(e),
+      onClickCapture: (e: React.MouseEvent) => latestHandlers.current.onClickCapture(e),
+    }),
+    [],
+  );
 
   return { bind, drag, isDragging: () => !!active.current };
 }

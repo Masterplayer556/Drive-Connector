@@ -14,6 +14,7 @@ import { isFavorite, loadFavorites, onFavoritesChange, toggleFavorite } from "..
 import { markerColor, useTags } from "../lib/tags";
 import { useUI } from "./ui";
 import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
+import { topOverlay } from "../lib/scrollLock";
 
 const ShareSheet = lazy(() => import("./ShareSheet"));
 const SimilarSheet = lazy(() => import("../ai/SimilarSheet")); // KI-SUCHE
@@ -63,6 +64,8 @@ const TAP_WAIT_MS = 280;
 const DISMISS_PX = 110;
 const DISMISS_SPEED = 0.6;
 const keyOf = (i: Item) => `${i.account_id}|${i.drive_id}`;
+/** So lange gleitet das alte Foto beim Blättern hinaus (ms, wie die CSS-Animation) */
+const LEAVE_MS = 300;
 
 /** So viele Bilder in Blätterrichtung vorladen */
 const PRELOAD_AHEAD = 4;
@@ -90,7 +93,7 @@ const rubber = (v: number, lo: number, hi: number) => (v > hi ? hi + (v - hi) * 
 
 export default function Viewer({
   items,
-  index,
+  index: indexProp,
   accounts,
   onIndex,
   onClose,
@@ -132,6 +135,20 @@ export default function Viewer({
     changed.current = true;
     setPatches((m) => new Map(m).set(k, { ...m.get(k), ...p }));
   };
+  // Die Ansicht hängt am Foto, nicht am Platz in der Liste: lädt der Aufrufer die Liste neu (Abgleich im
+  // Hintergrund, Rückgängig …), während die Ansicht offen ist, bleibt sie beim selben Foto.
+  const bound = useRef({ items, index: indexProp, key: items[indexProp] ? keyOf(items[indexProp]) : "" });
+  let index = indexProp;
+  const b = bound.current;
+  if (b.items !== items && b.index === indexProp && (!items[indexProp] || keyOf(items[indexProp]) !== b.key)) {
+    const j = items.findIndex((i) => keyOf(i) === b.key);
+    if (j >= 0) index = j;
+  }
+  if (!items[index]) index = Math.max(0, Math.min(index, items.length - 1));
+  useLayoutEffect(() => {
+    bound.current = { items, index, key: items[index] ? keyOf(items[index]) : b.key };
+    if (index !== indexProp) onIndex(index);
+  });
   const raw = items[index];
   const item: Item = patches.has(keyOf(raw)) ? { ...raw, ...patches.get(keyOf(raw)) } : raw;
   /** Nächstes/voriges noch vorhandenes Foto */
@@ -152,12 +169,12 @@ export default function Viewer({
   const [enter, setEnter] = useState<0 | 1 | -1>(0);
   const [leaving, setLeaving] = useState<{ src: string; dir: 1 | -1; from: number; id: number } | null>(null);
   const flip = (to: number, dir: 1 | -1) => {
-    // Nicht das Original: dessen Adresse wird beim Fotowechsel freigegeben
+    // Nicht das Original: dessen Adresse wird beim Fotowechsel freigegeben (die Ersatzvorschau erst nach LEAVE_MS)
     const src = high ?? low;
     if (src) {
       const id = Date.now();
       setLeaving({ src, dir, from: dx, id });
-      setTimeout(() => setLeaving((l) => (l?.id === id ? null : l)), 300);
+      setTimeout(() => setLeaving((l) => (l?.id === id ? null : l)), LEAVE_MS);
     }
     setEnter(dir);
     onIndex(to);
@@ -234,12 +251,19 @@ export default function Viewer({
   useEffect(() => {
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", mixHex(bgColor, designColor(), statusFade));
   }, [bgColor, statusFade]);
-  useEffect(
-    () => () => {
-      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", designColor());
-    },
-    [],
+  // Aus einer anderen Ansicht heraus geöffnet (Ähnliche Fotos …)? Dann beim Schliessen deren Farbe zurück,
+  // nicht die des Designs (Stand vor dem ersten Zeichnen merken)
+  const [outer] = useState(() =>
+    document.querySelector(".viewer") ? document.querySelector('meta[name="theme-color"]')?.getAttribute("content") ?? null : null,
   );
+  useEffect(() => {
+    const nested = outer !== null;
+    return () => {
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", outer ?? designColor());
+      // Letzte Ansicht zu → auch das vorab dekodierte Bild freigeben
+      if (!nested) predecoded.length = 0;
+    };
+  }, []);
   // Höhe der Leisten messen: so weit reicht das Foto im Normalzustand, ausgeblendet bis an den Rand
   const topEl = useRef<HTMLDivElement>(null);
   const bottomEl = useRef<HTMLDivElement>(null);
@@ -252,6 +276,16 @@ export default function Viewer({
     if (bottomEl.current) ro.observe(bottomEl.current);
     return () => ro.disconnect();
   }, []);
+  // Höhe der Infoleiste für die Rückgängig-Leiste (die sonst darauf läge); verschachtelte Ansicht → alten Wert zurück
+  useEffect(() => {
+    const st = document.body.style;
+    const prev = st.getPropertyValue("--viewer-bottom");
+    st.setProperty("--viewer-bottom", `${immersive ? 0 : bars.bottom}px`);
+    return () => {
+      if (prev) st.setProperty("--viewer-bottom", prev);
+      else st.removeProperty("--viewer-bottom");
+    };
+  }, [bars.bottom, immersive]);
   const ai = useAiEnabled(); // KI-SUCHE
   const [similar, setSimilar] = useState(false); // KI-SUCHE
   const [tagging, setTagging] = useState(false);
@@ -337,6 +371,8 @@ export default function Viewer({
       .catch((e) => ui.toast(e instanceof Error ? e.message : String(e), "error"));
   };
 
+  /** „Nochmals versuchen“, wenn das Bild nicht geladen werden konnte */
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
     let revoke: string | null = null;
@@ -358,18 +394,22 @@ export default function Viewer({
           // Keine Google-Vorschau → Original laden (bei Videos nicht: das lädt erst „Abspielen“)
           (item.mime_type?.startsWith("video/") ? Promise.reject(new Error("video")) : downloadBlob(item.account_id, item.drive_id))
             .then((b) => {
+              // Schon weitergeblättert/geschlossen → gar nicht erst eine Adresse anlegen (sonst bliebe das Bild im Speicher)
+              if (!alive) return;
               revoke = URL.createObjectURL(b);
-              if (alive) setHigh(revoke);
+              setHigh(revoke);
             })
             .catch(() => alive && setError(true)),
         );
     }
     return () => {
       alive = false;
-      if (revoke) URL.revokeObjectURL(revoke);
+      // Verzögert: beim Blättern gleitet dieses Bild noch als „leaving“ hinaus (300 ms)
+      const url = revoke;
+      if (url) setTimeout(() => URL.revokeObjectURL(url), LEAVE_MS + 100);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemKey]);
+  }, [itemKey, attempt]);
 
   // Bilder vorladen → Wischen fühlt sich sofort an. In Blätterrichtung mehrere Seiten voraus
   // (z. B. Comics: man liest schneller, als ein einzelnes Bild nachlädt), eines zurück.
@@ -436,7 +476,8 @@ export default function Viewer({
     return s;
   };
   const loadFull = () => {
-    if (fullState !== "idle" || isVideo) return;
+    // Nach einem Fehler beim nächsten Zoomen nochmals versuchen
+    if ((fullState !== "idle" && fullState !== "error") || isVideo) return;
     setFullState("loading");
     const key = itemKey;
     downloadBlob(item.account_id, item.drive_id)
@@ -650,6 +691,39 @@ export default function Viewer({
     setTimeout(onClose, 180);
   };
 
+  // Tastatur: Esc schliesst, Pfeile blättern – nur wenn kein Fenster/Menü über der Ansicht liegt
+  const rootEl = useRef<HTMLDivElement>(null);
+  const keys = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  keys.current = (e) => {
+    if (e.defaultPrevented || topOverlay() !== rootEl.current) return;
+    if ((e.target as HTMLElement | null)?.closest?.("input, textarea, video")) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+    } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && zRef.current.s <= 1.01) {
+      const dir = e.key === "ArrowLeft" ? -1 : 1;
+      const to = step(dir);
+      if (to !== null) {
+        e.preventDefault();
+        flip(to, dir);
+      }
+    }
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => keys.current(e);
+    window.addEventListener("keydown", onKey);
+    // Hintergrund (die App) unbedienbar machen statt nur zu verstecken; Fokus in die Ansicht und danach zurück
+    const app = document.querySelector<HTMLElement>(".app");
+    const wasInert = app?.inert ?? false;
+    if (app) app.inert = true;
+    const before = document.activeElement as HTMLElement | null;
+    rootEl.current?.querySelector<HTMLElement>(".viewer-top button")?.focus({ preventScroll: true });
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (app) app.inert = wasInert;
+      before?.focus?.({ preventScroll: true });
+    };
+  }, []);
   /** Ordner, in dem das Foto liegt (Pfad ohne Dateinamen) */
   const folderPath = item.path ? (item.path.includes("/") ? item.path.replace(/\/[^/]*$/, "") : "Drive") : null;
   const accIndex = accounts.findIndex((a) => a.id === item.account_id);
@@ -664,9 +738,9 @@ export default function Viewer({
   // Direkt an <body>: so liegt das Foto immer über dem ganzen Bildschirm – auch wenn es aus einem Fenster
   // (Suche, KI-Treffer) geöffnet wird, das seinen Inhalt sonst abschneidet oder darüber liegt.
   return createPortal(
-    <div className={`viewer ${closing ? "closing" : ""} ${immersive ? "immersive" : ""} ${light ? "light" : ""} ${dy ? "dismissing" : ""}`}>
+    <div ref={rootEl} role="dialog" aria-modal="true" aria-label={item.name} className={`viewer ${closing ? "closing" : ""} ${immersive ? "immersive" : ""} ${light ? "light" : ""} ${dy ? "dismissing" : ""}`}>
       <div className="viewer-bg" style={{ opacity: bgOpacity }} />
-      <div ref={topEl} className="viewer-top" aria-hidden={immersive || undefined}>
+      <div ref={topEl} className="viewer-top" inert={immersive}>
         <button className="icon-btn glass" onClick={close} aria-label="Schliessen">
           <Icon name="x" />
         </button>
@@ -753,7 +827,12 @@ export default function Viewer({
           </div>
         )}
         {error && !low && !isVideo ? (
-          <p className="muted">Bild konnte nicht geladen werden.</p>
+          <div className="viewer-error">
+            <p className="muted">Bild konnte nicht geladen werden.</p>
+            <button className="btn small" onClick={() => setAttempt((n) => n + 1)}>
+              Nochmals versuchen
+            </button>
+          </div>
         ) : high || low || isVideo ? (
           <div
             key={item.drive_id}
@@ -807,10 +886,11 @@ export default function Viewer({
       </div>
       {z.s > 1.01 && (
         <div className="zoom-chip glass">
-          {z.s.toFixed(1)}×{fullState === "loading" ? " · lädt Original…" : atMax ? " · volle Auflösung" : ""}
+          {z.s.toFixed(1)}×
+          {fullState === "loading" ? " · lädt Original…" : fullState === "error" ? " · Original nicht geladen" : atMax ? " · volle Auflösung" : ""}
         </div>
       )}
-      <div ref={bottomEl} className="viewer-bottom" aria-hidden={immersive || undefined}>
+      <div ref={bottomEl} className="viewer-bottom" inert={immersive}>
       {action && (
         <button className="btn primary viewer-action" onClick={() => action.run(item)}>
           <Icon name={action.icon} size={18} /> {action.label}
@@ -855,6 +935,10 @@ export default function Viewer({
               const p = moved?.get(keyOf(item));
               if (didMove && p) patchItem(keyOf(item), p);
             }}
+            // Rückgängig: Name, Ordner und Pfad wie vor dem Verschieben anzeigen
+            onUndone={() =>
+              patchItem(keyOf(item), { name: item.name, parent_drive_id: item.parent_drive_id, parent_key: item.parent_key, path: item.path })
+            }
           />
         </Suspense>
       )}

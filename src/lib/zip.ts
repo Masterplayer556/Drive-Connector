@@ -35,7 +35,18 @@ export interface ZipEntry {
   wallClock?: boolean;
 }
 
+/** Grenze des einfachen ZIP-Formats (ohne ZIP64): Grössen und Abstände sind 32 Bit, die Anzahl 16 Bit. */
+export const ZIP_MAX_BYTES = 0xffffffff;
+export const ZIP_MAX_ENTRIES = 0xffff;
+
+/** Fehlermeldung, wenn eine Datei zu gross fürs ZIP ist (sonst null). */
+export function zipTooBig(items: { name: string; size?: number | null }[]): string | null {
+  const big = items.find((i) => (i.size ?? 0) > ZIP_MAX_BYTES);
+  return big ? `„${big.name}“ ist grösser als 4 GB – das geht nicht als ZIP. Bitte einzeln speichern.` : null;
+}
+
 export function buildZip(entries: ZipEntry[]): Blob {
+  if (entries.length > ZIP_MAX_ENTRIES) throw new Error(`Zu viele Dateien für ein ZIP (höchstens ${ZIP_MAX_ENTRIES})`);
   const enc = new TextEncoder();
   const parts: BlobPart[] = [];
   const central: Uint8Array[] = [];
@@ -43,6 +54,9 @@ export function buildZip(entries: ZipEntry[]): Blob {
 
   for (const e of entries) {
     const name = enc.encode(e.name);
+    // Ohne ZIP64 würden Grösse/Abstand still abgeschnitten → kaputtes ZIP. Lieber klar abbrechen.
+    if (e.data.length > ZIP_MAX_BYTES) throw new Error(zipTooBig([{ name: e.name, size: e.data.length }])!);
+    if (offset + 30 + name.length + e.data.length > ZIP_MAX_BYTES) throw new Error("ZIP würde grösser als 4 GB – bitte kleinere Auswahl");
     const crc = crc32(e.data);
     const { time, date } = e.date ? dosTime(e.date, e.wallClock) : dosTime(new Date());
     const local = new DataView(new ArrayBuffer(30));

@@ -198,10 +198,11 @@ export default function FolderAiSheet({ folder, accounts, onClose }: { folder: L
               items={[moving]}
               accounts={accounts}
               target={crumbsOf(folder.path)}
-              onClose={(changed) => {
+              onClose={(changed, movedTo) => {
                 const k = key(moving);
                 setMoving(null);
-                if (!changed) return;
+                // Nur wirklich verschobene Fotos herausnehmen – scheiterte das Verschieben, bleibt es in der Liste
+                if (!changed || !movedTo?.has(k)) return;
                 // Aus der Liste nehmen; die Foto-Ansicht zeigt das nächste Foto (oder schliesst, wenn keins mehr da ist)
                 const left = items.filter((f) => key(f) !== k);
                 setMoved((m) => new Set(m).add(k));

@@ -1722,6 +1722,12 @@ p {
   padding: 0;
 }
 
+.viewer-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
 .viewer-stage {
   position: absolute;
   left: 0;
@@ -8206,9 +8212,10 @@ label.btn.disabled {
 .undo-bar.dragging {
   transition: none;
 }
-/* In der Foto-Ansicht gibt es keine Tab-Leiste: weiter unten */
+/* In der Foto-Ansicht gibt es keine Tab-Leiste: über der Infoleiste (Höhe setzt die Ansicht in
+   --viewer-bottom; ausgeblendet 0) statt auf ihr */
 body:has(.viewer) .undo-bar {
-  bottom: calc(16px + var(--safe-bottom));
+  bottom: calc(max(var(--viewer-bottom, 0px), var(--safe-bottom)) + 12px);
 }
 
 .undo-text {

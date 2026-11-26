@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildZip, chunkBySize, crc32, dosTime, zipNames } from "./zip";
+import { buildZip, chunkBySize, crc32, dosTime, zipNames, zipTooBig } from "./zip";
 
 describe("crc32", () => {
   it("stimmt mit dem Referenzwert überein", () => {
@@ -72,5 +72,12 @@ describe("zipNames", () => {
         "Q",
       ),
     ).toEqual(["a.jpg", "a (2).jpg", "A (3).JPG", "a (2) (2).jpg"]);
+  });
+});
+
+describe("ZIP-Grenze 4 GB", () => {
+  it("meldet zu grosse Dateien vor dem Herunterladen", () => {
+    expect(zipTooBig([{ name: "a.jpg", size: 10 }])).toBeNull();
+    expect(zipTooBig([{ name: "film.mp4", size: 5 * 1024 ** 3 }])).toContain("film.mp4");
   });
 });
