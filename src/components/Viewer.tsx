@@ -463,6 +463,18 @@ export default function Viewer({
   const onTouchStart = (e: React.TouchEvent) => {
     lastTouch.current = Date.now();
     const t = e.touches;
+    if (t.length >= 2) {
+      // Zweiter Finger: laufendes Wischen (seitwärts oder zum Schliessen nach unten) abbrechen – sonst bleibt
+      // die Ansicht verschoben stehen
+      setDy(0);
+      setDx(0);
+      setDragging(false);
+      startX.current = null;
+      if (isVideo) {
+        g.current = null;
+        return;
+      }
+    }
     if (t.length === 2 && !isVideo) {
       const a = rel(t[0].clientX, t[0].clientY);
       const b = rel(t[1].clientX, t[1].clientY);
