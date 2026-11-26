@@ -63,6 +63,8 @@ const TAP_WAIT_MS = 280;
 const DISMISS_PX = 110;
 const DISMISS_SPEED = 0.6;
 const keyOf = (i: Item) => `${i.account_id}|${i.drive_id}`;
+/** So lange gleitet das alte Foto beim Blättern hinaus (ms, wie die CSS-Animation) */
+const LEAVE_MS = 300;
 
 /** So viele Bilder in Blätterrichtung vorladen */
 const PRELOAD_AHEAD = 4;
@@ -152,12 +154,12 @@ export default function Viewer({
   const [enter, setEnter] = useState<0 | 1 | -1>(0);
   const [leaving, setLeaving] = useState<{ src: string; dir: 1 | -1; from: number; id: number } | null>(null);
   const flip = (to: number, dir: 1 | -1) => {
-    // Nicht das Original: dessen Adresse wird beim Fotowechsel freigegeben
+    // Nicht das Original: dessen Adresse wird beim Fotowechsel freigegeben (die Ersatzvorschau erst nach LEAVE_MS)
     const src = high ?? low;
     if (src) {
       const id = Date.now();
       setLeaving({ src, dir, from: dx, id });
-      setTimeout(() => setLeaving((l) => (l?.id === id ? null : l)), 300);
+      setTimeout(() => setLeaving((l) => (l?.id === id ? null : l)), LEAVE_MS);
     }
     setEnter(dir);
     onIndex(to);
@@ -368,7 +370,9 @@ export default function Viewer({
     }
     return () => {
       alive = false;
-      if (revoke) URL.revokeObjectURL(revoke);
+      // Verzögert: beim Blättern gleitet dieses Bild noch als „leaving“ hinaus (300 ms)
+      const url = revoke;
+      if (url) setTimeout(() => URL.revokeObjectURL(url), LEAVE_MS + 100);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemKey]);
