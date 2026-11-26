@@ -28,6 +28,11 @@ function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
+// PostgREST macht aus „*“ in like/ilike immer ein „%“ (lässt sich nicht maskieren): Ordner „Best*“ träfe
+// auch „Best of 2023“. Treffer darum danach genau prüfen (Gross-/Kleinschreibung egal, wie ilike).
+const samePath = (a: string | null | undefined, b: string) => (a ?? "").toLowerCase() === b.toLowerCase();
+const inSubtree = (p: string | null | undefined, base: string) => (p ?? "").toLowerCase().startsWith(`${base.toLowerCase()}/`);
+
 export async function fetchAccounts(): Promise<Account[]> {
   const { data, error } = await supabase
     .from("accounts")
@@ -82,7 +87,7 @@ export async function fetchFolderParts(path: string): Promise<Item[]> {
     .eq("is_folder", true)
     .ilike("path", escapeLike(path));
   if (error) throw new Error(error.message);
-  return (data ?? []) as Item[];
+  return ((data ?? []) as Item[]).filter((r) => samePath(r.path, path));
 }
 
 export async function findFolderInAccount(accountId: string, path: string): Promise<Item | null> {
@@ -92,9 +97,9 @@ export async function findFolderInAccount(accountId: string, path: string): Prom
     .eq("account_id", accountId)
     .eq("is_folder", true)
     .ilike("path", escapeLike(path))
-    .limit(1);
+    .limit(path.includes("*") ? 1000 : 1);
   if (error) throw new Error(error.message);
-  return ((data ?? [])[0] as Item | undefined) ?? null;
+  return ((data ?? []) as Item[]).find((r) => samePath(r.path, path)) ?? null;
 }
 
 /** Welche dieser Prüfsummen gibt es schon im Pool? */
@@ -300,11 +305,13 @@ export async function fetchSubtreeFiles(path: string): Promise<Item[]> {
       .order("path")
       .range(from, to),
   );
-  return rows;
+  return rows.filter((r) => inSubtree(r.path, path));
 }
 
 /** Wie viele Fotos stecken in einem Ordner (inkl. Unterordner)? Für die Lösch-Rückfrage. */
 export async function countSubtreeFiles(path: string): Promise<number | null> {
+  // Mit „*“ im Pfad zählt die Datenbank zu viel – dann die Fotos holen und genau zählen
+  if (path.includes("*")) return fetchSubtreeFiles(path).then((r) => r.length, () => null);
   const { count, error } = await supabase
     .from("items")
     .select("drive_id", { count: "exact", head: true })

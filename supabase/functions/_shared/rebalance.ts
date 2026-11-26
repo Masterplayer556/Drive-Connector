@@ -42,6 +42,9 @@ const sameNameQuery = (folder: string, name: string) =>
   `'${folder}' in parents and name = '${name.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}' and trashed = false`;
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
+/** Ordner-ID zu einem Pfad. PostgREST macht aus „*“ in ilike ein „%“ – darum den Treffer genau prüfen. */
+const exactFolder = (rows: { drive_id: string; path: string | null }[] | null, path: string) =>
+  (rows ?? []).find((r) => (r.path ?? "").toLowerCase() === path.toLowerCase())?.drive_id ?? null;
 /** Google-IDs bestehen nur aus diesen Zeichen – alles andere kommt nicht in eine Drive-Abfrage */
 const ID_RE = /^[\w-]{5,200}$/;
 const isLocked = (key: string, locks: string[]) => locks.some((l) => key === l || key.startsWith(l + "/"));
@@ -127,12 +130,12 @@ class FolderMaker {
     if (cached) return cached;
     const { data } = await this.admin
       .from("items")
-      .select("drive_id")
+      .select("drive_id, path")
       .eq("account_id", accountId)
       .eq("is_folder", true)
       .ilike("path", escapeLike(path))
-      .limit(1);
-    return data?.[0]?.drive_id ?? null;
+      .limit(path.includes("*") ? 1000 : 1);
+    return exactFolder(data, path);
   }
 
   async ensure(accountId: string, ownerId: string, token: string, path: string): Promise<string> {
@@ -146,12 +149,12 @@ class FolderMaker {
       if (!id) {
         const { data } = await this.admin
           .from("items")
-          .select("drive_id")
+          .select("drive_id, path")
           .eq("account_id", accountId)
           .eq("is_folder", true)
           .ilike("path", escapeLike(prefix))
-          .limit(1);
-        id = data?.[0]?.drive_id;
+          .limit(prefix.includes("*") ? 1000 : 1);
+        id = exactFolder(data, prefix) ?? undefined;
       }
       if (!id) {
         const f = await gfetch<{ id: string }>(token, `${DRIVE}/files?fields=id`, {
