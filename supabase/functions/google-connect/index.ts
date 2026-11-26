@@ -4,6 +4,13 @@ import { signState } from "../_shared/crypto.ts";
 import { callbackUrl, clientCreds, SCOPES } from "../_shared/google.ts";
 import { errorResponse, HttpError, json, preflight } from "../_shared/http.ts";
 
+/** Wohin nach dem Verbinden zurückgeleitet werden darf: die App selbst (GitHub Pages), lokal zum Entwickeln,
+ *  und optional weitere Adressen aus APP_ORIGINS (kommagetrennt, z. B. eine eigene Domain). */
+const ALLOWED_ORIGINS = new Set([
+  "https://masterplayer556.github.io",
+  ...(Deno.env.get("APP_ORIGINS") ?? "").split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean),
+]);
+
 function validReturnUrl(value: unknown): string {
   if (typeof value !== "string") throw new HttpError(400, "returnTo fehlt");
   let url: URL;
@@ -16,6 +23,8 @@ function validReturnUrl(value: unknown): string {
   if (url.protocol !== "https:" && !(local && url.protocol === "http:")) {
     throw new HttpError(400, "returnTo muss https sein");
   }
+  // Nur zurück in die eigene App – kein Weiterleiten auf fremde Seiten (mit dem Ergebnis in der Adresse)
+  if (!local && !ALLOWED_ORIGINS.has(url.origin)) throw new HttpError(400, "returnTo ist keine Adresse der App");
   url.hash = "";
   url.search = "";
   return url.toString();
