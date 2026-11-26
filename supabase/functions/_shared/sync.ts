@@ -29,7 +29,11 @@ export interface Account {
   changes_page_token: string | null;
 }
 
-/** EXIF-Zeit "2023:05:01 14:22:11" → "2023-05-01T14:22:11Z" */
+/**
+ * EXIF-Zeit "2023:05:01 14:22:11" → "2023-05-01T14:22:11Z". EXIF kennt keine Zeitzone: das „Z“ ist nur ein
+ * Platzhalter, die Felder sind die Kamera-Uhrzeit („wall clock“). Die App zeigt taken_at darum in UTC an
+ * (formatTakenAt), damit nichts verschoben wird.
+ */
 function exifToIso(value?: string): string | null {
   if (!value) return null;
   const m = /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(value);

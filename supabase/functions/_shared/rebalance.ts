@@ -34,7 +34,17 @@ interface Task {
 }
 type Log = (msg: string) => void;
 
+/** Aufgabe nicht ausführen: das Original hat sich seit dem Plan verändert (verschoben, umbenannt, gelöscht …). */
+class SkipTask extends Error {}
+
+/** Drive-Abfrage: nicht gelöschte Dateien dieses Namens im Ordner */
+const sameNameQuery = (folder: string, name: string) =>
+  `'${folder}' in parents and name = '${name.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}' and trashed = false`;
+
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
+/** Ordner-ID zu einem Pfad. PostgREST macht aus „*“ in ilike ein „%“ – darum den Treffer genau prüfen. */
+const exactFolder = (rows: { drive_id: string; path: string | null }[] | null, path: string) =>
+  (rows ?? []).find((r) => (r.path ?? "").toLowerCase() === path.toLowerCase())?.drive_id ?? null;
 /** Google-IDs bestehen nur aus diesen Zeichen – alles andere kommt nicht in eine Drive-Abfrage */
 const ID_RE = /^[\w-]{5,200}$/;
 const isLocked = (key: string, locks: string[]) => locks.some((l) => key === l || key.startsWith(l + "/"));
@@ -113,6 +123,21 @@ class FolderMaker {
   private cache = new Map<string, string>();
   constructor(private admin: SupabaseClient) {}
 
+  /** Vorhandenen Zielordner nur nachschlagen (nichts anlegen). */
+  async find(accountId: string, path: string): Promise<string | null> {
+    const key = `${accountId}|${path.toLowerCase()}`;
+    const cached = this.cache.get(key);
+    if (cached) return cached;
+    const { data } = await this.admin
+      .from("items")
+      .select("drive_id, path")
+      .eq("account_id", accountId)
+      .eq("is_folder", true)
+      .ilike("path", escapeLike(path))
+      .limit(path.includes("*") ? 1000 : 1);
+    return exactFolder(data, path);
+  }
+
   async ensure(accountId: string, ownerId: string, token: string, path: string): Promise<string> {
     const segs = path.split("/");
     const { data: acc } = await this.admin.from("accounts").select("root_folder_id").eq("id", accountId).single();
@@ -124,12 +149,12 @@ class FolderMaker {
       if (!id) {
         const { data } = await this.admin
           .from("items")
-          .select("drive_id")
+          .select("drive_id, path")
           .eq("account_id", accountId)
           .eq("is_folder", true)
           .ilike("path", escapeLike(prefix))
-          .limit(1);
-        id = data?.[0]?.drive_id;
+          .limit(prefix.includes("*") ? 1000 : 1);
+        id = exactFolder(data, prefix) ?? undefined;
       }
       if (!id) {
         const f = await gfetch<{ id: string }>(token, `${DRIVE}/files?fields=id`, {
@@ -165,6 +190,30 @@ async function moveOne(
   const src = (await getAccessToken(admin, t.src_account)).token;
   const dst = (await getAccessToken(admin, t.dst_account)).token;
 
+  // 0. Stand jetzt: seit dem Plan kann das Foto verschoben, umbenannt, verändert oder gelöscht worden sein
+  type Now = { name: string; parents?: string[]; trashed?: boolean; md5Checksum?: string; size?: string };
+  let now: Now;
+  try {
+    now = await gfetch<Now>(src, `${DRIVE}/files/${t.drive_id}?fields=name,parents,trashed,md5Checksum,size`);
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 404) throw new SkipTask("Original gibt es nicht mehr");
+    throw e;
+  }
+  if (!now.parents?.includes(t.src_folder)) throw new SkipTask("Original wurde inzwischen verschoben");
+  if (now.name !== t.name) throw new SkipTask(`Original heisst inzwischen „${now.name}“`);
+  if (t.md5 && now.md5Checksum && now.md5Checksum !== t.md5) throw new SkipTask("Original wurde inzwischen verändert");
+  if (now.trashed) {
+    // Nur weitermachen, wenn ein abgebrochener Lauf schon kopiert und das Original weggelegt hat
+    const folder = await ctx.folders.find(t.dst_account, t.path);
+    const q = folder ? sameNameQuery(folder, t.name) : null;
+    const done = q && t.md5
+      ? (await gfetch<{ files: { md5Checksum?: string }[] }>(dst, `${DRIVE}/files?${new URLSearchParams({ q, fields: "files(md5Checksum)", pageSize: "10" })}`)).files.some(
+          (f) => f.md5Checksum === t.md5,
+        )
+      : false;
+    if (!done) throw new SkipTask("Original liegt im Papierkorb");
+  }
+
   // 1. Freigabe des Quellordners für das Zielkonto (einmal pro Ordner)
   const shareKey = `${t.src_folder}>${t.dst_account}`;
   if (!ctx.shared.has(shareKey)) {
@@ -179,7 +228,7 @@ async function moveOne(
   // 2. Serverseitige Kopie im Zielkonto – gibt es sie schon (abgebrochener Lauf), wird sie wiederverwendet
   const parent = await ctx.folders.ensure(t.dst_account, t.owner_id, dst, t.path);
   type Copy = { id: string; md5Checksum?: string; size?: string; mimeType?: string };
-  const q = `'${parent}' in parents and name = '${t.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}' and trashed = false`;
+  const q = sameNameQuery(parent, t.name);
   const existing = t.md5
     ? (await gfetch<{ files: Copy[] }>(dst, `${DRIVE}/files?${new URLSearchParams({ q, fields: "files(id,md5Checksum,size,mimeType)", pageSize: "10" })}`)).files.find(
         (f) => f.md5Checksum === t.md5,
@@ -201,8 +250,8 @@ async function moveOne(
   }
 
   // 3. Prüfsumme und Grösse vergleichen
-  let md5 = t.md5;
-  let size = t.size;
+  let md5 = t.md5 ?? now.md5Checksum ?? null;
+  let size = t.size ?? (now.size ? Number(now.size) : null);
   if (!md5 || size == null) {
     const orig = await gfetch<{ md5Checksum?: string; size?: string }>(src, `${DRIVE}/files/${t.drive_id}?fields=md5Checksum,size`);
     md5 = orig.md5Checksum ?? null;
@@ -365,7 +414,11 @@ export async function runRebalance(admin: SupabaseClient, ownerId: string, deadl
             } catch (e) {
               await admin
                 .from("rebalance_tasks")
-                .update({ status: "failed", error: e instanceof Error ? e.message : String(e), updated_at: new Date().toISOString() })
+                .update({
+                  status: e instanceof SkipTask ? "skipped" : "failed",
+                  error: e instanceof Error ? e.message : String(e),
+                  updated_at: new Date().toISOString(),
+                })
                 .eq("id", t.id);
             }
           }),
@@ -406,7 +459,8 @@ export async function runRebalance(admin: SupabaseClient, ownerId: string, deadl
         await admin.from("rebalance_tasks").select("size").eq("plan_id", plan.id).eq("status", "done")
       ).data?.reduce((s, r) => s + Number(r.size ?? 0), 0) ?? 0;
       const gb = (freed / 1024 ** 3).toFixed(1);
-      const message = `Rebalancing fertig: ${done} Fotos (${gb} GB) verschoben${failed ? `, ${failed} fehlgeschlagen (Originale unverändert)` : ""}. Platz im Quellkonto wird frei, sobald der Papierkorb geleert ist (spätestens nach 30 Tagen).`;
+      const skipped = await count("skipped");
+      const message = `Rebalancing fertig: ${done} Fotos (${gb} GB) verschoben${failed ? `, ${failed} fehlgeschlagen (Originale unverändert)` : ""}${skipped ? `, ${skipped} übersprungen (seit dem Plan verändert)` : ""}. Platz im Quellkonto wird frei, sobald der Papierkorb geleert ist (spätestens nach 30 Tagen).`;
       await admin
         .from("rebalance_plans")
         .update({ status: failed && !done ? "failed" : "done", done, failed, total, message, finished_at: new Date().toISOString() })

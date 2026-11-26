@@ -6,7 +6,7 @@ import { moveLogicalFolder, PathResolver, pathSegments, SEALED_MESSAGE } from ".
 import { crossesSealed } from "../lib/placement";
 import { moveWithin } from "../lib/google";
 import { planMove } from "../lib/move";
-import { childKey, childPath } from "../lib/naming";
+import { childKey, childPath, withOriginalName } from "../lib/naming";
 import { DRIVE_PARALLEL, mapPool } from "../lib/pool";
 import { hueOf, useFolderColors } from "../lib/folderColors";
 import type { Account, Crumb, FolderContent, Item, LogicalFolder } from "../lib/types";
@@ -117,8 +117,8 @@ export default function MoveSheet({
     // 1. Ordner (samt Inhalt) – jeder Teil bleibt in seinem Konto
     for (const f of folderTodo) {
       try {
-        await moveLogicalFolder(f, current, accounts);
-        undos.push(undoFolderMove(f, current, accounts));
+        const change = await moveLogicalFolder(f, current, accounts);
+        undos.push(undoFolderMove(f, current, change));
       } catch (err) {
         errors.push(`${f.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -139,73 +139,81 @@ export default function MoveSheet({
       return;
     }
     const logs: LogInput[] = [];
-    const parts = await fetchFolderParts(current.path);
-    const parentBy = new Map(parts.map((p) => [p.account_id, p.drive_id]));
-    const resolver = new PathResolver(accounts);
     const gone = new Set<string>();
-    // Zielordner zuerst – pro Konto einmal und nacheinander (nebeneinander entstünde derselbe Ordner doppelt)
-    const noParent = new Map<string, unknown>();
-    for (const id of new Set(todo.map((e) => e.item.account_id))) {
-      if (parentBy.has(id)) continue;
-      try {
-        parentBy.set(id, await resolver.ensure(id, pathSegments(current.path)));
-      } catch (err) {
-        noParent.set(id, err);
-      }
-    }
-    // Dann die Fotos, einige nebeneinander
-    await mapPool(todo, DRIVE_PARALLEL, async (e) => {
-      try {
-        const parent = parentBy.get(e.item.account_id);
-        if (!parent) throw noParent.get(e.item.account_id) ?? new Error("Zielordner fehlt");
-        if (!e.item.parent_drive_id) throw new Error("Ursprungsordner unbekannt");
-        await moveWithin(
-          e.item.account_id,
-          e.item.drive_id,
-          parent,
-          e.item.parent_drive_id,
-          e.renamed ? { name: e.targetName, description: `Originalname: ${e.item.name}` } : {},
-        );
-        gone.add(`${e.item.account_id}|${e.item.drive_id}`);
-        movedFiles.push({ item: e.item, to: parent, renamed: e.renamed });
-        const name = e.renamed ? e.targetName : e.item.name;
-        movedTo.current.set(`${e.item.account_id}|${e.item.drive_id}`, {
-          name,
-          parent_drive_id: parent,
-          parent_key: current.key,
-          path: childPath(current.path, name),
-        });
-        if (e.renamed) {
-          logs.push({ kind: "rename", message: `„${e.item.name}“ → „${e.targetName}“ (Namenskonflikt beim Verschieben)` });
+    try {
+      const parts = await fetchFolderParts(current.path);
+      const parentBy = new Map(parts.map((p) => [p.account_id, p.drive_id]));
+      const resolver = new PathResolver(accounts);
+      // Zielordner zuerst – pro Konto einmal und nacheinander (nebeneinander entstünde derselbe Ordner doppelt)
+      const noParent = new Map<string, unknown>();
+      for (const id of new Set(todo.map((e) => e.item.account_id))) {
+        if (parentBy.has(id)) continue;
+        try {
+          parentBy.set(id, await resolver.ensure(id, pathSegments(current.path)));
+        } catch (err) {
+          noParent.set(id, err);
         }
-      } catch (err) {
-        errors.push(`${e.item.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
-      setDone((d) => d + 1);
-    });
-    const moved = gone.size;
-    logs.unshift({
-      kind: "move",
-      message: `${moved} Foto${moved === 1 ? "" : "s"} nach „${current.path}“ verschoben`,
-      details: { von: [...new Set(todo.map((e) => e.item.path?.replace(/\/[^/]*$/, "")))] },
-    });
-    await writeLogs(logs);
-    // Abgleich: schlägt er fehl, zeigt die App sonst den alten Stand (Foto scheinbar nicht verschoben)
-    const ids = [...new Set(todo.map((e) => e.item.account_id))];
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const res = await syncAccounts(ids).catch(() => null);
-      if (res && !res.some((r) => r.error)) break;
-      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      // Dann die Fotos, einige nebeneinander
+      await mapPool(todo, DRIVE_PARALLEL, async (e) => {
+        try {
+          const parent = parentBy.get(e.item.account_id);
+          if (!parent) throw noParent.get(e.item.account_id) ?? new Error("Zielordner fehlt");
+          if (!e.item.parent_drive_id) throw new Error("Ursprungsordner unbekannt");
+          await moveWithin(
+            e.item.account_id,
+            e.item.drive_id,
+            parent,
+            e.item.parent_drive_id,
+            e.renamed ? { name: e.targetName, description: withOriginalName(e.item.description, e.item.name) } : {},
+          );
+          gone.add(`${e.item.account_id}|${e.item.drive_id}`);
+          movedFiles.push({ item: e.item, to: parent, renamed: e.renamed });
+          const name = e.renamed ? e.targetName : e.item.name;
+          movedTo.current.set(`${e.item.account_id}|${e.item.drive_id}`, {
+            name,
+            parent_drive_id: parent,
+            parent_key: current.key,
+            path: childPath(current.path, name),
+          });
+          if (e.renamed) {
+            logs.push({ kind: "rename", message: `„${e.item.name}“ → „${e.targetName}“ (Namenskonflikt beim Verschieben)` });
+          }
+        } catch (err) {
+          errors.push(`${e.item.name}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        setDone((d) => d + 1);
+      });
+      const moved = gone.size;
+      logs.unshift({
+        kind: "move",
+        message: `${moved} Foto${moved === 1 ? "" : "s"} nach „${current.path}“ verschoben`,
+        details: { von: [...new Set(todo.map((e) => e.item.path?.replace(/\/[^/]*$/, "")))] },
+      });
+      await writeLogs(logs);
+    } catch (err) {
+      // z. B. offline: Zielordner nicht abrufbar – nicht in „Verschieben …“ hängen bleiben
+      errors.push(`Verschieben abgebrochen: ${err instanceof Error ? err.message : String(err)}`);
     }
-    // Verschobene Fotos sofort aus dem alten Ordner nehmen
-    for (const k of new Set(items.map((i) => i.parent_key ?? ""))) {
-      patchFolder(k, (c) => ({ ...c, files: c.files.filter((f) => !gone.has(`${f.account_id}|${f.drive_id}`)) }));
+    try {
+      // Abgleich: schlägt er fehl, zeigt die App sonst den alten Stand (Foto scheinbar nicht verschoben)
+      const ids = [...new Set(todo.map((e) => e.item.account_id))];
+      for (let attempt = 0; (gone.size || folderTodo.length) && attempt < 3; attempt++) {
+        const res = await syncAccounts(ids).catch(() => null);
+        if (res && !res.some((r) => r.error)) break;
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      }
+      // Verschobene Fotos sofort aus dem alten Ordner nehmen
+      for (const k of new Set(items.map((i) => i.parent_key ?? ""))) {
+        patchFolder(k, (c) => ({ ...c, files: c.files.filter((f) => !gone.has(`${f.account_id}|${f.drive_id}`)) }));
+      }
+      invalidateFolder(current.key);
+      for (const k of new Set(items.map((i) => i.parent_key ?? ""))) invalidateFolder(k);
+    } finally {
+      setFailed(errors);
+      setPhase("done");
+      offer();
     }
-    invalidateFolder(current.key);
-    for (const k of new Set(items.map((i) => i.parent_key ?? ""))) invalidateFolder(k);
-    setFailed(errors);
-    setPhase("done");
-    offer();
   };
 
   return (

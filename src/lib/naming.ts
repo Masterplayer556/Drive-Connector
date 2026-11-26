@@ -65,3 +65,13 @@ export function validFolderName(name: string): string | null {
   if (n.length > 200) return "Name ist zu lang";
   return null;
 }
+
+/**
+ * Beschreibung beim Umbenennen: „Originalname: …“ festhalten. Steht schon ein Originalname drin (früher
+ * umbenannt), bleibt er – das ist der echte. Eigene Beschreibungen bleiben, die Zeile kommt dazu.
+ */
+export function withOriginalName(description: string | null | undefined, original: string): string {
+  const d = (description ?? "").trimEnd();
+  if (/^Originalname: /m.test(d)) return d;
+  return d ? `${d}\nOriginalname: ${original}` : `Originalname: ${original}`;
+}

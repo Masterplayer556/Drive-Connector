@@ -3,7 +3,7 @@ import { videosLast } from "./media";
 import type { Plan, Step, Unit } from "./rebalance";
 import type { BigFolder, PoolStats } from "./insights";
 import { childKey, naturalCompare } from "./naming";
-import { deleteForever } from "./google";
+import { deleteIfTrashed } from "./google";
 import { callFunction, supabase } from "./supabase";
 import type { Account, FolderContent, Item, LogEntry, LogicalFolder, LogKind, Role } from "./types";
 
@@ -27,6 +27,11 @@ async function fetchAll<T>(page: (from: number, to: number) => PageResult<T>): P
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
+
+// PostgREST macht aus „*“ in like/ilike immer ein „%“ (lässt sich nicht maskieren): Ordner „Best*“ träfe
+// auch „Best of 2023“. Treffer darum danach genau prüfen (Gross-/Kleinschreibung egal, wie ilike).
+const samePath = (a: string | null | undefined, b: string) => (a ?? "").toLowerCase() === b.toLowerCase();
+const inSubtree = (p: string | null | undefined, base: string) => (p ?? "").toLowerCase().startsWith(`${base.toLowerCase()}/`);
 
 export async function fetchAccounts(): Promise<Account[]> {
   const { data, error } = await supabase
@@ -82,7 +87,7 @@ export async function fetchFolderParts(path: string): Promise<Item[]> {
     .eq("is_folder", true)
     .ilike("path", escapeLike(path));
   if (error) throw new Error(error.message);
-  return (data ?? []) as Item[];
+  return ((data ?? []) as Item[]).filter((r) => samePath(r.path, path));
 }
 
 export async function findFolderInAccount(accountId: string, path: string): Promise<Item | null> {
@@ -92,9 +97,9 @@ export async function findFolderInAccount(accountId: string, path: string): Prom
     .eq("account_id", accountId)
     .eq("is_folder", true)
     .ilike("path", escapeLike(path))
-    .limit(1);
+    .limit(path.includes("*") ? 1000 : 1);
   if (error) throw new Error(error.message);
-  return ((data ?? [])[0] as Item | undefined) ?? null;
+  return ((data ?? []) as Item[]).find((r) => samePath(r.path, path)) ?? null;
 }
 
 /** Welche dieser Prüfsummen gibt es schon im Pool? */
@@ -300,11 +305,13 @@ export async function fetchSubtreeFiles(path: string): Promise<Item[]> {
       .order("path")
       .range(from, to),
   );
-  return rows;
+  return rows.filter((r) => inSubtree(r.path, path));
 }
 
 /** Wie viele Fotos stecken in einem Ordner (inkl. Unterordner)? Für die Lösch-Rückfrage. */
 export async function countSubtreeFiles(path: string): Promise<number | null> {
+  // Mit „*“ im Pfad zählt die Datenbank zu viel – dann die Fotos holen und genau zählen
+  if (path.includes("*")) return fetchSubtreeFiles(path).then((r) => r.length, () => null);
   const { count, error } = await supabase
     .from("items")
     .select("drive_id", { count: "exact", head: true })
@@ -497,9 +504,10 @@ export interface PlanRow {
 
 /**
  * Nach einem Rebalancing die Originale (liegen im Papierkorb der Quellkonten) sofort endgültig löschen,
- * damit der Platz gleich frei wird. Nur Dateien, deren Kopie geprüft wurde (Status „done“).
+ * damit der Platz gleich frei wird. Nur Dateien, deren Kopie geprüft wurde (Status „done“) und die noch im
+ * Papierkorb liegen – inzwischen wiederhergestellte Originale bleiben (zählen als „übersprungen“).
  */
-export async function purgePlanOriginals(planId: string, onProgress?: (done: number, total: number) => void): Promise<{ ok: number; failed: number }> {
+export async function purgePlanOriginals(planId: string, onProgress?: (done: number, total: number) => void): Promise<{ ok: number; failed: number; skipped: number }> {
   const rows: { src_account: string; drive_id: string }[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabase
@@ -515,20 +523,21 @@ export async function purgePlanOriginals(planId: string, onProgress?: (done: num
   }
   let ok = 0;
   let failed = 0;
+  let skipped = 0;
   for (let i = 0; i < rows.length; i += 6) {
     await Promise.all(
       rows.slice(i, i + 6).map((r) =>
-        deleteForever(r.src_account, r.drive_id).then(
-          () => ok++,
-          (e) => (String(e).includes("404") ? ok++ : failed++), // schon weg → zählt als erledigt
+        deleteIfTrashed(r.src_account, r.drive_id).then(
+          (res) => (res === "skipped" ? skipped++ : ok++), // schon weg → zählt als erledigt
+          () => failed++,
         ),
       ),
     );
     onProgress?.(Math.min(i + 6, rows.length), rows.length);
   }
   if (!failed) await supabase.rpc("mark_plan_purged", { p_plan: planId });
-  await writeLog(failed ? "error" : "delete", `Rebalancing: ${ok} Originale endgültig gelöscht${failed ? `, ${failed} fehlgeschlagen` : ""}`, { plan: planId });
-  return { ok, failed };
+  await writeLog(failed ? "error" : "delete", `Rebalancing: ${ok} Originale endgültig gelöscht${skipped ? `, ${skipped} wiederhergestellte übersprungen` : ""}${failed ? `, ${failed} fehlgeschlagen` : ""}`, { plan: planId });
+  return { ok, failed, skipped };
 }
 
 export async function fetchPlans(limit = 20): Promise<PlanRow[]> {

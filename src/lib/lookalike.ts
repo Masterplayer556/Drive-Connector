@@ -144,6 +144,10 @@ export function sameLook(a: Sig, b: Sig): boolean {
 /**
  * Gruppen gleich aussehender Fotos (nur Gruppen ab 2). Verglichen wird nur, was dasselbe Seitenverhältnis hat –
  * so bleibt es auch bei zehntausenden Fotos schnell. `pause` gibt zwischendurch die Oberfläche frei.
+ *
+ * In einer Gruppe sieht jedes Foto jedem anderen gleich (nicht nur über eine Kette A≈B≈C): sonst landen bei
+ * schrittweise veränderten Bildern (Serienbilder, Bearbeitungsstufen) ganz verschiedene Fotos in einer Gruppe,
+ * und die Vorauswahl schlägt Fotos zum Löschen vor, die dem behaltenen gar nicht gleichen.
  */
 export async function groupLookalikes(entries: { id: string; sig: Sig }[], pause?: () => Promise<void>): Promise<string[][]> {
   const list = entries.map((e) => prepare(e.id, e.sig)).sort((a, b) => a.sig.ar - b.sig.ar);
@@ -155,6 +159,12 @@ export async function groupLookalikes(entries: { id: string; sig: Sig }[], pause
     }
     return i;
   };
+  const near = new Map<number, Set<number>>();
+  const link = (i: number, j: number) => {
+    const s = near.get(i);
+    if (s) s.add(j);
+    else near.set(i, new Set([j]));
+  };
   let work = 0;
   for (let i = 0; i < list.length; i++) {
     const a = list[i];
@@ -163,6 +173,8 @@ export async function groupLookalikes(entries: { id: string; sig: Sig }[], pause
       work++;
       const b = list[j];
       if (!arClose(a.sig.ar, b.sig.ar) || !sameLookPrepared(a, b)) continue;
+      link(i, j);
+      link(j, i);
       const ra = find(i);
       const rb = find(j);
       if (ra !== rb) parent[rb] = ra;
@@ -172,12 +184,31 @@ export async function groupLookalikes(entries: { id: string; sig: Sig }[], pause
       await pause();
     }
   }
-  const groups = new Map<number, string[]>();
+  const components = new Map<number, number[]>();
   for (let i = 0; i < list.length; i++) {
+    if (!near.has(i)) continue;
     const r = find(i);
-    const g = groups.get(r);
-    if (g) g.push(list[i].id);
-    else groups.set(r, [list[i].id]);
+    const c = components.get(r);
+    if (c) c.push(i);
+    else components.set(r, [i]);
   }
-  return [...groups.values()].filter((g) => g.length > 1).map((g) => g.sort());
+  const out: string[][] = [];
+  for (const comp of components.values()) {
+    const degree = (i: number) => near.get(i)?.size ?? 0;
+    // Häufigster Fall: alle gleichen allen → eine Gruppe
+    if (comp.every((i) => degree(i) === comp.length - 1)) {
+      out.push(comp.map((i) => list[i].id));
+      continue;
+    }
+    // Sonst aufteilen: vom Foto mit den meisten Treffern aus nur Fotos dazunehmen, die allen schon gewählten gleichen
+    let rest = [...comp].sort((x, y) => degree(y) - degree(x) || x - y);
+    while (rest.length > 1) {
+      const group = [rest[0]];
+      for (const n of rest.slice(1)) if (group.every((g) => near.get(g)!.has(n))) group.push(n);
+      if (group.length > 1) out.push(group.map((i) => list[i].id));
+      const taken = new Set(group);
+      rest = rest.filter((i) => !taken.has(i));
+    }
+  }
+  return out.map((g) => g.sort());
 }

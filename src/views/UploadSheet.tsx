@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
+import LocalThumb from "../components/LocalThumb";
 import PathPicker, { crumbsOf } from "../components/PathPicker";
 import Ring from "../components/Ring";
 import { ignoreDuplicate, knownMd5, releaseNumbers, reserveNumbers, syncAccounts, writeLogs, type LogInput } from "../lib/db";
@@ -89,8 +90,6 @@ export default function UploadSheet({
   };
 
   const byId = useMemo(() => new Map(files.map((f, i) => [`f${i}`, f])), [files]);
-  const previews = useMemo(() => new Map([...byId].map(([id, f]) => [id, URL.createObjectURL(f)])), [byId]);
-  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
 
   // 1. Prüfsummen berechnen und mit dem Pool vergleichen
   useEffect(() => {
@@ -185,7 +184,7 @@ export default function UploadSheet({
   };
 
   /** Einen Stapel hochladen; Protokoll + Index laufen danach im Hintergrund weiter. */
-  const runBatch = async (b: Batch, force: boolean, onProgress: (p: UploadProgress) => void) => {
+  const runBatch = async (b: Batch, force: boolean, accs: Account[], onProgress: (p: UploadProgress) => void) => {
     let reserved: number[] = [];
     const input: PlanInput = { ...b.input, allowDuplicates: force };
     try {
@@ -203,7 +202,7 @@ export default function UploadSheet({
         ? new Set(planUpload({ ...b.input, allowDuplicates: false }).filter((e) => e.status === "duplicate").map((e) => e.md5))
         : new Set<string>();
 
-      const upload = await executeUpload({ target: b.target, entries: finalPlan, files: b.byId, accounts, onProgress });
+      const upload = await executeUpload({ target: b.target, entries: finalPlan, files: b.byId, accounts: accs, onProgress });
 
       const s = summarize(finalPlan);
       const emailOf = (id: string) => accounts.find((a) => a.id === id)?.email ?? id;
@@ -244,13 +243,17 @@ export default function UploadSheet({
       // Bewusst doppelt hochgeladene Fotos gleich als „bewusst behalten“ markieren (nach dem Abgleich)
       const intended = [...new Set(upload.uploaded.filter((u) => b.known.has(u.md5) || forcedMd5.has(u.md5)).map((u) => u.md5))];
       const bg = Promise.all([
-        writeLogs(logs),
-        (upload.accountIds.length ? syncAccounts(upload.accountIds) : Promise.resolve()).then(() =>
-          Promise.all(intended.map((m) => ignoreDuplicate(m).catch(() => undefined))),
+        writeLogs(logs).catch(() => undefined),
+        (upload.accountIds.length ? syncAccounts(upload.accountIds) : Promise.resolve([])).then(
+          async (res) => {
+            await Promise.all(intended.map((m) => ignoreDuplicate(m).catch(() => undefined)));
+            // Nummern erst freigeben, wenn die neuen Fotos sicher im Index stehen – sonst bekäme der nächste
+            // Upload dieselben Nummern. Scheitert der Abgleich, läuft die Reservierung von selbst ab.
+            if (res.every((r) => !r.error && !r.more)) await releaseNumbers(b.target.key, toRelease).catch(() => undefined);
+          },
+          () => undefined,
         ),
-      ])
-        .catch(() => undefined)
-        .finally(() => releaseNumbers(b.target.key, toRelease).catch(() => undefined));
+      ]);
       return { upload, plan: finalPlan, bg, media: mediaOf(upload.uploaded.map((u) => u.id), b.byId) };
     } catch (e) {
       await releaseNumbers(b.target.key, reserved).catch(() => undefined);
@@ -271,9 +274,15 @@ export default function UploadSheet({
     const bgs: Promise<unknown>[] = [];
     let media = NO_MEDIA;
     let before = { done: 0, failed: 0 };
+    // Belegten Platz zwischen den Stapeln mitführen – sonst plant jeder Stapel mit dem freien Platz von vorher
+    let accs = accounts.map((a) => ({ ...a }));
     try {
       for (const { b, force } of all) {
-        const r = await runBatch(b, force, (p) => setProgress({ done: before.done + p.done, failed: before.failed + p.failed, total }));
+        const r = await runBatch(b, force, accs, (p) => setProgress({ done: before.done + p.done, failed: before.failed + p.failed, total }));
+        accs = accs.map((a) => ({
+          ...a,
+          quota_usage: (a.quota_usage ?? 0) + r.upload.uploaded.filter((u) => u.accountId === a.id).reduce((s, u) => s + u.size, 0),
+        }));
         merged.uploaded.push(...r.upload.uploaded);
         merged.failed.push(...r.upload.failed);
         merged.accountIds = [...new Set([...merged.accountIds, ...r.upload.accountIds])];
@@ -457,12 +466,11 @@ export default function UploadSheet({
                       style={{ ["--i" as string]: i }}
                       onClick={() => orderMode && entry.status === "upload" && toggleOrder(f.id)}
                     >
-                      <div className="thumb-wrap">
-                        <img className="thumb loaded" src={previews.get(f.id)} alt={f.name} />
+                      <LocalThumb file={byId.get(f.id)!}>
                         {dupIds.has(f.id) && <span className="tag">Duplikat</span>}
                         {entry.status === "conflict" && <span className="tag">Konflikt</span>}
                         {entry.status === "limit" && <span className="tag">15 GB</span>}
-                      </div>
+                      </LocalThumb>
                       {orderMode && pos >= 0 && <span className="badge">{pos + 1}</span>}
                       <span className="cell-name">{entry.targetName}</span>
                     </button>

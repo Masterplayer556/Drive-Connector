@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatBytes } from "../lib/format";
 import { downloadBlob } from "../lib/google";
 import type { Item } from "../lib/types";
-import { buildZip, chunkBySize } from "../lib/zip";
+import { buildZip, chunkBySize, zipNames } from "../lib/zip";
 import Icon from "./Icon";
 import Ring from "./Ring";
 import { useKeepAwake } from "../lib/wakelock";
@@ -68,12 +68,13 @@ export default function DownloadSheet({
         if (mode === "photos") {
           setReady(batch.map((it, i) => new File([blobs[i]], it.name, { type: blobs[i].type || "image/jpeg" })));
         } else {
-          const prefix = basePath ? `${basePath}/` : "";
+          const names = zipNames(batch, basePath);
           const entries = await Promise.all(
             batch.map(async (it, i) => ({
-              name: (it.path ?? it.name).startsWith(prefix) ? (it.path ?? it.name).slice(prefix.length) : it.name,
+              name: names[i],
               data: new Uint8Array(await blobs[i].arrayBuffer()),
               date: it.taken_at ? new Date(it.taken_at) : undefined,
+              wallClock: true, // taken_at = Kamera-Uhrzeit in den UTC-Feldern
             })),
           );
           const zip = buildZip(entries);

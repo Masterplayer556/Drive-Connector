@@ -64,8 +64,8 @@ export default function FolderActions({
     if (!name) return;
     setBusy(true);
     try {
-      await renameLogicalFolder(folder, name);
-      offerUndo(`„${folder.name}“ → „${name}“ umbenannt`, undoFolderRename(folder, name));
+      const change = await renameLogicalFolder(folder, name);
+      offerUndo(`„${folder.name}“ → „${name}“ umbenannt`, undoFolderRename(folder, name, change));
       onChanged();
       onClose();
     } catch (e) {
@@ -110,8 +110,8 @@ export default function FolderActions({
         onPick={async (target) => {
           setBusy(true);
           try {
-            await moveLogicalFolder(folder, target, accounts);
-            offerUndo(`„${folder.name}“ nach „${target.path || "Drive"}“ verschoben`, undoFolderMove(folder, target, accounts));
+            const change = await moveLogicalFolder(folder, target, accounts);
+            offerUndo(`„${folder.name}“ nach „${target.path || "Drive"}“ verschoben`, undoFolderMove(folder, target, change));
             onChanged();
             onClose();
           } catch (e) {

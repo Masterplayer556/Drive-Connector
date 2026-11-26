@@ -288,6 +288,29 @@ export function deleteForever(accountId: string, id: string): Promise<void> {
   return driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+/**
+ * Endgültig löschen – aber nur, wenn die Datei noch im Papierkorb liegt. Wurde sie inzwischen
+ * wiederhergestellt, bleibt sie („skipped“). „gone“: schon endgültig weg.
+ */
+export async function deleteIfTrashed(accountId: string, id: string): Promise<"deleted" | "skipped" | "gone"> {
+  let trashed: boolean;
+  try {
+    const f = await driveJson<{ trashed?: boolean }>(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?fields=trashed`);
+    trashed = f.trashed === true;
+  } catch (e) {
+    if (String(e).includes("404")) return "gone";
+    throw e;
+  }
+  if (!trashed) return "skipped";
+  try {
+    await deleteForever(accountId, id);
+  } catch (e) {
+    if (String(e).includes("404")) return "gone";
+    throw e;
+  }
+  return "deleted";
+}
+
 export function emptyTrash(accountId: string): Promise<void> {
   return driveJson(accountId, `${DRIVE}/files/trash`, { method: "DELETE" });
 }

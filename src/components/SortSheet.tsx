@@ -9,6 +9,7 @@ import Ring from "./Ring";
 import Thumb from "./Thumb";
 import { useUI } from "./ui";
 import { useKeepAwake } from "../lib/wakelock";
+import { withOriginalName } from "../lib/naming";
 
 const key = (i: Item) => `${i.account_id}|${i.drive_id}`;
 
@@ -71,7 +72,7 @@ export default function SortSheet({
       const item = byKey.get(step.id)!;
       try {
         if (step.from !== step.to) {
-          await updateItem(item.account_id, item.drive_id, { name: step.to, description: `Originalname: ${step.from}` });
+          await updateItem(item.account_id, item.drive_id, { name: step.to, description: withOriginalName(item.description, step.from) });
           const why = step.reason === "nummer" ? "Sortieren" : "Sortieren, lag dazwischen";
           logs.push({ kind: "rename" as const, message: `„${step.from}“ → „${step.to}“ (${why})`, details: { ordner: folderPath } });
           renamed.push(item);

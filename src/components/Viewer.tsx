@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { formatBytes, formatDateTime } from "../lib/format";
+import { formatBytes, formatTakenAt } from "../lib/format";
 import { accessToken, downloadBlob, updateItem } from "../lib/google";
 import { accountColor, currentTheme, isLight, THEMES } from "../lib/theme";
 import { cachedFolder, invalidateAll } from "../lib/cache";
@@ -463,6 +463,18 @@ export default function Viewer({
   const onTouchStart = (e: React.TouchEvent) => {
     lastTouch.current = Date.now();
     const t = e.touches;
+    if (t.length >= 2) {
+      // Zweiter Finger: laufendes Wischen (seitwärts oder zum Schliessen nach unten) abbrechen – sonst bleibt
+      // die Ansicht verschoben stehen
+      setDy(0);
+      setDx(0);
+      setDragging(false);
+      startX.current = null;
+      if (isVideo) {
+        g.current = null;
+        return;
+      }
+    }
     if (t.length === 2 && !isVideo) {
       const a = rel(t[0].clientX, t[0].clientY);
       const b = rel(t[1].clientX, t[1].clientY);
@@ -808,7 +820,7 @@ export default function Viewer({
         <span className="chip-lite">
           <Icon name="image" size={15} /> {formatBytes(item.size)}
         </span>
-        {item.taken_at && <span className="chip-lite">📅 {formatDateTime(item.taken_at)}</span>}
+        {item.taken_at && <span className="chip-lite">📅 {formatTakenAt(item.taken_at)}</span>}
         {account && (
           <span className="chip-lite">
             <span className="dot" style={{ background: accountColor(accIndex), color: accountColor(accIndex) }} />
