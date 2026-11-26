@@ -121,6 +121,8 @@ async function expandPlan(admin: SupabaseClient, plan: { id: string; owner_id: s
 /** Zielordner-Pfad im Zielkonto sicherstellen (fehlende Ordner anlegen und in den Index eintragen). */
 class FolderMaker {
   private cache = new Map<string, string>();
+  /** Laufende Anlagen – parallele Aufgaben mit demselben Zielordner warten auf dieselbe statt doppelt anzulegen */
+  private pending = new Map<string, Promise<string>>();
   constructor(private admin: SupabaseClient) {}
 
   /** Vorhandenen Zielordner nur nachschlagen (nichts anlegen). */
@@ -128,6 +130,10 @@ class FolderMaker {
     const key = `${accountId}|${path.toLowerCase()}`;
     const cached = this.cache.get(key);
     if (cached) return cached;
+    return await this.lookup(accountId, path);
+  }
+
+  private async lookup(accountId: string, path: string): Promise<string | null> {
     const { data } = await this.admin
       .from("items")
       .select("drive_id, path")
@@ -147,38 +153,53 @@ class FolderMaker {
       const key = `${accountId}|${prefix.toLowerCase()}`;
       let id = this.cache.get(key);
       if (!id) {
-        const { data } = await this.admin
-          .from("items")
-          .select("drive_id, path")
-          .eq("account_id", accountId)
-          .eq("is_folder", true)
-          .ilike("path", escapeLike(prefix))
-          .limit(prefix.includes("*") ? 1000 : 1);
-        id = exactFolder(data, prefix) ?? undefined;
+        let job = this.pending.get(key);
+        if (!job) {
+          job = this.make(accountId, ownerId, token, parent, segs, i);
+          this.pending.set(key, job);
+          job.then((v) => this.cache.set(key, v), () => {}).finally(() => this.pending.delete(key));
+        }
+        id = await job;
       }
-      if (!id) {
-        const f = await gfetch<{ id: string }>(token, `${DRIVE}/files?fields=id`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: segs[i - 1], mimeType: FOLDER_MIME, parents: [parent] }),
-        });
-        id = f.id;
-        await this.admin.from("items").insert({
-          account_id: accountId,
-          owner_id: ownerId,
-          drive_id: id,
-          name: segs[i - 1],
-          is_folder: true,
-          mime_type: FOLDER_MIME,
-          parent_drive_id: parent,
-          path: prefix,
-          parent_key: segs.slice(0, i - 1).join("/").toLowerCase(),
-        });
-      }
-      this.cache.set(key, id);
       parent = id;
     }
     return parent;
+  }
+
+  /** Einen Ordner des Pfads finden oder anlegen: zuerst im Index, dann bei Google (Index kann hinterherhinken). */
+  private async make(accountId: string, ownerId: string, token: string, parent: string, segs: string[], i: number) {
+    const prefix = segs.slice(0, i).join("/");
+    const name = segs[i - 1];
+    const known = await this.lookup(accountId, prefix);
+    if (known) return known;
+    const q = `${sameNameQuery(parent, name)} and mimeType = '${FOLDER_MIME}'`;
+    const found = (
+      await gfetch<{ files: { id: string }[] }>(token, `${DRIVE}/files?${new URLSearchParams({ q, fields: "files(id)", orderBy: "createdTime", pageSize: "1" })}`)
+    ).files[0]?.id;
+    const id =
+      found ??
+      (
+        await gfetch<{ id: string }>(token, `${DRIVE}/files?fields=id`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, mimeType: FOLDER_MIME, parents: [parent] }),
+        })
+      ).id;
+    await this.admin.from("items").upsert(
+      {
+        account_id: accountId,
+        owner_id: ownerId,
+        drive_id: id,
+        name,
+        is_folder: true,
+        mime_type: FOLDER_MIME,
+        parent_drive_id: parent,
+        path: prefix,
+        parent_key: segs.slice(0, i - 1).join("/").toLowerCase(),
+      },
+      { onConflict: "account_id,drive_id" },
+    );
+    return id;
   }
 }
 
