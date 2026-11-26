@@ -23,6 +23,7 @@ export default function MoveSheet({
   accounts,
   target,
   onClose,
+  onUndone,
 }: {
   items: Item[];
   /** Ziel schon gewählt (z. B. per Ziehen): Pfad dorthin. Ohne Rückfragen wird dann gleich verschoben. */
@@ -32,6 +33,8 @@ export default function MoveSheet({
   accounts: Account[];
   /** moved: neuer Stand der verschobenen Fotos (Name, Ordner, Pfad) – z. B. für die Foto-Ansicht */
   onClose: (changed: boolean, moved?: Map<string, Partial<Item>>) => void;
+  /** Nach „Rückgängig“ (auch wenn das Fenster längst zu ist) – z. B. Foto-Ansicht wieder auf den alten Stand */
+  onUndone?: () => void;
 }) {
   useFolderColors(); // eigene Ordnerfarben (wie im Drive), neu zeichnen sobald geladen
   const [stack, setStack] = useState<Crumb[]>(() => (target?.length ? [ROOT, ...target.filter((c) => c.key)] : [ROOT]));
@@ -129,7 +132,10 @@ export default function MoveSheet({
       if (movedFiles.length) undos.push(undoFileMoves(movedFiles));
       if (!undos.length) return;
       const n = movedFiles.length + (undos.length - (movedFiles.length ? 1 : 0));
-      offerUndo(`${n} ${n === 1 ? "Eintrag" : "Einträge"} nach „${current.path || "Drive"}“ verschoben`, undoAll(undos));
+      offerUndo(`${n} ${n === 1 ? "Eintrag" : "Einträge"} nach „${current.path || "Drive"}“ verschoben`, async () => {
+        await undoAll(undos)();
+        onUndone?.();
+      });
     };
     if (!todo.length) {
       invalidateFolder(current.key);

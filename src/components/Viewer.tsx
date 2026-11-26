@@ -919,6 +919,10 @@ export default function Viewer({
               const p = moved?.get(keyOf(item));
               if (didMove && p) patchItem(keyOf(item), p);
             }}
+            // Rückgängig: Name, Ordner und Pfad wie vor dem Verschieben anzeigen
+            onUndone={() =>
+              patchItem(keyOf(item), { name: item.name, parent_drive_id: item.parent_drive_id, parent_key: item.parent_key, path: item.path })
+            }
           />
         </Suspense>
       )}
