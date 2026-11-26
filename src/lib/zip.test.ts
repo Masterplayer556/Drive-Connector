@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildZip, chunkBySize, crc32, dosTime } from "./zip";
+import { buildZip, chunkBySize, crc32, dosTime, zipNames } from "./zip";
 
 describe("crc32", () => {
   it("stimmt mit dem Referenzwert überein", () => {
@@ -40,5 +40,37 @@ describe("dosTime", () => {
     expect(date & 0x1f).toBe(31);
     expect(time >> 11).toBe(23);
     expect((time >> 5) & 0x3f).toBe(30);
+  });
+});
+
+describe("zipNames", () => {
+  it("Pfad relativ zum Ordner, Gross-/Kleinschreibung egal", () => {
+    expect(zipNames([{ name: "1.jpg", path: "Ferien/2023/1.jpg" }, { name: "2.jpg", path: "ferien/2.jpg" }], "Ferien")).toEqual([
+      "2023/1.jpg",
+      "2.jpg",
+    ]);
+  });
+  it("gleiche Namen werden nummeriert statt überschrieben", () => {
+    expect(
+      zipNames([
+        { name: "a.jpg", path: "X/a.jpg" },
+        { name: "a.jpg", path: "Y/a.jpg" },
+        { name: "A.JPG", path: "Z/A.JPG" },
+        { name: "a (2).jpg", path: "W/a (2).jpg" },
+        { name: "ohne", path: "V/ohne" },
+        { name: "ohne", path: "U/ohne" },
+      ]),
+    ).toEqual(["X/a.jpg", "Y/a.jpg", "Z/A.JPG", "W/a (2).jpg", "V/ohne", "U/ohne"]);
+    expect(
+      zipNames(
+        [
+          { name: "a.jpg", path: "X/a.jpg" },
+          { name: "a.jpg", path: "Y/a.jpg" },
+          { name: "A.JPG", path: "Z/A.JPG" },
+          { name: "a (2).jpg", path: "W/a (2).jpg" },
+        ],
+        "Q",
+      ),
+    ).toEqual(["a.jpg", "a (2).jpg", "A (3).JPG", "a (2) (2).jpg"]);
   });
 });

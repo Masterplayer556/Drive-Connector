@@ -89,6 +89,36 @@ export function buildZip(entries: ZipEntry[]): Blob {
   return new Blob([...parts, ...(central as BlobPart[]), end.buffer as ArrayBuffer], { type: "application/zip" });
 }
 
+/**
+ * Namen der Dateien im ZIP: Pfad relativ zu basePath (Gross-/Kleinschreibung egal – Drive-Pfade unterscheiden
+ * sie nicht überall), sonst nur der Dateiname. Gleiche Namen (auch nur anders gross geschrieben – Windows und
+ * macOS unterscheiden das nicht) bekommen „ (2)“, „ (3)“ … vor der Endung, damit sich nichts überschreibt.
+ */
+export function zipNames(items: { name: string; path?: string | null }[], basePath = ""): string[] {
+  const base = basePath.replace(/\/+$/, "");
+  const prefix = base ? `${base}/`.toLowerCase() : "";
+  const used = new Set<string>();
+  return items.map((it) => {
+    const full = it.path ?? it.name;
+    let name = !prefix ? full : full.toLowerCase().startsWith(prefix) ? full.slice(prefix.length) : it.name;
+    name = name.replace(/^\/+/, "") || it.name;
+    if (used.has(name.toLowerCase())) {
+      const slash = name.lastIndexOf("/");
+      const dot = name.lastIndexOf(".");
+      const cut = dot > slash + 1 ? dot : name.length;
+      for (let n = 2; ; n++) {
+        const next = `${name.slice(0, cut)} (${n})${name.slice(cut)}`;
+        if (!used.has(next.toLowerCase())) {
+          name = next;
+          break;
+        }
+      }
+    }
+    used.add(name.toLowerCase());
+    return name;
+  });
+}
+
 /** Teilt Dateien in Pakete bis maxBytes bzw. maxCount auf (Reihenfolge bleibt). */
 export function chunkBySize<T>(items: T[], sizeOf: (t: T) => number, maxBytes: number, maxCount = Infinity): T[][] {
   const out: T[][] = [];
