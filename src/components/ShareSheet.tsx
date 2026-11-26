@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { insertShare, writeLog } from "../lib/db";
 import { formatDateTime } from "../lib/format";
-import { createAnyoneLink } from "../lib/google";
+import { createAnyoneLink, deletePermission } from "../lib/google";
 import type { Item } from "../lib/types";
 import Icon from "./Icon";
 import { useUI } from "./ui";
@@ -25,15 +25,22 @@ export default function ShareSheet({ item, onClose }: { item: Item; onClose: () 
     try {
       const { permissionId, url } = await createAnyoneLink(item.account_id, item.drive_id);
       const expires_at = days ? new Date(Date.now() + days * 86_400_000).toISOString() : null;
-      await insertShare({
-        account_id: item.account_id,
-        drive_id: item.drive_id,
-        name: item.name,
-        permission_id: permissionId,
-        url,
-        expires_at,
-      });
-      await writeLog("account", `Teilen-Link für „${item.name}“ erstellt${days ? ` (${days} Tage gültig)` : ""}`);
+      try {
+        await insertShare({
+          account_id: item.account_id,
+          drive_id: item.drive_id,
+          name: item.name,
+          permission_id: permissionId,
+          url,
+          expires_at,
+        });
+      } catch (e) {
+        // Ohne Eintrag kennt die App den Link nicht (kein Ablauf, nicht unter „Links“ widerrufbar) –
+        // also die Freigabe bei Google gleich wieder entfernen, statt das Foto öffentlich zu lassen
+        await deletePermission(item.account_id, item.drive_id, permissionId).catch(() => undefined);
+        throw e;
+      }
+      await writeLog("account", `Teilen-Link für „${item.name}“ erstellt${days ? ` (${days} Tage gültig)` : ""}`).catch(() => undefined);
       setLink({ url, expires: expires_at });
     } catch (e) {
       ui.toast(e instanceof Error ? e.message : String(e), "error");
