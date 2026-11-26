@@ -34,6 +34,26 @@ function unlock() {
 
 const nativeScrollTo = window.scrollTo.bind(window) as (x: number, y: number) => void;
 
+/**
+ * Oberstes offenes Fenster: ein Dialog liegt immer oben, sonst das zuletzt geöffnete
+ * (Fenster und Foto-Ansicht hängen in der Reihenfolge des Öffnens im Dokument).
+ */
+export function topOverlay(): Element | null {
+  const modal = document.querySelector(".modal-backdrop");
+  if (modal) return modal;
+  const all = document.querySelectorAll(".sheet-backdrop, .menu-backdrop, .viewer");
+  return all[all.length - 1] ?? null;
+}
+
+/** Esc schliesst das oberste Fenster (wie ein Tipp daneben). Die Foto-Ansicht kümmert sich selbst darum. */
+function onEscape(e: KeyboardEvent) {
+  if (e.key !== "Escape" || e.defaultPrevented || document.body.classList.contains("drag-moving")) return;
+  const top = topOverlay();
+  if (!top || top.classList.contains("viewer")) return;
+  e.preventDefault();
+  (top as HTMLElement).click();
+}
+
 /** Einmal beim Start aufrufen: beobachtet, ob ein Fenster offen ist. */
 export function initScrollLock() {
   // Springt die App während eines offenen Fensters woandershin (z. B. Ordner öffnen → nach oben),
@@ -47,6 +67,7 @@ export function initScrollLock() {
     if (typeof a === "object") window.scroll(a);
     else nativeScrollTo(a ?? 0, b ?? 0);
   }) as typeof window.scrollTo;
+  window.addEventListener("keydown", onEscape);
   window.addEventListener("hashchange", () => {
     if (lockedAt !== null) lockedAt = 0;
   });

@@ -14,6 +14,7 @@ import { isFavorite, loadFavorites, onFavoritesChange, toggleFavorite } from "..
 import { markerColor, useTags } from "../lib/tags";
 import { useUI } from "./ui";
 import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
+import { topOverlay } from "../lib/scrollLock";
 
 const ShareSheet = lazy(() => import("./ShareSheet"));
 const SimilarSheet = lazy(() => import("../ai/SimilarSheet")); // KI-SUCHE
@@ -680,6 +681,39 @@ export default function Viewer({
     setTimeout(onClose, 180);
   };
 
+  // Tastatur: Esc schliesst, Pfeile blättern – nur wenn kein Fenster/Menü über der Ansicht liegt
+  const rootEl = useRef<HTMLDivElement>(null);
+  const keys = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  keys.current = (e) => {
+    if (e.defaultPrevented || topOverlay() !== rootEl.current) return;
+    if ((e.target as HTMLElement | null)?.closest?.("input, textarea, video")) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+    } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && zRef.current.s <= 1.01) {
+      const dir = e.key === "ArrowLeft" ? -1 : 1;
+      const to = step(dir);
+      if (to !== null) {
+        e.preventDefault();
+        flip(to, dir);
+      }
+    }
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => keys.current(e);
+    window.addEventListener("keydown", onKey);
+    // Hintergrund (die App) unbedienbar machen statt nur zu verstecken; Fokus in die Ansicht und danach zurück
+    const app = document.querySelector<HTMLElement>(".app");
+    const wasInert = app?.inert ?? false;
+    if (app) app.inert = true;
+    const before = document.activeElement as HTMLElement | null;
+    rootEl.current?.querySelector<HTMLElement>(".viewer-top button")?.focus({ preventScroll: true });
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (app) app.inert = wasInert;
+      before?.focus?.({ preventScroll: true });
+    };
+  }, []);
   /** Ordner, in dem das Foto liegt (Pfad ohne Dateinamen) */
   const folderPath = item.path ? (item.path.includes("/") ? item.path.replace(/\/[^/]*$/, "") : "Drive") : null;
   const accIndex = accounts.findIndex((a) => a.id === item.account_id);
@@ -694,9 +728,9 @@ export default function Viewer({
   // Direkt an <body>: so liegt das Foto immer über dem ganzen Bildschirm – auch wenn es aus einem Fenster
   // (Suche, KI-Treffer) geöffnet wird, das seinen Inhalt sonst abschneidet oder darüber liegt.
   return createPortal(
-    <div className={`viewer ${closing ? "closing" : ""} ${immersive ? "immersive" : ""} ${light ? "light" : ""} ${dy ? "dismissing" : ""}`}>
+    <div ref={rootEl} role="dialog" aria-modal="true" aria-label={item.name} className={`viewer ${closing ? "closing" : ""} ${immersive ? "immersive" : ""} ${light ? "light" : ""} ${dy ? "dismissing" : ""}`}>
       <div className="viewer-bg" style={{ opacity: bgOpacity }} />
-      <div ref={topEl} className="viewer-top" aria-hidden={immersive || undefined}>
+      <div ref={topEl} className="viewer-top" inert={immersive}>
         <button className="icon-btn glass" onClick={close} aria-label="Schliessen">
           <Icon name="x" />
         </button>
@@ -840,7 +874,7 @@ export default function Viewer({
           {z.s.toFixed(1)}×{fullState === "loading" ? " · lädt Original…" : atMax ? " · volle Auflösung" : ""}
         </div>
       )}
-      <div ref={bottomEl} className="viewer-bottom" aria-hidden={immersive || undefined}>
+      <div ref={bottomEl} className="viewer-bottom" inert={immersive}>
       {action && (
         <button className="btn primary viewer-action" onClick={() => action.run(item)}>
           <Icon name={action.icon} size={18} /> {action.label}
