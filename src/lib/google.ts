@@ -1,6 +1,6 @@
 // Direkter Zugriff auf die Google Drive API aus dem Browser mit kurzlebigen Access-Tokens.
 import { backoffMs, MAX_RETRIES, shouldRetry } from "./retry";
-import { callFunction } from "./supabase";
+import { callFunction, supabase } from "./supabase";
 
 export const DRIVE = "https://www.googleapis.com/drive/v3";
 const UPLOAD = "https://www.googleapis.com/upload/drive/v3";
@@ -276,12 +276,15 @@ export async function listTrash(accountId: string): Promise<TrashFile[]> {
   return out;
 }
 
-export function restoreItem(accountId: string, id: string): Promise<DriveFile> {
-  return driveJson(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?fields=id`, {
+export async function restoreItem(accountId: string, id: string): Promise<DriveFile> {
+  const r = await driveJson<DriveFile>(accountId, `${DRIVE}/files/${encodeURIComponent(id)}?fields=id`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ trashed: false }),
   });
+  // Wird es später erneut gelöscht, zählt die Frist fürs automatische Leeren von vorn (siehe trash.ts)
+  void Promise.resolve(supabase.from("trash_seen").delete().eq("account_id", accountId).eq("drive_id", id)).catch(() => undefined);
+  return r;
 }
 
 export function deleteForever(accountId: string, id: string): Promise<void> {
