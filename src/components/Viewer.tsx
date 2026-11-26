@@ -251,12 +251,19 @@ export default function Viewer({
   useEffect(() => {
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", mixHex(bgColor, designColor(), statusFade));
   }, [bgColor, statusFade]);
-  useEffect(
-    () => () => {
-      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", designColor());
-    },
-    [],
+  // Aus einer anderen Ansicht heraus geöffnet (Ähnliche Fotos …)? Dann beim Schliessen deren Farbe zurück,
+  // nicht die des Designs (Stand vor dem ersten Zeichnen merken)
+  const [outer] = useState(() =>
+    document.querySelector(".viewer") ? document.querySelector('meta[name="theme-color"]')?.getAttribute("content") ?? null : null,
   );
+  useEffect(() => {
+    const nested = outer !== null;
+    return () => {
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", outer ?? designColor());
+      // Letzte Ansicht zu → auch das vorab dekodierte Bild freigeben
+      if (!nested) predecoded.length = 0;
+    };
+  }, []);
   // Höhe der Leisten messen: so weit reicht das Foto im Normalzustand, ausgeblendet bis an den Rand
   const topEl = useRef<HTMLDivElement>(null);
   const bottomEl = useRef<HTMLDivElement>(null);
