@@ -1,6 +1,6 @@
 // Info-Fenster der Foto-Ansicht (⋯ → Info): alle Angaben zum Foto auf einen Blick.
 import { useEffect, useState } from "react";
-import { formatBytes, formatDateTime } from "../lib/format";
+import { formatBytes, formatTakenAt } from "../lib/format";
 import { markerColor } from "../lib/tags";
 import { accountColor } from "../lib/theme";
 import type { Account, Item } from "../lib/types";
@@ -65,7 +65,7 @@ export default function ViewerInfo({
               </Row>
             )}
             <Row icon="calendar" label="Aufgenommen">
-              {item.taken_at ? formatDateTime(item.taken_at) : "Unbekannt"}
+              {formatTakenAt(item.taken_at)}
             </Row>
             <Row icon="archive" label="Grösse">
               {formatBytes(item.size)}

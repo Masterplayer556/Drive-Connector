@@ -74,6 +74,7 @@ export default function DownloadSheet({
               name: (it.path ?? it.name).startsWith(prefix) ? (it.path ?? it.name).slice(prefix.length) : it.name,
               data: new Uint8Array(await blobs[i].arrayBuffer()),
               date: it.taken_at ? new Date(it.taken_at) : undefined,
+              wallClock: true, // taken_at = Kamera-Uhrzeit in den UTC-Feldern
             })),
           );
           const zip = buildZip(entries);

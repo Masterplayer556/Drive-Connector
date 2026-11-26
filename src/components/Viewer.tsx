@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { formatBytes, formatDateTime } from "../lib/format";
+import { formatBytes, formatTakenAt } from "../lib/format";
 import { accessToken, downloadBlob, updateItem } from "../lib/google";
 import { accountColor, currentTheme, isLight, THEMES } from "../lib/theme";
 import { cachedFolder, invalidateAll } from "../lib/cache";
@@ -808,7 +808,7 @@ export default function Viewer({
         <span className="chip-lite">
           <Icon name="image" size={15} /> {formatBytes(item.size)}
         </span>
-        {item.taken_at && <span className="chip-lite">📅 {formatDateTime(item.taken_at)}</span>}
+        {item.taken_at && <span className="chip-lite">📅 {formatTakenAt(item.taken_at)}</span>}
         {account && (
           <span className="chip-lite">
             <span className="dot" style={{ background: accountColor(accIndex), color: accountColor(accIndex) }} />

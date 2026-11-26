@@ -16,10 +16,14 @@ export function crc32(bytes: Uint8Array): number {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-function dosTime(d: Date): { time: number; date: number } {
+/** ZIP speichert Ortszeit ohne Zone. wallClock: Uhrzeit steht in den UTC-Feldern (EXIF-Aufnahmezeit). */
+export function dosTime(d: Date, wallClock = false): { time: number; date: number } {
+  const [y, mo, day, h, mi, s] = wallClock
+    ? [d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()]
+    : [d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds()];
   return {
-    time: (d.getHours() << 11) | (d.getMinutes() << 5) | Math.floor(d.getSeconds() / 2),
-    date: ((Math.max(1980, d.getFullYear()) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate(),
+    time: (h << 11) | (mi << 5) | Math.floor(s / 2),
+    date: ((Math.max(1980, y) - 1980) << 9) | ((mo + 1) << 5) | day,
   };
 }
 
@@ -27,6 +31,8 @@ export interface ZipEntry {
   name: string;
   data: Uint8Array;
   date?: Date;
+  /** date ist eine Aufnahmezeit (Kamera-Uhrzeit in den UTC-Feldern, wie taken_at) */
+  wallClock?: boolean;
 }
 
 export function buildZip(entries: ZipEntry[]): Blob {
@@ -38,7 +44,7 @@ export function buildZip(entries: ZipEntry[]): Blob {
   for (const e of entries) {
     const name = enc.encode(e.name);
     const crc = crc32(e.data);
-    const { time, date } = dosTime(e.date ?? new Date());
+    const { time, date } = e.date ? dosTime(e.date, e.wallClock) : dosTime(new Date());
     const local = new DataView(new ArrayBuffer(30));
     local.setUint32(0, 0x04034b50, true);
     local.setUint16(4, 20, true); // Version

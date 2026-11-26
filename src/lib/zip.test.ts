@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildZip, chunkBySize, crc32 } from "./zip";
+import { buildZip, chunkBySize, crc32, dosTime } from "./zip";
 
 describe("crc32", () => {
   it("stimmt mit dem Referenzwert überein", () => {
@@ -28,5 +28,17 @@ describe("chunkBySize", () => {
     expect(chunkBySize([5, 5, 5, 5], (x) => x, 10)).toEqual([[5, 5], [5, 5]]);
     expect(chunkBySize([1, 1, 1], (x) => x, 100, 2)).toEqual([[1, 1], [1]]);
     expect(chunkBySize([50], (x) => x, 10)).toEqual([[50]]);
+  });
+});
+
+describe("dosTime", () => {
+  it("nimmt bei Aufnahmezeiten die UTC-Felder (Kamera-Uhrzeit)", () => {
+    const d = new Date("2023-12-31T23:30:10Z");
+    const { time, date } = dosTime(d, true);
+    expect(date >> 9).toBe(2023 - 1980);
+    expect((date >> 5) & 0xf).toBe(12);
+    expect(date & 0x1f).toBe(31);
+    expect(time >> 11).toBe(23);
+    expect((time >> 5) & 0x3f).toBe(30);
   });
 });
