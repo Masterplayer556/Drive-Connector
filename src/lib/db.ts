@@ -3,7 +3,7 @@ import { videosLast } from "./media";
 import type { Plan, Step, Unit } from "./rebalance";
 import type { BigFolder, PoolStats } from "./insights";
 import { childKey, naturalCompare } from "./naming";
-import { deleteForever } from "./google";
+import { deleteIfTrashed } from "./google";
 import { callFunction, supabase } from "./supabase";
 import type { Account, FolderContent, Item, LogEntry, LogicalFolder, LogKind, Role } from "./types";
 
@@ -497,9 +497,10 @@ export interface PlanRow {
 
 /**
  * Nach einem Rebalancing die Originale (liegen im Papierkorb der Quellkonten) sofort endgültig löschen,
- * damit der Platz gleich frei wird. Nur Dateien, deren Kopie geprüft wurde (Status „done“).
+ * damit der Platz gleich frei wird. Nur Dateien, deren Kopie geprüft wurde (Status „done“) und die noch im
+ * Papierkorb liegen – inzwischen wiederhergestellte Originale bleiben (zählen als „übersprungen“).
  */
-export async function purgePlanOriginals(planId: string, onProgress?: (done: number, total: number) => void): Promise<{ ok: number; failed: number }> {
+export async function purgePlanOriginals(planId: string, onProgress?: (done: number, total: number) => void): Promise<{ ok: number; failed: number; skipped: number }> {
   const rows: { src_account: string; drive_id: string }[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabase
@@ -515,20 +516,21 @@ export async function purgePlanOriginals(planId: string, onProgress?: (done: num
   }
   let ok = 0;
   let failed = 0;
+  let skipped = 0;
   for (let i = 0; i < rows.length; i += 6) {
     await Promise.all(
       rows.slice(i, i + 6).map((r) =>
-        deleteForever(r.src_account, r.drive_id).then(
-          () => ok++,
-          (e) => (String(e).includes("404") ? ok++ : failed++), // schon weg → zählt als erledigt
+        deleteIfTrashed(r.src_account, r.drive_id).then(
+          (res) => (res === "skipped" ? skipped++ : ok++), // schon weg → zählt als erledigt
+          () => failed++,
         ),
       ),
     );
     onProgress?.(Math.min(i + 6, rows.length), rows.length);
   }
   if (!failed) await supabase.rpc("mark_plan_purged", { p_plan: planId });
-  await writeLog(failed ? "error" : "delete", `Rebalancing: ${ok} Originale endgültig gelöscht${failed ? `, ${failed} fehlgeschlagen` : ""}`, { plan: planId });
-  return { ok, failed };
+  await writeLog(failed ? "error" : "delete", `Rebalancing: ${ok} Originale endgültig gelöscht${skipped ? `, ${skipped} wiederhergestellte übersprungen` : ""}${failed ? `, ${failed} fehlgeschlagen` : ""}`, { plan: planId });
+  return { ok, failed, skipped };
 }
 
 export async function fetchPlans(limit = 20): Promise<PlanRow[]> {

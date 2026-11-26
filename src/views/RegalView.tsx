@@ -204,7 +204,11 @@ export default function RegalView({ accounts }: { accounts: Account[] }) {
     setPurging({ id: p.id, done: 0, total: p.done });
     try {
       const r = await purgePlanOriginals(p.id, (done, total) => setPurging({ id: p.id, done, total }));
-      ui.toast(r.failed ? `${r.ok} gelöscht, ${r.failed} fehlgeschlagen – nochmals versuchen` : `${r.ok} Originale gelöscht – Platz ist frei`, r.failed ? "error" : "ok");
+      const skip = r.skipped ? ` (${r.skipped} wiederhergestellte übersprungen)` : "";
+      ui.toast(
+        r.failed ? `${r.ok} gelöscht, ${r.failed} fehlgeschlagen – nochmals versuchen` : `${r.ok} Originale gelöscht – Platz ist frei${skip}`,
+        r.failed ? "error" : "ok",
+      );
     } catch (e) {
       ui.toast(e instanceof Error ? e.message : String(e), "error");
     } finally {
