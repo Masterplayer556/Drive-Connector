@@ -80,4 +80,17 @@ describe("Sieht gleich aus", () => {
     const groups = await groupLookalikes(entries);
     expect(groups.sort((x, y) => x[0].localeCompare(y[0]))).toEqual([["a1", "a2", "a3"], ["c1", "c2"]]);
   });
+  it("Kette (jedes Bild gleicht nur dem nächsten) → keine Riesengruppe, in jeder Gruppe gleichen sich alle", async () => {
+    const p = photo(1);
+    // 12 Bilder, jedes ein Stück weiter verschoben: Nachbarn gleich, übernächste nicht mehr
+    const entries = Array.from({ length: 12 }, (_, k) => ({ id: `k${String(k).padStart(2, "0")}`, sig: sigOf((x, y) => p(x + k * 0.008, y)) }));
+    for (let k = 1; k < 12; k++) expect(sameLook(entries[k - 1].sig, entries[k].sig)).toBe(true);
+    expect(sameLook(entries[0].sig, entries[2].sig)).toBe(false);
+    const groups = await groupLookalikes(entries);
+    const sig = new Map(entries.map((e) => [e.id, e.sig]));
+    expect(groups.length).toBeGreaterThan(1);
+    for (const g of groups) {
+      for (const a of g) for (const b of g) if (a !== b) expect(sameLook(sig.get(a)!, sig.get(b)!)).toBe(true);
+    }
+  });
 });
