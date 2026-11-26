@@ -4,7 +4,7 @@ import { offerUndo, undoAll, undoFileRenames, undoFolderRename } from "../lib/un
 import { syncAccounts, writeLogs, type LogInput } from "../lib/db";
 import { renameLogicalFolder } from "../lib/folders";
 import { updateItem } from "../lib/google";
-import { validFolderName } from "../lib/naming";
+import { validFolderName, withOriginalName } from "../lib/naming";
 import { planBatchRename } from "../lib/renameplan";
 import type { Item, LogicalFolder } from "../lib/types";
 import Icon from "./Icon";
@@ -100,7 +100,7 @@ export default function RenameSheet({
       const it = byKey.get(s.id)!;
       if (s.from === s.to) continue;
       try {
-        await updateItem(it.account_id, it.drive_id, { name: s.to, description: `Originalname: ${s.from}` });
+        await updateItem(it.account_id, it.drive_id, { name: s.to, description: withOriginalName(it.description, s.from) });
         logs.push({ kind: "rename", message: `„${s.from}“ → „${s.to}“`, details: { ordner: folderPath } });
         accounts.add(it.account_id);
         renamedFiles.push(it);

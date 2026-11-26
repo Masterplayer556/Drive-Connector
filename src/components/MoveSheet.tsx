@@ -6,7 +6,7 @@ import { moveLogicalFolder, PathResolver, pathSegments, SEALED_MESSAGE } from ".
 import { crossesSealed } from "../lib/placement";
 import { moveWithin } from "../lib/google";
 import { planMove } from "../lib/move";
-import { childKey, childPath } from "../lib/naming";
+import { childKey, childPath, withOriginalName } from "../lib/naming";
 import { DRIVE_PARALLEL, mapPool } from "../lib/pool";
 import { hueOf, useFolderColors } from "../lib/folderColors";
 import type { Account, Crumb, FolderContent, Item, LogicalFolder } from "../lib/types";
@@ -165,7 +165,7 @@ export default function MoveSheet({
             e.item.drive_id,
             parent,
             e.item.parent_drive_id,
-            e.renamed ? { name: e.targetName, description: `Originalname: ${e.item.name}` } : {},
+            e.renamed ? { name: e.targetName, description: withOriginalName(e.item.description, e.item.name) } : {},
           );
           gone.add(`${e.item.account_id}|${e.item.drive_id}`);
           movedFiles.push({ item: e.item, to: parent, renamed: e.renamed });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { childKey, maxNumber, naturalCompare, protectedName, pureNumber, splitExt, validFolderName } from "./naming";
+import { childKey, maxNumber, naturalCompare, protectedName, pureNumber, splitExt, validFolderName, withOriginalName } from "./naming";
 
 describe("naturalCompare", () => {
   it("sortiert Zahlen natürlich", () => {
@@ -55,5 +55,17 @@ describe("Ordner", () => {
     expect(validFolderName("  ")).not.toBeNull();
     expect(validFolderName("a/b")).not.toBeNull();
     expect(validFolderName("Mathe")).toBeNull();
+  });
+});
+
+describe("withOriginalName", () => {
+  it("ohne Beschreibung → Originalname", () => {
+    expect(withOriginalName(null, "IMG_1.jpg")).toBe("Originalname: IMG_1.jpg");
+  });
+  it("eigene Beschreibung bleibt, Zeile kommt dazu", () => {
+    expect(withOriginalName("Ferien am See", "IMG_1.jpg")).toBe("Ferien am See\nOriginalname: IMG_1.jpg");
+  });
+  it("vorhandener Originalname bleibt (zweites Umbenennen)", () => {
+    expect(withOriginalName("Notiz\nOriginalname: IMG_1.jpg", "3.jpg")).toBe("Notiz\nOriginalname: IMG_1.jpg");
   });
 });
