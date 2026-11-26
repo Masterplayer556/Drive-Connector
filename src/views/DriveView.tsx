@@ -1,8 +1,8 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PoolCarousel from "../components/PoolCarousel";
 import { DragGhost, useDragToFolder } from "../components/DragToFolder";
 import { FolderTagDots, TagDots } from "../components/TagSheet";
-import { useTags } from "../lib/tags";
+import { tagsOf, useTags } from "../lib/tags";
 import Icon from "../components/Icon";
 import { FolderSkeleton, GridSkeleton } from "../components/Skeleton";
 import Thumb from "../components/Thumb";
@@ -471,6 +471,11 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
       return n;
     });
 
+  // Kachel angetippt: im Auswahlmodus an-/abwählen, sonst öffnen. Stabil, damit die Kacheln gemerkt bleiben.
+  const tapFile = useRef<(f: Item, i: number) => void>(() => undefined);
+  tapFile.current = (f, i) => (selectMode ? toggle(f) : setViewer(i));
+  const onTapFile = useCallback((f: Item, i: number) => tapFile.current(f, i), []);
+
   // Foto gedrückt halten und auf einen Ordner ziehen → verschieben (im Auswahlmodus: alle ausgewählten)
   const dragMove = useDragToFolder<{ items: Item[]; folders: LogicalFolder[] }>({
     disabled: viewer !== null,
@@ -497,6 +502,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
       setDropMove({ ...what, target: path });
     },
   });
+  const draggingKeys = useMemo(() => new Set(dragMove.drag?.payload.items.map(itemKey) ?? []), [dragMove.drag]);
 
   // Ziehen zum Aktualisieren
   const onTouchStart = (e: React.TouchEvent) => {
@@ -663,30 +669,17 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
                     )}
                     <div className="grid stagger">
                       {files.slice(0, Math.max(shown, viewer !== null ? viewer + 1 : 0)).map((f, i) => (
-                        <button
+                        <FileCell
                           key={itemKey(f)}
-                          className={`cell ${selected.has(itemKey(f)) ? "selected" : ""} ${
-                            dragMove.drag?.payload.items.some((x) => itemKey(x) === itemKey(f)) ? "dragging-src" : ""
-                          }`}
-                          style={{ ["--i" as string]: i }}
-                          data-item-key={itemKey(f)}
-                          {...dragMove.bind}
-                          onClick={() => (selectMode ? toggle(f) : setViewer(i))}
-                        >
-                          <Thumb item={f} />
-                          <TagDots item={f} />
-                          {selectMode && (
-                            <span className={`check ${selected.has(itemKey(f)) ? "on" : ""}`}>
-                              {selected.has(itemKey(f)) && <Icon name="check" size={15} />}
-                            </span>
-                          )}
-                          <span className="cell-name">{f.name}</span>
-                          {f.mime_type?.startsWith("video/") && (
-                            <span className="cell-play">
-                              <Icon name="play" size={14} />
-                            </span>
-                          )}
-                        </button>
+                          item={f}
+                          index={i}
+                          selected={selected.has(itemKey(f))}
+                          dragging={draggingKeys.has(itemKey(f))}
+                          selectMode={selectMode}
+                          tags={tagsOf(f).join("\n")}
+                          bind={dragMove.bind}
+                          onTap={onTapFile}
+                        />
                       ))}
                     </div>
                     {shown < files.length && <div ref={moreRef} className="grid-more" aria-hidden />}
@@ -924,6 +917,47 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
     </div>
   );
 }
+
+/** Eine Foto-Kachel im Raster – gemerkt: zeichnet nur neu, wenn sich an ihr selbst etwas ändert */
+const FileCell = memo(function FileCell({
+  item: f,
+  index: i,
+  selected,
+  dragging,
+  selectMode,
+  bind,
+  onTap,
+}: {
+  item: Item;
+  index: number;
+  selected: boolean;
+  dragging: boolean;
+  selectMode: boolean;
+  /** Tags des Fotos (nur zum Vergleichen – ändern sie sich, zeichnet die Kachel neu) */
+  tags: string;
+  bind: ReturnType<typeof useDragToFolder>["bind"];
+  onTap: (f: Item, i: number) => void;
+}) {
+  return (
+    <button
+      className={`cell ${selected ? "selected" : ""} ${dragging ? "dragging-src" : ""}`}
+      style={{ ["--i" as string]: i }}
+      data-item-key={itemKey(f)}
+      {...bind}
+      onClick={() => onTap(f, i)}
+    >
+      <Thumb item={f} />
+      <TagDots item={f} />
+      {selectMode && <span className={`check ${selected ? "on" : ""}`}>{selected && <Icon name="check" size={15} />}</span>}
+      <span className="cell-name">{f.name}</span>
+      {f.mime_type?.startsWith("video/") && (
+        <span className="cell-play">
+          <Icon name="play" size={14} />
+        </span>
+      )}
+    </button>
+  );
+});
 
 function Menu({
   onNewFolder,
