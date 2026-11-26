@@ -74,9 +74,16 @@ export function loadTags(force = false): Promise<Map<string, string[]>> {
     changed();
     return out;
   })()
-    .catch(() => (byItem ??= new Map()))
+    // Fehler nicht als „keine Tags“ merken – beim nächsten Aufruf nochmals laden
+    .catch(() => byItem ?? new Map<string, string[]>())
     .finally(() => (loading = null));
   return loading;
+}
+
+/** Vor dem Ändern: Tags müssen wirklich geladen sein (sonst würde auf einem leeren Stand aufgebaut). */
+async function loadedTags() {
+  await loadTags();
+  if (!byItem) throw new Error("Tags konnten nicht geladen werden – bitte später nochmals versuchen");
 }
 
 export const tagsOf = (i: Item): string[] => byItem?.get(tagKey(i)) ?? [];
@@ -98,7 +105,7 @@ export function useTags(): Map<string, string[]> | null {
 export async function addTag(items: Item[], raw: string): Promise<void> {
   const tag = cleanTag(raw);
   if (!tag) return;
-  await loadTags();
+  await loadedTags();
   // Schreibweise eines bestehenden Tags übernehmen („ferien“ → „Ferien“)
   const label = allTags().find((t) => t.tag.toLowerCase() === tag.toLowerCase())?.tag ?? markerColorLabel(tag) ?? tag;
   const todo = items.filter((i) => !tagsOf(i).some((t) => t.toLowerCase() === label.toLowerCase()));
@@ -120,7 +127,7 @@ const markerColorLabel = (tag: string) => MARKERS.find((m) => m.tag.toLowerCase(
 
 /** Tag von mehreren Fotos entfernen (Gross/klein egal). */
 export async function removeTag(items: Item[], tag: string): Promise<void> {
-  await loadTags();
+  await loadedTags();
   const low = tag.toLowerCase();
   const before = new Map(items.map((i) => [tagKey(i), tagsOf(i)]));
   const affected = items.filter((i) => tagsOf(i).some((t) => t.toLowerCase() === low));
@@ -159,7 +166,7 @@ export function loadFolderTags(force = false): Promise<{ tag: string; path: stri
     folderTags = (data ?? []) as { tag: string; path: string }[];
     return folderTags;
   })()
-    .catch(() => (folderTags ??= []))
+    .catch(() => folderTags ?? [])
     .finally(() => (folderLoading = null));
   return folderLoading;
 }

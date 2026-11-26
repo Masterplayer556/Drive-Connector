@@ -13,7 +13,8 @@ export function loadFavorites(): Promise<Set<string>> {
   if (!loading) {
     loading = fetchFavoriteKeys()
       .then((k) => (keys = k))
-      .catch(() => (keys = new Set()))
+      // Fehler nicht als „keine Favoriten“ merken – beim nächsten Aufruf nochmals laden
+      .catch(() => keys ?? new Set<string>())
       .finally(() => (loading = null));
   }
   return loading;
@@ -30,7 +31,8 @@ export function onFavoritesChange(fn: () => void): () => void {
 
 export async function toggleFavorite(i: Item): Promise<boolean> {
   await loadFavorites();
-  const on = !keys!.has(favKey(i));
+  if (!keys) throw new Error("Favoriten konnten nicht geladen werden – bitte später nochmals versuchen");
+  const on = !keys.has(favKey(i));
   if (on) keys!.add(favKey(i));
   else keys!.delete(favKey(i));
   listeners.forEach((l) => l());
