@@ -371,6 +371,8 @@ export default function Viewer({
       .catch((e) => ui.toast(e instanceof Error ? e.message : String(e), "error"));
   };
 
+  /** „Nochmals versuchen“, wenn das Bild nicht geladen werden konnte */
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
     let revoke: string | null = null;
@@ -407,7 +409,7 @@ export default function Viewer({
       if (url) setTimeout(() => URL.revokeObjectURL(url), LEAVE_MS + 100);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemKey]);
+  }, [itemKey, attempt]);
 
   // Bilder vorladen → Wischen fühlt sich sofort an. In Blätterrichtung mehrere Seiten voraus
   // (z. B. Comics: man liest schneller, als ein einzelnes Bild nachlädt), eines zurück.
@@ -474,7 +476,8 @@ export default function Viewer({
     return s;
   };
   const loadFull = () => {
-    if (fullState !== "idle" || isVideo) return;
+    // Nach einem Fehler beim nächsten Zoomen nochmals versuchen
+    if ((fullState !== "idle" && fullState !== "error") || isVideo) return;
     setFullState("loading");
     const key = itemKey;
     downloadBlob(item.account_id, item.drive_id)
@@ -824,7 +827,12 @@ export default function Viewer({
           </div>
         )}
         {error && !low && !isVideo ? (
-          <p className="muted">Bild konnte nicht geladen werden.</p>
+          <div className="viewer-error">
+            <p className="muted">Bild konnte nicht geladen werden.</p>
+            <button className="btn small" onClick={() => setAttempt((n) => n + 1)}>
+              Nochmals versuchen
+            </button>
+          </div>
         ) : high || low || isVideo ? (
           <div
             key={item.drive_id}
@@ -878,7 +886,8 @@ export default function Viewer({
       </div>
       {z.s > 1.01 && (
         <div className="zoom-chip glass">
-          {z.s.toFixed(1)}×{fullState === "loading" ? " · lädt Original…" : atMax ? " · volle Auflösung" : ""}
+          {z.s.toFixed(1)}×
+          {fullState === "loading" ? " · lädt Original…" : fullState === "error" ? " · Original nicht geladen" : atMax ? " · volle Auflösung" : ""}
         </div>
       )}
       <div ref={bottomEl} className="viewer-bottom" inert={immersive}>

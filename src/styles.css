@@ -1722,6 +1722,12 @@ p {
   padding: 0;
 }
 
+.viewer-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
 .viewer-stage {
   position: absolute;
   left: 0;
