@@ -268,6 +268,16 @@ export default function Viewer({
     if (bottomEl.current) ro.observe(bottomEl.current);
     return () => ro.disconnect();
   }, []);
+  // Höhe der Infoleiste für die Rückgängig-Leiste (die sonst darauf läge); verschachtelte Ansicht → alten Wert zurück
+  useEffect(() => {
+    const st = document.body.style;
+    const prev = st.getPropertyValue("--viewer-bottom");
+    st.setProperty("--viewer-bottom", `${immersive ? 0 : bars.bottom}px`);
+    return () => {
+      if (prev) st.setProperty("--viewer-bottom", prev);
+      else st.removeProperty("--viewer-bottom");
+    };
+  }, [bars.bottom, immersive]);
   const ai = useAiEnabled(); // KI-SUCHE
   const [similar, setSimilar] = useState(false); // KI-SUCHE
   const [tagging, setTagging] = useState(false);
