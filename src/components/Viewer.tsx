@@ -358,8 +358,10 @@ export default function Viewer({
           // Keine Google-Vorschau → Original laden (bei Videos nicht: das lädt erst „Abspielen“)
           (item.mime_type?.startsWith("video/") ? Promise.reject(new Error("video")) : downloadBlob(item.account_id, item.drive_id))
             .then((b) => {
+              // Schon weitergeblättert/geschlossen → gar nicht erst eine Adresse anlegen (sonst bliebe das Bild im Speicher)
+              if (!alive) return;
               revoke = URL.createObjectURL(b);
-              if (alive) setHigh(revoke);
+              setHigh(revoke);
             })
             .catch(() => alive && setError(true)),
         );
