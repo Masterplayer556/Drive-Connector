@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatBytes } from "../lib/format";
 import { downloadBlob } from "../lib/google";
 import type { Item } from "../lib/types";
-import { buildZip, chunkBySize, zipNames } from "../lib/zip";
+import { buildZip, chunkBySize, zipNames, zipTooBig } from "../lib/zip";
 import Icon from "./Icon";
 import Ring from "./Ring";
 import { useKeepAwake } from "../lib/wakelock";
@@ -53,6 +53,9 @@ export default function DownloadSheet({
     let alive = true;
     (async () => {
       try {
+        // Über 4 GB kann das ZIP nicht – gar nicht erst herunterladen
+        const tooBig = mode === "zip" ? zipTooBig(batch) : null;
+        if (tooBig) throw new Error(tooBig);
         const blobs: Blob[] = new Array(batch.length);
         let next = 0;
         await Promise.all(
