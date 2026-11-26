@@ -11,9 +11,10 @@ import { trashFiles } from "../lib/folders";
 import { formatBytes } from "../lib/format";
 import { navigate } from "../lib/route";
 import { supabase } from "../lib/supabase";
+import { isScreenshot, screenshotFilter } from "../lib/screenshot";
 import type { Item } from "../lib/types";
 
-const COLS = "account_id,drive_id,name,is_folder,mime_type,parent_drive_id,size,md5,taken_at,description,path,parent_key";
+const COLS = "account_id,drive_id,name,is_folder,mime_type,parent_drive_id,size,md5,taken_at,width,height,description,path,parent_key";
 const YEAR_AGO = () => new Date(Date.now() - 365 * 86_400_000).toISOString();
 
 type Kind = "alle" | "videos" | "fotos";
@@ -39,7 +40,7 @@ export default function PlatzView() {
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    const [t, b, s] = await Promise.all([
+    const [t, b, s, m] = await Promise.all([
       supabase.rpc("size_by_type"),
       supabase.from("items").select(COLS).eq("is_folder", false).not("path", "is", null).order("size", { ascending: false, nullsFirst: false }).limit(150),
       supabase
@@ -51,11 +52,23 @@ export default function PlatzView() {
         .lt("created_time", YEAR_AGO())
         .order("size", { ascending: false, nullsFirst: false })
         .limit(500),
+      // Screenshots ohne passenden Namen (z. B. IMG_1234.PNG) an den Bildmassen erkennen
+      supabase
+        .from("items")
+        .select(COLS)
+        .eq("is_folder", false)
+        .not("path", "is", null)
+        .or(screenshotFilter())
+        .lt("created_time", YEAR_AGO())
+        .order("size", { ascending: false, nullsFirst: false })
+        .limit(1000),
     ]);
-    for (const r of [t, b, s]) if (r.error) throw new Error(r.error.message);
+    for (const r of [t, b, s, m]) if (r.error) throw new Error(r.error.message);
     setTypes(((t.data ?? []) as { ext: string; files: number; bytes: number }[]).map((r) => ({ ...r, files: Number(r.files), bytes: Number(r.bytes) })));
     setBig((b.data ?? []) as Item[]);
-    setShots((s.data ?? []) as Item[]);
+    const shotMap = new Map<string, Item>();
+    for (const it of [...((s.data ?? []) as Item[]), ...((m.data ?? []) as Item[])]) if (isScreenshot(it)) shotMap.set(key(it), it);
+    setShots([...shotMap.values()].sort((x, y) => (y.size ?? 0) - (x.size ?? 0)).slice(0, 500));
     fetchStats()
       .then((st) => setDups(st.duplicates))
       .catch(() => setDups(null));

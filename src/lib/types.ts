@@ -24,6 +24,9 @@ export interface Item {
   size: number | null;
   md5: string | null;
   taken_at: string | null;
+  /** Bildmasse wie angezeigt (aus Drive; leer bei älteren Einträgen bis zum nächsten Abgleich) */
+  width?: number | null;
+  height?: number | null;
   description: string | null;
   path: string | null;
   parent_key: string | null;

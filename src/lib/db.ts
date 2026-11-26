@@ -8,7 +8,7 @@ import { callFunction, supabase } from "./supabase";
 import type { Account, FolderContent, Item, LogEntry, LogicalFolder, LogKind, Role } from "./types";
 
 const ITEM_COLS =
-  "account_id,drive_id,name,is_folder,mime_type,parent_drive_id,size,md5,taken_at,description,path,parent_key";
+  "account_id,drive_id,name,is_folder,mime_type,parent_drive_id,size,md5,taken_at,width,height,description,path,parent_key";
 const PAGE = 1000;
 
 type PageResult<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;

@@ -70,6 +70,7 @@ export default function ViewerInfo({
             <Row icon="archive" label="Grösse">
               {formatBytes(item.size)}
               {item.mime_type && <span className="faint"> · {item.mime_type.replace(/^\w+\//, "").toUpperCase()}</span>}
+              {item.width && item.height ? <span className="faint"> · {item.width} × {item.height}</span> : null}
             </Row>
             {account && (
               <Row icon="user" label="Konto">
