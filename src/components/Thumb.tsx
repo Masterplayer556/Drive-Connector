@@ -6,7 +6,7 @@ import Icon from "./Icon";
 // Ein gemeinsamer Beobachter für alle Kacheln: lädt erst, wenn die Kachel bald sichtbar ist
 const callbacks = new WeakMap<Element, () => void>();
 let observer: IntersectionObserver | null = null;
-function observe(el: Element, cb: () => void) {
+export function observe(el: Element, cb: () => void) {
   if (!observer) {
     observer = new IntersectionObserver(
       (entries) => {

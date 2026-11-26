@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
+import LocalThumb from "../components/LocalThumb";
 import PathPicker, { crumbsOf } from "../components/PathPicker";
 import Ring from "../components/Ring";
 import { ignoreDuplicate, knownMd5, releaseNumbers, reserveNumbers, syncAccounts, writeLogs, type LogInput } from "../lib/db";
@@ -89,8 +90,6 @@ export default function UploadSheet({
   };
 
   const byId = useMemo(() => new Map(files.map((f, i) => [`f${i}`, f])), [files]);
-  const previews = useMemo(() => new Map([...byId].map(([id, f]) => [id, URL.createObjectURL(f)])), [byId]);
-  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
 
   // 1. Prüfsummen berechnen und mit dem Pool vergleichen
   useEffect(() => {
@@ -457,12 +456,11 @@ export default function UploadSheet({
                       style={{ ["--i" as string]: i }}
                       onClick={() => orderMode && entry.status === "upload" && toggleOrder(f.id)}
                     >
-                      <div className="thumb-wrap">
-                        <img className="thumb loaded" src={previews.get(f.id)} alt={f.name} />
+                      <LocalThumb file={byId.get(f.id)!}>
                         {dupIds.has(f.id) && <span className="tag">Duplikat</span>}
                         {entry.status === "conflict" && <span className="tag">Konflikt</span>}
                         {entry.status === "limit" && <span className="tag">15 GB</span>}
-                      </div>
+                      </LocalThumb>
                       {orderMode && pos >= 0 && <span className="badge">{pos + 1}</span>}
                       <span className="cell-name">{entry.targetName}</span>
                     </button>
