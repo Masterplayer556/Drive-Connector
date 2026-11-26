@@ -107,7 +107,13 @@ export async function knownMd5(md5s: string[]): Promise<Set<string>> {
   const out = new Set<string>();
   const unique = [...new Set(md5s)];
   for (let i = 0; i < unique.length; i += 150) {
-    const { data, error } = await supabase.from("items").select("md5").in("md5", unique.slice(i, i + 150));
+    // Nur Fotos im Pool zählen: Dateien ausserhalb (Pfad null) sieht man in der App nicht – sonst würde ein
+    // Upload als „schon vorhanden“ übersprungen, obwohl das Foto im Pool fehlt
+    const { data, error } = await supabase
+      .from("items")
+      .select("md5")
+      .in("md5", unique.slice(i, i + 150))
+      .not("path", "is", null);
     if (error) throw new Error(error.message);
     for (const r of data ?? []) if (r.md5) out.add(r.md5);
   }
