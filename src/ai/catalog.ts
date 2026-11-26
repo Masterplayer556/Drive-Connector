@@ -10,7 +10,7 @@ const COLS = "account_id,drive_id,name,is_folder,mime_type,parent_drive_id,size,
 const PAGE = 1000;
 const FRESH_MS = 10 * 60_000;
 
-let cached: { at: number; items: Map<string, Item> } | null = null;
+let cached: { at: number; items: Map<string, Item>; complete: boolean } | null = null;
 let loading: Promise<Map<string, Item>> | null = null;
 
 /** Alle Fotos und Videos in „Meine Ablage“ aller Konten. */
@@ -18,10 +18,11 @@ export function catalog(force = false): Promise<Map<string, Item>> {
   if (!force && cached && Date.now() - cached.at < FRESH_MS) return Promise.resolve(cached.items);
   loading ??= (async () => {
     const out = new Map<string, Item>();
+    let expected: number | null = null;
     for (let from = 0; ; from += PAGE) {
-      const { data, error } = await supabase
+      const { data, error, count } = await supabase
         .from("items")
-        .select(COLS)
+        .select(COLS, from === 0 ? { count: "exact" } : undefined)
         .eq("is_folder", false)
         .not("path", "is", null)
         .or("mime_type.like.image/*,mime_type.like.video/*")
@@ -29,14 +30,19 @@ export function catalog(force = false): Promise<Map<string, Item>> {
         .order("drive_id")
         .range(from, from + PAGE - 1);
       if (error) throw new Error(error.message);
+      if (from === 0) expected = count ?? null;
       for (const it of (data ?? []) as Item[]) out.set(itemKey(it), it);
       if (!data || data.length < PAGE) break;
     }
-    cached = { at: Date.now(), items: out };
+    // Vollständig = so viele wie die Datenbank zählt (und nicht leer – leer heisst eher „nicht angemeldet“)
+    cached = { at: Date.now(), items: out, complete: out.size > 0 && expected !== null && out.size >= expected };
     return out;
   })().finally(() => (loading = null));
   return loading;
 }
+
+/** Wurde der zuletzt geladene Katalog vollständig geholt? Nur dann darf man daraus auf gelöschte Fotos schliessen. */
+export const catalogComplete = () => cached?.complete ?? false;
 
 /** Nach Änderungen (Löschen, Verschieben, Umbenennen) beim nächsten Mal frisch laden. */
 export function staleCatalog() {
