@@ -9,10 +9,11 @@ import { formatBytes } from "../lib/format";
 import { md5OfFile } from "../lib/md5";
 import { maxNumber } from "../lib/naming";
 import { planUpload, summarize, type PlanEntry, type PlanFile, type PlanInput } from "../lib/plan";
-import { executeUpload, type UploadProgress, type UploadResult } from "../lib/upload";
+import { executeUpload, retryFailedUploads, type UploadProgress, type UploadResult } from "../lib/upload";
+import type { FailedUpload } from "../lib/retryUpload";
 import type { Account, Crumb, FolderContent } from "../lib/types";
 import { useKeepAwake } from "../lib/wakelock";
-import { countMedia, mediaCount, mediaWord, videosLast, type MediaCount } from "../lib/media";
+import { addMedia, countMedia, mediaCount, mediaWord, videosLast, type MediaCount } from "../lib/media";
 
 type Phase = "analyse" | "review" | "upload" | "done";
 
@@ -27,7 +28,6 @@ interface Batch {
 }
 
 const NO_MEDIA: MediaCount = { photos: 0, videos: 0 };
-const addMedia = (a: MediaCount, b: MediaCount): MediaCount => ({ photos: a.photos + b.photos, videos: a.videos + b.videos });
 
 const REASON: Record<string, string> = {
   reihenfolge: "Reihenfolge",
@@ -68,6 +68,8 @@ export default function UploadSheet({
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [result, setResult] = useState<{ upload: UploadResult; plan: PlanEntry[]; folders: number; media: MediaCount } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Fehlgeschlagene samt Datei – solange das Fenster offen ist, lassen sie sich nochmals hochladen
+  const [failedItems, setFailedItems] = useState<FailedUpload[]>([]);
   const [showNames, setShowNames] = useState(false);
   const [closing, setClosing] = useState(false);
   const background = useRef<Promise<unknown> | null>(null);
@@ -274,11 +276,33 @@ export default function UploadSheet({
     const bgs: Promise<unknown>[] = [];
     let media = NO_MEDIA;
     let before = { done: 0, failed: 0 };
+    const retryable: FailedUpload[] = [];
+    const errors: string[] = [];
     // Belegten Platz zwischen den Stapeln mitführen – sonst plant jeder Stapel mit dem freien Platz von vorher
     let accs = accounts.map((a) => ({ ...a }));
     try {
       for (const { b, force } of all) {
-        const r = await runBatch(b, force, accs, (p) => setProgress({ done: before.done + p.done, failed: before.failed + p.failed, total }));
+        let r: Awaited<ReturnType<typeof runBatch>>;
+        try {
+          r = await runBatch(b, force, accs, (p) => setProgress({ done: before.done + p.done, failed: before.failed + p.failed, total }));
+        } catch (e) {
+          // Ganzer Stapel gescheitert (z. B. kurz offline): die übrigen Ordner trotzdem versuchen
+          const msg = e instanceof Error ? e.message : String(e);
+          const p = planUpload({ ...b.input, allowDuplicates: force });
+          if (summarize(p).numbered > 0) {
+            // Nummern wurden wieder freigegeben – die Reihenfolge muss neu gewählt werden
+            errors.push(`„${b.target.path}“: ${msg}`);
+          } else {
+            plans.push(...p);
+            for (const entry of p.filter((x) => x.status === "upload")) {
+              merged.failed.push({ entry, error: msg });
+              retryable.push({ entry, error: msg, target: b.target, files: b.byId });
+            }
+          }
+          before = { done: merged.uploaded.length, failed: merged.failed.length };
+          continue;
+        }
+        retryable.push(...r.upload.failed.map((f) => ({ ...f, target: b.target, files: b.byId })));
         accs = accs.map((a) => ({
           ...a,
           quota_usage: (a.quota_usage ?? 0) + r.upload.uploaded.filter((u) => u.accountId === a.id).reduce((s, u) => s + u.size, 0),
@@ -292,13 +316,67 @@ export default function UploadSheet({
         media = addMedia(media, r.media);
         before = { done: merged.uploaded.length, failed: merged.failed.length };
       }
+      if (errors.length) setError(errors.join(" · "));
       setResult({ upload: merged, plan: plans, folders: all.length, media });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       if (merged.uploaded.length || merged.failed.length) setResult({ upload: merged, plan: plans, folders: all.length, media });
     } finally {
       background.current = Promise.all(bgs);
+      setFailedItems(retryable);
       setTargetsDone(all.map((x) => x.b.target.key));
+      setPhase("done");
+    }
+  };
+
+  /** Nur die fehlgeschlagenen Dateien nochmals hochladen (sie sind noch im Speicher). */
+  const retry = async () => {
+    if (!result || !failedItems.length) return;
+    const items = failedItems;
+    setPhase("upload");
+    setError(null);
+    setProgress({ done: 0, failed: 0, total: items.length });
+    try {
+      // Erst den Abgleich der ersten Runde abwarten, dann mit dem frischen Ordnerinhalt vergleichen
+      if (background.current) await background.current;
+      const used = accounts.map((a) => ({
+        ...a,
+        quota_usage: (a.quota_usage ?? 0) + result.upload.uploaded.filter((u) => u.accountId === a.id).reduce((s, u) => s + u.size, 0),
+      }));
+      const r = await retryFailedUploads({ items, accounts: used, onProgress: setProgress });
+      const ok = [...r.uploaded, ...r.present];
+      const fileOf = (u: (typeof ok)[number]) => u.files.get(u.id);
+      const emailOf = (id: string) => accounts.find((a) => a.id === id)?.email ?? id;
+      const logs: LogInput[] = [];
+      for (const path of new Set(items.map((i) => i.target.path))) {
+        const here = r.uploaded.filter((u) => u.target.path === path);
+        const still = r.failed.filter((f) => f.target.path === path);
+        if (!here.length && !still.length) continue;
+        logs.push({
+          kind: "upload",
+          message: `${mediaCount(countMedia(here.map(fileOf).filter((f): f is File => !!f)), "Fotos/Videos")} nach „${path}“ nochmals hochgeladen`,
+          details: { fehler: still.map((f) => `${f.entry.originalName}: ${f.error}`), konten: [...new Set(here.map((u) => emailOf(u.accountId)))] },
+        });
+      }
+      for (const c of r.createdFolders) logs.push({ kind: "folder", message: `Ordner „${c.path}“ in ${emailOf(c.accountId)} angelegt` });
+      background.current = Promise.all([
+        writeLogs(logs).catch(() => undefined),
+        r.accountIds.length ? syncAccounts(r.accountIds).catch(() => undefined) : undefined,
+      ]);
+      setResult({
+        ...result,
+        upload: {
+          uploaded: [...result.upload.uploaded, ...r.uploaded],
+          failed: r.failed.map(({ entry, error }) => ({ entry, error })),
+          accountIds: [...new Set([...result.upload.accountIds, ...r.accountIds])],
+          createdFolders: [...result.upload.createdFolders, ...r.createdFolders],
+        },
+        media: addMedia(result.media, countMedia(ok.map(fileOf).filter((f): f is File => !!f))),
+      });
+      setFailedItems(r.failed);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
       setPhase("done");
     }
   };
@@ -669,7 +747,14 @@ export default function UploadSheet({
                       </li>
                     ))}
                   </ul>
-                  Wähle die Fotos einfach nochmals aus – bereits hochgeladene werden übersprungen.
+                  {failedItems.length > 0 ? (
+                    <button className="btn block" style={{ marginTop: 10 }} onClick={retry} disabled={closing}>
+                      <Icon name="upload" size={17} /> {failedItems.length === 1 ? "Fehlgeschlagene" : `${failedItems.length} fehlgeschlagene`}{" "}
+                      nochmals hochladen
+                    </button>
+                  ) : (
+                    "Wähle die Fotos einfach nochmals aus – bereits hochgeladene werden übersprungen."
+                  )}
                 </div>
               )}
               <button className="btn primary block" onClick={close} disabled={closing}>
