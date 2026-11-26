@@ -184,7 +184,7 @@ export default function UploadSheet({
   };
 
   /** Einen Stapel hochladen; Protokoll + Index laufen danach im Hintergrund weiter. */
-  const runBatch = async (b: Batch, force: boolean, onProgress: (p: UploadProgress) => void) => {
+  const runBatch = async (b: Batch, force: boolean, accs: Account[], onProgress: (p: UploadProgress) => void) => {
     let reserved: number[] = [];
     const input: PlanInput = { ...b.input, allowDuplicates: force };
     try {
@@ -202,7 +202,7 @@ export default function UploadSheet({
         ? new Set(planUpload({ ...b.input, allowDuplicates: false }).filter((e) => e.status === "duplicate").map((e) => e.md5))
         : new Set<string>();
 
-      const upload = await executeUpload({ target: b.target, entries: finalPlan, files: b.byId, accounts, onProgress });
+      const upload = await executeUpload({ target: b.target, entries: finalPlan, files: b.byId, accounts: accs, onProgress });
 
       const s = summarize(finalPlan);
       const emailOf = (id: string) => accounts.find((a) => a.id === id)?.email ?? id;
@@ -274,9 +274,15 @@ export default function UploadSheet({
     const bgs: Promise<unknown>[] = [];
     let media = NO_MEDIA;
     let before = { done: 0, failed: 0 };
+    // Belegten Platz zwischen den Stapeln mitführen – sonst plant jeder Stapel mit dem freien Platz von vorher
+    let accs = accounts.map((a) => ({ ...a }));
     try {
       for (const { b, force } of all) {
-        const r = await runBatch(b, force, (p) => setProgress({ done: before.done + p.done, failed: before.failed + p.failed, total }));
+        const r = await runBatch(b, force, accs, (p) => setProgress({ done: before.done + p.done, failed: before.failed + p.failed, total }));
+        accs = accs.map((a) => ({
+          ...a,
+          quota_usage: (a.quota_usage ?? 0) + r.upload.uploaded.filter((u) => u.accountId === a.id).reduce((s, u) => s + u.size, 0),
+        }));
         merged.uploaded.push(...r.upload.uploaded);
         merged.failed.push(...r.upload.failed);
         merged.accountIds = [...new Set([...merged.accountIds, ...r.upload.accountIds])];
