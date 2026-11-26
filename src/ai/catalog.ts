@@ -38,6 +38,11 @@ export function catalog(force = false): Promise<Map<string, Item>> {
   return loading;
 }
 
+/** Nach Änderungen (Löschen, Verschieben, Umbenennen) beim nächsten Mal frisch laden. */
+export function staleCatalog() {
+  cached = null;
+}
+
 // Gleiche Adressen wie src/lib/thumbs.ts → bereits angesehene Fotos kommen direkt aus dem Gerätespeicher
 const THUMB_CACHE = "drivepool-thumbs-v1";
 const cacheUrl = (it: Item) => new URL(`./__thumbs/${it.account_id}/${it.drive_id}/${GRID_SIZE}`, document.baseURI).toString();

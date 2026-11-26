@@ -6,6 +6,7 @@ import Thumb from "../components/Thumb";
 import type { Account, Item } from "../lib/types";
 import NameTags from "./NameTags";
 import { privateAccounts, similarTo } from "./search";
+import { staleCatalog } from "./catalog";
 
 const Viewer = lazy(() => import("../components/Viewer"));
 
@@ -13,6 +14,8 @@ export default function SimilarSheet({ item, accounts, onClose }: { item: Item; 
   const [items, setItems] = useState<Item[] | null | undefined>(undefined); // undefined = lädt, null = nicht gelernt
   const [error, setError] = useState<string | null>(null);
   const [viewer, setViewer] = useState<number | null>(null);
+  /** Nach Änderungen in der Foto-Ansicht (Löschen, Verschieben …) neu suchen */
+  const [again, setAgain] = useState(0);
 
   useEffect(() => {
     // Private Fotos nur, wenn das Ausgangsfoto selbst privat ist
@@ -22,7 +25,7 @@ export default function SimilarSheet({ item, accounts, onClose }: { item: Item; 
       .then(setItems)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item]);
+  }, [item, again]);
 
   return (
     <>
@@ -76,7 +79,17 @@ export default function SimilarSheet({ item, accounts, onClose }: { item: Item; 
       </div>
       {viewer !== null && items && items[viewer] && (
         <Suspense fallback={null}>
-          <Viewer items={items} index={viewer} accounts={accounts} onIndex={setViewer} onClose={() => setViewer(null)} />
+          <Viewer
+            items={items}
+            index={viewer}
+            accounts={accounts}
+            onIndex={setViewer}
+            onClose={() => setViewer(null)}
+            onChanged={() => {
+              staleCatalog();
+              setAgain((n) => n + 1);
+            }}
+          />
         </Suspense>
       )}
     </>

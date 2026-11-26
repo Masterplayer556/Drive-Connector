@@ -14,6 +14,7 @@ import { itemKey } from "./store";
 import { nameRuns } from "./dict";
 import { parseQuery } from "./query";
 import { useFeedbackEnabled } from "./flag";
+import { staleCatalog } from "./catalog";
 
 const Viewer = lazy(() => import("../components/Viewer"));
 const TrainSheet = lazy(() => import("./TrainSheet"));
@@ -39,6 +40,8 @@ export default function AiSearchResults({
   useTags();
   const [, tick] = useState(0);
   const seq = useRef(0);
+  /** Nach Änderungen in der Foto-Ansicht (Löschen, Verschieben …) nochmals suchen */
+  const [again, setAgain] = useState(0);
 
   useEffect(() => onModelProgress(() => tick((n) => n + 1)), []);
   // Während das Suchfenster offen ist, pausiert das Lernen (Arbeitsspeicher für die Suche)
@@ -66,7 +69,7 @@ export default function AiSearchResults({
     }, 550);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, includePrivate]);
+  }, [query, includePrivate, again]);
 
   if (query.trim().length < 3) return null;
 
@@ -228,7 +231,17 @@ export default function AiSearchResults({
 
       {viewer !== null && items[viewer] && (
         <Suspense fallback={null}>
-          <Viewer items={items as Item[]} index={viewer} accounts={accounts} onIndex={setViewer} onClose={() => setViewer(null)} />
+          <Viewer
+            items={items as Item[]}
+            index={viewer}
+            accounts={accounts}
+            onIndex={setViewer}
+            onClose={() => setViewer(null)}
+            onChanged={() => {
+              staleCatalog();
+              setAgain((n) => n + 1);
+            }}
+          />
         </Suspense>
       )}
     </div>
