@@ -778,7 +778,7 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
       )}
 
       <Suspense fallback={null}>
-        {viewer !== null && files[viewer] && (
+        {viewer !== null && files.length > 0 && (
           <Viewer
             items={files}
             index={viewer}

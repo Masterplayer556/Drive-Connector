@@ -92,7 +92,7 @@ const rubber = (v: number, lo: number, hi: number) => (v > hi ? hi + (v - hi) * 
 
 export default function Viewer({
   items,
-  index,
+  index: indexProp,
   accounts,
   onIndex,
   onClose,
@@ -134,6 +134,20 @@ export default function Viewer({
     changed.current = true;
     setPatches((m) => new Map(m).set(k, { ...m.get(k), ...p }));
   };
+  // Die Ansicht hängt am Foto, nicht am Platz in der Liste: lädt der Aufrufer die Liste neu (Abgleich im
+  // Hintergrund, Rückgängig …), während die Ansicht offen ist, bleibt sie beim selben Foto.
+  const bound = useRef({ items, index: indexProp, key: items[indexProp] ? keyOf(items[indexProp]) : "" });
+  let index = indexProp;
+  const b = bound.current;
+  if (b.items !== items && b.index === indexProp && (!items[indexProp] || keyOf(items[indexProp]) !== b.key)) {
+    const j = items.findIndex((i) => keyOf(i) === b.key);
+    if (j >= 0) index = j;
+  }
+  if (!items[index]) index = Math.max(0, Math.min(index, items.length - 1));
+  useLayoutEffect(() => {
+    bound.current = { items, index, key: items[index] ? keyOf(items[index]) : b.key };
+    if (index !== indexProp) onIndex(index);
+  });
   const raw = items[index];
   const item: Item = patches.has(keyOf(raw)) ? { ...raw, ...patches.get(keyOf(raw)) } : raw;
   /** Nächstes/voriges noch vorhandenes Foto */
