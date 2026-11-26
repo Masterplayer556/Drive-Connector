@@ -116,7 +116,8 @@ export async function knownMd5(md5s: string[]): Promise<Set<string>> {
 
 export async function rootLevelItems(): Promise<Item[]> {
   return fetchAll<Item>((from, to) =>
-    supabase.from("items").select(ITEM_COLS).eq("parent_key", "").order("name").range(from, to),
+    // Eindeutig sortieren: sonst kann beim seitenweisen Laden ein Eintrag fehlen oder doppelt kommen
+    supabase.from("items").select(ITEM_COLS).eq("parent_key", "").order("name").order("account_id").order("drive_id").range(from, to),
   );
 }
 
@@ -302,7 +303,10 @@ export async function fetchSubtreeFiles(path: string): Promise<Item[]> {
       .select(ITEM_COLS)
       .eq("is_folder", false)
       .ilike("path", `${escapeLike(path)}/%`)
+      // Eindeutig sortieren (gleicher Pfad in zwei Konten möglich) – sonst fehlen beim Seitenwechsel Fotos
       .order("path")
+      .order("account_id")
+      .order("drive_id")
       .range(from, to),
   );
   return rows.filter((r) => inSubtree(r.path, path));

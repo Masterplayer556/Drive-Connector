@@ -54,7 +54,15 @@ export function loadTags(force = false): Promise<Map<string, string[]>> {
   loading ??= (async () => {
     const out = new Map<string, string[]>();
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase.from("item_tags").select("account_id,drive_id,tag").order("created_at").range(from, from + 999);
+      // created_at allein ist nicht eindeutig (mehrere Fotos auf einmal getaggt) → Schlüssel anhängen
+      const { data, error } = await supabase
+        .from("item_tags")
+        .select("account_id,drive_id,tag")
+        .order("created_at")
+        .order("account_id")
+        .order("drive_id")
+        .order("tag")
+        .range(from, from + 999);
       if (error) throw new Error(error.message);
       for (const r of data ?? []) {
         const k = tagKey(r);
