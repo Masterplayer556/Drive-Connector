@@ -117,8 +117,8 @@ export default function MoveSheet({
     // 1. Ordner (samt Inhalt) – jeder Teil bleibt in seinem Konto
     for (const f of folderTodo) {
       try {
-        await moveLogicalFolder(f, current, accounts);
-        undos.push(undoFolderMove(f, current, accounts));
+        const change = await moveLogicalFolder(f, current, accounts);
+        undos.push(undoFolderMove(f, current, change));
       } catch (err) {
         errors.push(`${f.name}: ${err instanceof Error ? err.message : String(err)}`);
       }

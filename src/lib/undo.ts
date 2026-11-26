@@ -1,11 +1,11 @@
 // „Rückgängig“ nach Verschieben, Umbenennen und Löschen: 10 Sekunden lang eine Leiste unten (wie bei Mail).
 import { invalidateAll } from "./cache";
 import { syncAccounts, writeLog } from "./db";
-import { moveLogicalFolder, renameLogicalFolder } from "./folders";
+import { movePathPrefs, type FolderChange } from "./folders";
 import { moveWithin, restoreItem, updateItem } from "./google";
-import { childKey, childPath } from "./naming";
+import { childPath } from "./naming";
 import { DRIVE_PARALLEL, mapPool } from "./pool";
-import type { Account, Crumb, Item, LogicalFolder } from "./types";
+import type { Crumb, Item, LogicalFolder } from "./types";
 
 export const UNDO_MS = 10_000;
 
@@ -81,22 +81,31 @@ export function undoFileMoves(moved: MovedFile[]): () => Promise<void> {
   };
 }
 
-/** Ordner wieder an den alten Ort: `folder` = Ordner vor dem Verschieben, `target` = wohin er verschoben wurde. */
-export function undoFolderMove(folder: LogicalFolder, target: Crumb, accounts: Account[]): () => Promise<void> {
+/**
+ * Ordner wieder an den alten Ort: `folder` = Ordner vor dem Verschieben, `target` = wohin er verschoben wurde,
+ * `change` = was moveLogicalFolder tatsächlich verschoben hat. Nur diese Teile wandern zurück – lag am Ziel
+ * schon ein gleichnamiger Ordner (zusammengeführt), bleibt der, wo er ist.
+ */
+export function undoFolderMove(folder: LogicalFolder, target: Crumb, change: FolderChange): () => Promise<void> {
   return async () => {
-    const now: LogicalFolder = { key: childKey(target.key, folder.name), name: folder.name, path: childPath(target.path, folder.name), parts: [] };
-    await moveLogicalFolder(now, parentCrumb(folder.path), accounts); // schreibt selbst ins Protokoll und gleicht ab
-    await refresh([]);
+    await mapPool(change.parts, DRIVE_PARALLEL, (p) => moveWithin(p.account_id, p.drive_id, p.from!, p.to!));
+    const now = childPath(target.path, folder.name);
+    if (!change.merged) await movePathPrefs(now.toLowerCase(), folder.key).catch(() => undefined);
+    await writeLog("move", `Rückgängig: Ordner „${now}“ zurück nach „${parentCrumb(folder.path).path || "Drive"}“ verschoben`, {
+      konten: change.parts.length,
+    });
+    await refresh(change.parts.map((p) => p.account_id));
   };
 }
 
-/** Ordner zurück auf den alten Namen. */
-export function undoFolderRename(folder: LogicalFolder, newName: string): () => Promise<void> {
+/** Ordner zurück auf den alten Namen – nur die umbenannten Teile (nicht einen schon vorhandenen gleichnamigen Ordner). */
+export function undoFolderRename(folder: LogicalFolder, newName: string, change: FolderChange): () => Promise<void> {
   return async () => {
-    const parent = parentCrumb(folder.path);
-    const now: LogicalFolder = { key: childKey(parent.key, newName), name: newName, path: childPath(parent.path, newName), parts: [] };
-    await renameLogicalFolder(now, folder.name);
-    await refresh([]);
+    for (const p of change.parts) await updateItem(p.account_id, p.drive_id, { name: folder.name });
+    const now = childPath(parentCrumb(folder.path).path, newName);
+    if (!change.merged) await movePathPrefs(now.toLowerCase(), folder.key).catch(() => undefined);
+    await writeLog("rename", `Rückgängig: Ordner „${now}“ → „${folder.name}“`, { konten: change.parts.length });
+    await refresh(change.parts.map((p) => p.account_id));
   };
 }
 

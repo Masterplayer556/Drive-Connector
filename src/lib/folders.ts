@@ -98,35 +98,58 @@ export async function trashFiles(items: Item[]): Promise<{ ok: number; failed: s
   return { ok, failed };
 }
 
+/**
+ * Was ein Umbenennen/Verschieben tatsächlich angefasst hat – fürs Rückgängigmachen. `merged`: am Ziel gab es
+ * schon einen Ordner mit dem Namen (die Ordner wurden zusammengeführt); er darf beim Rückgängig nicht mit.
+ */
+export interface FolderChange {
+  parts: { account_id: string; drive_id: string; from: string | null; to: string | null }[];
+  merged: boolean;
+}
+
+/** Gibt es unter diesem Pfad schon Ordner (ausser den eigenen Teilen)? */
+async function existsOtherThan(path: string, own: Item[]): Promise<boolean> {
+  const ids = new Set(own.map((p) => `${p.account_id}|${p.drive_id}`));
+  return (await fetchFolderParts(path)).some((p) => !ids.has(`${p.account_id}|${p.drive_id}`));
+}
+
 /** Logischen Ordner in allen Konten umbenennen (Regel 2: nur auf ausdrücklichen Wunsch). */
-export async function renameLogicalFolder(folder: LogicalFolder, name: string): Promise<void> {
+export async function renameLogicalFolder(folder: LogicalFolder, name: string): Promise<FolderChange> {
   const parts = await fetchFolderParts(folder.path);
-  for (const p of parts) await updateItem(p.account_id, p.drive_id, { name });
   const parentPath = folder.path.split("/").slice(0, -1).join("/");
   const newPath = childPath(parentPath, name);
-  await movePathPrefs(folder.key, newPath.toLowerCase()).catch(() => undefined);
+  const merged = await existsOtherThan(newPath, parts);
+  for (const p of parts) await updateItem(p.account_id, p.drive_id, { name });
+  if (!merged) await movePathPrefs(folder.key, newPath.toLowerCase()).catch(() => undefined);
   await writeLog("rename", `Ordner „${folder.path}“ → „${name}“`, { konten: parts.length });
   await syncAccounts([...new Set(parts.map((p) => p.account_id))]);
+  return { parts: parts.map((p) => ({ account_id: p.account_id, drive_id: p.drive_id, from: p.parent_drive_id, to: p.parent_drive_id })), merged };
 }
 
 /**
  * Logischen Ordner verschieben: jeder Teil bleibt in seinem Konto und wandert dort unter den Zielpfad
  * (fehlende Zielordner werden im selben Konto angelegt). Es wird nichts kopiert.
  */
-export async function moveLogicalFolder(folder: LogicalFolder, target: Crumb, accounts: Account[]): Promise<void> {
+export async function moveLogicalFolder(folder: LogicalFolder, target: Crumb, accounts: Account[]): Promise<FolderChange> {
   const tk = target.key;
   if (tk === folder.key || tk.startsWith(folder.key + "/")) throw new Error("Ein Ordner kann nicht in sich selbst verschoben werden");
   if (crossesSealed(folder.path, childPath(target.path, folder.name))) throw new Error(SEALED_MESSAGE);
   const parts = await fetchFolderParts(folder.path);
+  const merged = await existsOtherThan(childPath(target.path, folder.name), parts);
   const resolver = new PathResolver(accounts);
+  const moved: FolderChange["parts"] = [];
   for (const p of parts) {
     if (!p.parent_drive_id) throw new Error("Ursprungsordner unbekannt");
     const parent = await resolver.ensure(p.account_id, pathSegments(target.path));
-    if (parent !== p.parent_drive_id) await moveWithin(p.account_id, p.drive_id, parent, p.parent_drive_id);
+    if (parent !== p.parent_drive_id) {
+      await moveWithin(p.account_id, p.drive_id, parent, p.parent_drive_id);
+      moved.push({ account_id: p.account_id, drive_id: p.drive_id, from: p.parent_drive_id, to: parent });
+    }
   }
-  await movePathPrefs(folder.key, childPath(target.path, folder.name).toLowerCase()).catch(() => undefined);
+  if (!merged) await movePathPrefs(folder.key, childPath(target.path, folder.name).toLowerCase()).catch(() => undefined);
   await writeLog("move", `Ordner „${folder.path}“ nach „${target.path || "Drive"}“ verschoben`, { konten: parts.length, created: resolver.created });
   await syncAccounts([...new Set(parts.map((p) => p.account_id))]);
+  return { parts: moved, merged };
 }
 
 /** Einstellungen, die am Pfad hängen (Farbe, Sperre, Gruppenregel), beim Umbenennen/Verschieben mitnehmen. */

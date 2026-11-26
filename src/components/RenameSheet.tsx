@@ -89,8 +89,8 @@ export default function RenameSheet({
       const f = folderBy.get(s.id)!;
       if (s.from === s.to) continue;
       try {
-        await renameLogicalFolder(f, s.to); // schreibt selbst ins Protokoll und gleicht ab
-        undos.push(undoFolderRename(f, s.to));
+        const change = await renameLogicalFolder(f, s.to); // schreibt selbst ins Protokoll und gleicht ab
+        undos.push(undoFolderRename(f, s.to, change));
       } catch (e) {
         errors.push(`${s.from}: ${e instanceof Error ? e.message : String(e)}`);
       }
