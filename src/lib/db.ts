@@ -3,7 +3,8 @@ import { videosLast } from "./media";
 import type { Plan, Step, Unit } from "./rebalance";
 import type { BigFolder, PoolStats } from "./insights";
 import { childKey, naturalCompare } from "./naming";
-import { deleteIfTrashed } from "./google";
+import { deleteIfTrashed, queryIds } from "./google";
+import { fullTextQuery, interleave } from "./textSearch";
 import { callFunction, supabase } from "./supabase";
 import type { Account, FolderContent, Item, LogEntry, LogicalFolder, LogKind, Role } from "./types";
 
@@ -337,6 +338,50 @@ export async function searchItems(query: string, limit = 200): Promise<Item[]> {
   const { data, error } = await supabase.rpc("search_items", { p_query: query, p_limit: limit });
   if (error) throw new Error(error.message);
   return videosLast((data ?? []) as Item[]);
+}
+
+/**
+ * Text in Fotos (Drive-OCR) in allen Konten suchen, ausser in `exclude` (z. B. private Konten).
+ * Treffer ausserhalb des Pools (ohne Pfad im Index) fallen weg. Fehler einzelner Konten werden gemeldet,
+ * solange ein anderes Konto Treffer liefert.
+ */
+export async function searchTextInPhotos(
+  query: string,
+  accounts: Account[],
+  exclude: Set<string> = new Set(),
+): Promise<{ items: Item[]; failed: string[] }> {
+  const q = fullTextQuery(query);
+  if (!q) return { items: [], failed: [] };
+  const failed: string[] = [];
+  const perAccount = await Promise.all(
+    accounts
+      .filter((a) => a.status === "active" && !exclude.has(a.id))
+      .map(async (a) => {
+        try {
+          const ids = await queryIds(a.id, q);
+          const rows: Item[] = [];
+          for (let i = 0; i < ids.length; i += 100) {
+            const { data, error } = await supabase
+              .from("items")
+              .select(ITEM_COLS)
+              .eq("account_id", a.id)
+              .in("drive_id", ids.slice(i, i + 100))
+              .not("path", "is", null);
+            if (error) throw new Error(error.message);
+            rows.push(...((data ?? []) as Item[]));
+          }
+          // Googles Reihenfolge (Relevanz) beibehalten
+          const rank = new Map(ids.map((id, i) => [id, i]));
+          return rows.sort((x, y) => (rank.get(x.drive_id) ?? 0) - (rank.get(y.drive_id) ?? 0));
+        } catch (e) {
+          failed.push(`${a.email}: ${e instanceof Error ? e.message : String(e)}`);
+          return [];
+        }
+      }),
+  );
+  const items = interleave(perAccount);
+  if (!items.length && failed.length) throw new Error(failed.join(" · "));
+  return { items, failed };
 }
 
 export async function fetchFavoriteKeys(): Promise<Set<string>> {

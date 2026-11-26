@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { searchItems } from "../lib/db";
+import { searchItems, searchTextInPhotos } from "../lib/db";
 import { allTags, taggedItems, tagHits, useTags } from "../lib/tags";
 import { TagDots } from "./TagSheet";
 import { SelectCheck, SelectionBar, SelectToggle, useSelection } from "./Selection";
@@ -13,7 +13,7 @@ import SearchModeMenu, { useSearchMode } from "../ai/SearchModeMenu"; // KI-SUCH
 const Viewer = lazy(() => import("./Viewer"));
 const AiSearchResults = lazy(() => import("../ai/AiSearchResults")); // KI-SUCHE
 
-/** Suche über alle Konten (#8): Ordner und Fotos nach Name oder Pfad. */
+/** Suche über alle Konten (#8): Ordner und Fotos nach Name oder Pfad, mit KI oder nach Text im Bild. */
 export default function SearchSheet({
   accounts,
   onOpenPath,
@@ -34,13 +34,16 @@ export default function SearchSheet({
   const [mode, setMode] = useSearchMode(); // KI-SUCHE: mit KI oder nach Namen
   const [includePrivate, setIncludePrivate] = useState(false); // KI-SUCHE: private Konten nur auf Wunsch
   const kiMode = ai && mode === "ki"; // KI-SUCHE
+  // Text im Bild (Drive liest Text in Fotos selbst) – private Konten nur auf Wunsch, wie bei der KI-Suche
+  const textMode = mode === "text";
+  const [textError, setTextError] = useState<string | null>(null);
   useTags();
   const tags = allTags();
   const sel = useSelection();
   // „#Ferien“ in der Namenssuche: alle Fotos mit diesem Tag
   // Tags ohne „#“: passt die Suche zu einem Tag, oben einen Knopf dafür zeigen
   const hits = tagHits(q, tags);
-  const tagQuery = !kiMode && q.trim().startsWith("#") ? q.trim().slice(1).replace(/^["“„«]|["”“»]$/g, "").trim() : null;
+  const tagQuery = !kiMode && !textMode && q.trim().startsWith("#") ? q.trim().slice(1).replace(/^["“„«]|["”“»]$/g, "").trim() : null;
   // KI-Namen („Luca“, „Pikachu“) wie Tags: „@Luca“ zeigt alle so benannten Fotos, ohne „@“ ein Knopf dafür
   const [names, setNames] = useState<{ tag: string; count: number; color: null }[]>([]);
   useEffect(() => {
@@ -54,8 +57,8 @@ export default function SearchSheet({
       alive = false;
     };
   }, [ai]);
-  const nameHits = ai && !kiMode ? tagHits(q, names, "@") : [];
-  const nameQuery = ai && !kiMode && q.trim().startsWith("@") ? q.trim().slice(1).replace(/^["“„«]|["”“»]$/g, "").trim() : null;
+  const nameHits = ai && !kiMode && !textMode ? tagHits(q, names, "@") : [];
+  const nameQuery = ai && !kiMode && !textMode && q.trim().startsWith("@") ? q.trim().slice(1).replace(/^["“„«]|["”“»]$/g, "").trim() : null;
   // Nach Löschen/Umbenennen/Verschieben in der Foto-Ansicht neu suchen
   const [rev, setRev] = useState(0);
 
@@ -65,22 +68,39 @@ export default function SearchSheet({
 
   useEffect(() => {
     const term = q.trim();
-    if ((term.length < 2 && !tagQuery && !nameQuery) || kiMode || tagQuery === "" || nameQuery === "") {
+    setTextError(null);
+    if ((term.length < (textMode ? 3 : 2) && !tagQuery && !nameQuery) || kiMode || tagQuery === "" || nameQuery === "") {
       setResults(null);
       setBusy(false);
       return;
     }
     const n = ++seq.current;
     setBusy(true);
+    // Text im Bild fragt jedes Konto bei Google ab – erst suchen, wenn eine Weile nicht mehr getippt wird
+    const exclude = new Set(accounts.filter((a) => !includePrivate && (a.role === "privat" || a.role === "claude")).map((a) => a.id));
     const t = setTimeout(() => {
-      (tagQuery ? taggedItems(tagQuery) : nameQuery ? import("../ai/search").then((m) => m.namedItems(nameQuery)) : searchItems(term))
+      (textMode
+        ? searchTextInPhotos(term, accounts, exclude).then((r) => {
+            if (n === seq.current && r.failed.length) setTextError(`Nicht alle Konten durchsucht: ${r.failed.join(" · ")}`);
+            return r.items;
+          })
+        : tagQuery
+          ? taggedItems(tagQuery)
+          : nameQuery
+            ? import("../ai/search").then((m) => m.namedItems(nameQuery))
+            : searchItems(term)
+      )
         .then((r) => n === seq.current && setResults(r))
-        .catch(() => n === seq.current && setResults([]))
+        .catch((e) => {
+          if (n !== seq.current) return;
+          setResults([]);
+          if (textMode) setTextError(e instanceof Error ? e.message : String(e));
+        })
         .finally(() => n === seq.current && setBusy(false));
-    }, 220);
+    }, textMode ? 600 : 220);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, kiMode, rev]);
+  }, [q, kiMode, textMode, includePrivate, rev]);
 
   // Ordner aus mehreren Konten zusammenführen
   const folders = [...new Map((results ?? []).filter((r) => r.is_folder).map((r) => [(r.path ?? "").toLowerCase(), r])).values()];
@@ -98,7 +118,7 @@ export default function SearchSheet({
               ref={input}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder={kiMode ? "Foto beschreiben" : "Fotos und Ordner suchen"} // KI-SUCHE
+              placeholder={kiMode ? "Foto beschreiben" : textMode ? "Text auf dem Foto" : "Fotos und Ordner suchen"} // KI-SUCHE
               enterKeyHint="search"
               autoCapitalize="off"
               autoCorrect="off"
@@ -106,9 +126,13 @@ export default function SearchSheet({
             {busy && <span className="spinner" style={{ width: 16, height: 16 }} />}
           </div>
           {/* KI-SUCHE */}
-          {ai && (
-            <SearchModeMenu mode={mode} onMode={setMode} includePrivate={includePrivate} onIncludePrivate={setIncludePrivate} />
-          )}
+          <SearchModeMenu
+            mode={kiMode || mode !== "ki" ? mode : "name"}
+            onMode={setMode}
+            ai={ai}
+            includePrivate={includePrivate}
+            onIncludePrivate={setIncludePrivate}
+          />
           <button className="btn ghost small" onClick={onClose}>
             Fertig
           </button>
@@ -152,6 +176,14 @@ export default function SearchSheet({
                 <AiSearchResults query={q} accounts={accounts} includePrivate={includePrivate} />
               </Suspense>
             </>
+          ) : textMode && results === null ? (
+            <p className="muted small" style={{ textAlign: "center", marginTop: 24 }}>
+              Sucht Text, der auf den Fotos steht – z. B. „Pythagoras“ auf einem Arbeitsblatt oder an der Wandtafel. Google
+              erkennt den Text selbst; ganz neue Fotos findet es erst nach einer Weile.
+              {!includePrivate && " Private Fotos sind ausgeblendet."}
+              <br />
+              Wortgruppen in Anführungszeichen, z. B. „"erster Weltkrieg"“.
+            </p>
           ) : results === null ? (
             <>
               <p className="muted small" style={{ textAlign: "center", marginTop: 24 }}>
@@ -167,6 +199,7 @@ export default function SearchSheet({
                 <Icon name="search" size={30} />
               </div>
               <strong>Nichts gefunden</strong>
+              {textMode && textError && <span className="error small">{textError}</span>}
             </div>
           ) : (
             <>
@@ -202,12 +235,13 @@ export default function SearchSheet({
               {files.length > 0 && (
                 <>
                   <div className="section-title" style={{ padding: "4px 0" }}>
-                    <span>{tagQuery ? `#${tagQuery}` : nameQuery ? `@${nameQuery}` : "Fotos"}</span>
+                    <span>{tagQuery ? `#${tagQuery}` : nameQuery ? `@${nameQuery}` : textMode ? "Text im Bild" : "Fotos"}</span>
                     <span className="row" style={{ gap: 10 }}>
                       <SelectToggle sel={sel} />
                       {files.length}
                     </span>
                   </div>
+                  {textMode && textError && <p className="error small">{textError}</p>}
                   <div className="grid stagger">
                     {files.map((f, i) => (
                       <button
