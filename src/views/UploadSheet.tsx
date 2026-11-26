@@ -243,13 +243,17 @@ export default function UploadSheet({
       // Bewusst doppelt hochgeladene Fotos gleich als „bewusst behalten“ markieren (nach dem Abgleich)
       const intended = [...new Set(upload.uploaded.filter((u) => b.known.has(u.md5) || forcedMd5.has(u.md5)).map((u) => u.md5))];
       const bg = Promise.all([
-        writeLogs(logs),
-        (upload.accountIds.length ? syncAccounts(upload.accountIds) : Promise.resolve()).then(() =>
-          Promise.all(intended.map((m) => ignoreDuplicate(m).catch(() => undefined))),
+        writeLogs(logs).catch(() => undefined),
+        (upload.accountIds.length ? syncAccounts(upload.accountIds) : Promise.resolve([])).then(
+          async (res) => {
+            await Promise.all(intended.map((m) => ignoreDuplicate(m).catch(() => undefined)));
+            // Nummern erst freigeben, wenn die neuen Fotos sicher im Index stehen – sonst bekäme der nächste
+            // Upload dieselben Nummern. Scheitert der Abgleich, läuft die Reservierung von selbst ab.
+            if (res.every((r) => !r.error && !r.more)) await releaseNumbers(b.target.key, toRelease).catch(() => undefined);
+          },
+          () => undefined,
         ),
-      ])
-        .catch(() => undefined)
-        .finally(() => releaseNumbers(b.target.key, toRelease).catch(() => undefined));
+      ]);
       return { upload, plan: finalPlan, bg, media: mediaOf(upload.uploaded.map((u) => u.id), b.byId) };
     } catch (e) {
       await releaseNumbers(b.target.key, reserved).catch(() => undefined);
