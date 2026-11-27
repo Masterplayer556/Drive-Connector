@@ -143,10 +143,14 @@ async function streamVideo(req, url, clientId) {
   const rawType = url.searchParams.get("type") || "video/mp4";
   const type = /^video\/[\w.+-]+$/.test(rawType) ? rawType : "video/mp4";
   const range = req.headers.get("range");
+  // Bricht der Player einen Abruf ab (Spulen, nochmals abspielen, Ansicht zu), auch den bei Google abbrechen.
+  // Sonst liefen die alten Downloads weiter, belegten die wenigen Verbindungen – und das nächste Abspielen hing.
+  const abort = new AbortController();
+  req.signal?.addEventListener?.("abort", () => abort.abort());
   const load = (token) => {
     const headers = { Authorization: `Bearer ${token}` };
     if (range) headers.Range = range;
-    return fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers });
+    return fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers, signal: abort.signal });
   };
   let token = videoTokens.get(accountId) || (await askToken(accountId, clientId, false));
   if (!token) return new Response("Kein Zugang", { status: 401 });
@@ -157,19 +161,42 @@ async function streamVideo(req, url, clientId) {
     if (!token) return new Response("Kein Zugang", { status: 401 });
     res = await load(token);
   }
+  if (res.status === 416 && size) {
+    return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
+  }
   if (!res.ok && res.status !== 206) return new Response(null, { status: res.status });
   const out = new Headers({ "Content-Type": type, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff" });
-  // Content-Range selbst berechnen (Google gibt den Header nicht an Web-Apps heraus)
+  const body = abortable(res.body, abort);
+  // Content-Range selbst berechnen (Google gibt den Header nicht an Web-Apps heraus).
+  // Nur wenn Google wirklich ein Stück geschickt hat (206) – sonst wäre es als Stück beschriftet, aber die ganze Datei.
   const m = range && /bytes=(\d+)-(\d*)/.exec(range);
-  if (m && size) {
+  if (m && size && res.status === 206) {
     const start = Number(m[1]);
     const end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
     out.set("Content-Range", `bytes ${start}-${end}/${size}`);
     out.set("Content-Length", String(end - start + 1));
-    return new Response(res.body, { status: 206, headers: out });
+    return new Response(body, { status: 206, headers: out });
   }
   if (size) out.set("Content-Length", String(size));
-  return new Response(res.body, { status: 200, headers: out });
+  return new Response(body, { status: 200, headers: out });
+}
+
+/** Datenstrom weiterreichen; bricht der Player ihn ab, wird auch der Abruf bei Google beendet */
+function abortable(src, abort) {
+  if (!src) return null;
+  const reader = src.getReader();
+  return new ReadableStream({
+    pull(c) {
+      return reader.read().then(
+        ({ done, value }) => (done ? c.close() : c.enqueue(value)),
+        (e) => c.error(e),
+      );
+    },
+    cancel() {
+      abort.abort();
+      return reader.cancel().catch(() => undefined);
+    },
+  });
 }
 
 self.addEventListener("fetch", (event) => {
