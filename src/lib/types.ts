@@ -45,6 +45,8 @@ export interface LogicalFolder {
 export interface FolderContent {
   folders: LogicalFolder[];
   files: Item[];
+  /** Ohne Netz: gespeicherter Stand eines offline verfügbaren Ordners (Zeitpunkt der Sicherung) */
+  offlineAt?: string;
 }
 
 /** Position im Drive (Pfad aus Ordnernamen, Schlüssel in Kleinbuchstaben). */

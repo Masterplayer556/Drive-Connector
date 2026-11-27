@@ -44,7 +44,8 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      // Nur alte App-Caches löschen – der Vorschaubilder-Cache (drivepool-thumbs-…) bleibt
+      // Nur alte App-Caches löschen – Vorschaubilder (drivepool-thumbs-…) und offline gesicherte Ordner
+      // (drivepool-offline-…, siehe src/lib/offlineStore.ts) bleiben
       .then((keys) => Promise.all(keys.filter((k) => k.startsWith("drive-pool-") && k !== CACHE).map((k) => caches.delete(k))))
       .then(pruneOldAssets)
       .then(() => self.clients.claim()),

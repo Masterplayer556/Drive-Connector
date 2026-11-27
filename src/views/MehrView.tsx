@@ -14,9 +14,12 @@ import { THEMES } from "../lib/theme";
 import { lastSealReport, sealSummary } from "../lib/health";
 import { buildInventoryZip, saveFile } from "../lib/inventory";
 import { useThemeId } from "../lib/useTheme";
+import { offlineFolders } from "../lib/offline";
+import { formatBytes } from "../lib/format";
 
 const AiSettings = lazy(() => import("../ai/AiSettings")); // KI-SUCHE
 const AiWipeSheet = lazy(() => import("../ai/AiWipeSheet")); // KI-SUCHE
+const OfflineList = lazy(() => import("../components/OfflineSheet").then((m) => ({ default: m.OfflineList })));
 
 interface Enroll {
   factorId: string;
@@ -139,6 +142,8 @@ export default function MehrView({ session, accounts }: { session: Session; acco
   const [code, setCode] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [aiWipe, setAiWipe] = useState(false); // KI-SUCHE
+  const [offlineOpen, setOfflineOpen] = useState(false);
+  const offline = offlineFolders();
   const [seal] = useState(lastSealReport);
   const [exporting, setExporting] = useState<string | null>(null);
   const [exportFile, setExportFile] = useState<File | null>(null);
@@ -300,6 +305,17 @@ export default function MehrView({ session, accounts }: { session: Session; acco
           onClick={() => navigate("links")}
         />
         <Item
+          icon="cloud"
+          bg="linear-gradient(135deg,#38bdf8,#22c55e)"
+          title="Offline verfügbar"
+          sub={
+            offline.length
+              ? `${offline.length} Ordner · ${formatBytes(offline.reduce((s, f) => s + f.bytes, 0))} auf diesem Gerät`
+              : "Ordner gedrückt halten → „Offline verfügbar“"
+          }
+          onClick={() => setOfflineOpen(true)}
+        />
+        <Item
           icon="refresh"
           bg="linear-gradient(135deg,#60a5fa,#6366f1)"
           title="Komplett neu einlesen"
@@ -394,6 +410,11 @@ export default function MehrView({ session, accounts }: { session: Session; acco
           onClick={() => setAiWipe(true)}
         />
       </div>
+      {offlineOpen && (
+        <Suspense fallback={null}>
+          <OfflineList onClose={() => setOfflineOpen(false)} />
+        </Suspense>
+      )}
       {aiWipe && (
         <Suspense fallback={null}>
           <AiWipeSheet factorId={factorId} onClose={() => setAiWipe(false)} />
