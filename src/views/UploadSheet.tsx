@@ -6,13 +6,14 @@ import Ring from "../components/Ring";
 import { ignoreDuplicate, knownMd5, releaseNumbers, reserveNumbers, syncAccounts, writeLogs, type LogInput } from "../lib/db";
 import { invalidateFolder, loadFolder } from "../lib/cache";
 import { formatBytes } from "../lib/format";
+import { byCaptureTime, captureDate } from "../lib/exif";
 import { md5OfFile } from "../lib/md5";
 import { maxNumber } from "../lib/naming";
 import { planUpload, summarize, type PlanEntry, type PlanFile, type PlanInput } from "../lib/plan";
 import { executeUpload, type UploadProgress, type UploadResult } from "../lib/upload";
 import type { Account, Crumb, FolderContent } from "../lib/types";
 import { useKeepAwake } from "../lib/wakelock";
-import { countMedia, mediaCount, mediaWord, videosLast, type MediaCount } from "../lib/media";
+import { countMedia, isVideo, mediaCount, mediaWord, videosLast, type MediaCount } from "../lib/media";
 
 type Phase = "analyse" | "review" | "upload" | "done";
 
@@ -57,6 +58,8 @@ export default function UploadSheet({
   useKeepAwake(phase === "analyse" || phase === "upload"); // Bildschirm bleibt an, solange es läuft
   const [analysed, setAnalysed] = useState(0);
   const [planFiles, setPlanFiles] = useState<PlanFile[]>([]);
+  /** Sind die Fotos nach Aufnahmezeit sortiert (mind. 2 mit Datum)? */
+  const [byTime, setByTime] = useState(false);
   const [known, setKnown] = useState<Set<string>>(new Set());
   const [orderMode, setOrderMode] = useState(false);
   const [order, setOrder] = useState<string[]>([]);
@@ -97,15 +100,20 @@ export default function UploadSheet({
     (async () => {
       try {
         const list: PlanFile[] = [];
+        const time = new Map<string, number>();
         let i = 0;
         for (const [id, f] of byId) {
           if (cancelled) return;
-          list.push({ id, name: f.name, size: f.size, md5: await md5OfFile(f) });
+          const [md5, date] = await Promise.all([md5OfFile(f), captureDate(f)]);
+          list.push({ id, name: f.name, size: f.size, md5 });
+          if (date) time.set(id, date.getTime());
           setAnalysed(++i);
         }
         const k = await knownMd5(list.map((f) => f.md5));
         if (cancelled) return;
-        setPlanFiles(list);
+        // iOS liefert die Auswahl durcheinander → wie in der Fotos-App nach Aufnahmezeit, Videos weiterhin unten
+        setPlanFiles(byCaptureTime(list, (f) => time.get(f.id) ?? null, (f) => isVideo(byId.get(f.id)!)));
+        setByTime(time.size > 1);
         setKnown(k);
         setPhase("review");
       } catch (e) {
@@ -176,6 +184,7 @@ export default function UploadSheet({
     setPhase("analyse");
     setAnalysed(0);
     setPlanFiles([]);
+    setByTime(false);
     setKnown(new Set());
     setOrderMode(false);
     setOrder([]);
@@ -454,6 +463,8 @@ export default function UploadSheet({
                   </div>
                 </div>
               )}
+
+              {byTime && <span className="faint small">Nach Aufnahmezeit sortiert – wie in der Fotos-App</span>}
 
               <div className="grid stagger">
                 {planFiles.map((f, i) => {

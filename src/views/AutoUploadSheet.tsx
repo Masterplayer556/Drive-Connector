@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { countMedia, mediaCount, type MediaCount } from "../lib/media";
+import { countMedia, isVideo, mediaCount, type MediaCount } from "../lib/media";
 import Icon from "../components/Icon";
 import Ring from "../components/Ring";
 import { loadFolder } from "../lib/cache";
 import { knownMd5, syncAccounts, writeLogs, type LogInput } from "../lib/db";
-import { photoDate } from "../lib/exif";
+import { byCaptureTime, captureDate } from "../lib/exif";
 import { formatBytes } from "../lib/format";
 import { md5OfFile } from "../lib/md5";
 import { childKey } from "../lib/naming";
@@ -71,13 +71,15 @@ export default function AutoUploadSheet({
         let i = 0;
         for (const [id, f] of byId) {
           if (cancelled) return;
-          const [md5, exif] = await Promise.all([md5OfFile(f), photoDate(f)]);
+          const [md5, exif] = await Promise.all([md5OfFile(f), captureDate(f)]);
           list.push({ id, name: f.name, size: f.size, md5, date: exif ?? new Date(f.lastModified || Date.now()), dated: !!exif });
           setAnalysed(++i);
         }
         known.current = await knownMd5(list.map((f) => f.md5));
         const byMonth = new Map<string, Analysed[]>();
-        for (const f of list) {
+        // Innerhalb des Monats wie in der Fotos-App: nach Aufnahmezeit (Videos bleiben unten)
+        const sorted = byCaptureTime(list, (f) => (f.dated ? f.date.getTime() : null), (f) => isVideo(byId.get(f.id)!));
+        for (const f of sorted) {
           const k = crumbFor(f.date).key;
           byMonth.set(k, [...(byMonth.get(k) ?? []), f]);
         }
