@@ -96,6 +96,11 @@ describe("byCaptureTime", () => {
     const l = [{ n: "c", t: 3 }, { n: "x", t: null }, { n: "a", t: 1 }];
     expect(byCaptureTime(l, t).map((x) => x.n)).toEqual(["a", "x", "c"]);
   });
+  it("neueste zuerst (negierte Zeit): Videos bleiben unten, Undatierte an ihrem Platz", () => {
+    const l = [{ n: "p1", t: 1, v: false }, { n: "x", t: null, v: false }, { n: "p2", t: 2, v: false }, { n: "v1", t: 1, v: true }, { n: "v2", t: 2, v: true }];
+    const neg = (x: { t: number | null }) => (x.t === null ? null : -x.t);
+    expect(byCaptureTime(l, neg, (x) => x.v).map((x) => x.n)).toEqual(["p2", "x", "p1", "v2", "v1"]);
+  });
   it("sortiert nur innerhalb der Gruppe (Videos bleiben unten)", () => {
     const l = [{ n: "p2", t: 5, v: false }, { n: "p1", t: 4, v: false }, { n: "v1", t: 1, v: true }];
     expect(byCaptureTime(l, t, (x) => x.v).map((x) => x.n)).toEqual(["p1", "p2", "v1"]);

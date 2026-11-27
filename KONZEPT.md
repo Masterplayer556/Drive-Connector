@@ -133,6 +133,7 @@ Ordner können gesperrt werden. Gesperrte Ordner werden **nie** verschoben oder 
 ### Regel 11 – Reihenfolge-Upload (optional)
 - Die Vorschau beim Upload zeigt die Fotos **nach Aufnahmezeit** (älteste zuerst) – also wie in der Fotos-App,
   weil iOS die Auswahl durcheinander weitergibt. Videos bleiben unten, Dateien ohne Datum an ihrem Platz.
+  Knopf **„Neueste zuerst“** dreht die Reihenfolge um; die Wahl wird auf dem Gerät gemerkt.
   „Alle der Reihe nach“ nummeriert in genau dieser Reihenfolge.
 - Schalter **„Reihenfolge festlegen“** beim Upload.
 - Fotos werden in der gewünschten Reihenfolge angetippt (Badges ① ② ③) oder per Drag & Drop sortiert.
