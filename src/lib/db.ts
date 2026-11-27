@@ -37,10 +37,16 @@ const inSubtree = (p: string | null | undefined, base: string) => (p ?? "").toLo
 export async function fetchAccounts(): Promise<Account[]> {
   const { data, error } = await supabase
     .from("accounts")
-    .select("id,email,role,root_folder_id,quota_limit,quota_usage,status,status_message,last_sync_at,created_at")
+    .select("id,email,role,root_folder_id,quota_limit,quota_usage,status,status_message,last_sync_at,last_login_at,created_at")
     .order("created_at");
   if (error) throw new Error(error.message);
   return (data ?? []) as Account[];
+}
+
+/** „Heute eingeloggt“: Nutzer war gerade selbst bei Google in diesem Konto (gegen das Löschen inaktiver Konten). */
+export async function markLoggedIn(id: string, at = new Date()): Promise<void> {
+  const { error } = await supabase.from("accounts").update({ last_login_at: at.toISOString() }).eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function setAccountRole(id: string, role: Role): Promise<void> {

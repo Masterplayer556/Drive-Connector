@@ -2,6 +2,7 @@
 import { writeLog } from "./db";
 import { formatBytes } from "./format";
 import { supabase } from "./supabase";
+import { inactivityOf } from "./inactivity";
 import type { Account, Role } from "./types";
 
 export type Level = "ok" | "warn" | "bad";
@@ -31,6 +32,9 @@ export function healthOf(a: Account, added30: number, now = Date.now()): Health 
     if (days > 7) found.push({ level: "bad", text: `Seit ${Math.floor(days)} Tagen nicht abgeglichen` });
     else if (days > 2) found.push({ level: "warn", text: `Seit ${Math.floor(days)} Tagen nicht abgeglichen` });
   }
+
+  const idle = inactivityOf(a, now);
+  if (idle.text) found.push({ level: idle.level, text: idle.text });
 
   let daysToFull: number | null = null;
   const limit = a.quota_limit ?? 0;

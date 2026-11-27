@@ -11,6 +11,8 @@ export interface Account {
   status: "active" | "error";
   status_message: string | null;
   last_sync_at: string | null;
+  /** Zuletzt selbst direkt bei Google eingeloggt (vom Nutzer bestätigt); leer = seit dem Verbinden */
+  last_login_at?: string | null;
   created_at: string;
 }
 
