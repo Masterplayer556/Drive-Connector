@@ -10,6 +10,7 @@ import { offerUndo, undoFileRenames, undoTrash } from "../lib/undo";
 import { getThumb, peekThumb, VIEW_SIZE } from "../lib/thumbs";
 import type { Account, Item } from "../lib/types";
 import Icon from "./Icon";
+import VideoPlayer, { type VideoHandle } from "./VideoPlayer";
 import { isFavorite, loadFavorites, onFavoritesChange, toggleFavorite } from "../lib/favorites";
 import { markerColor, useTags } from "../lib/tags";
 import { useUI } from "./ui";
@@ -64,6 +65,8 @@ const TAP_WAIT_MS = 280;
 const DISMISS_PX = 110;
 const DISMISS_SPEED = 0.6;
 const keyOf = (i: Item) => `${i.account_id}|${i.drive_id}`;
+/** Läuft ein Video so lange ohne Berührung, blenden Leisten und Steuerung aus (wie in der Fotos-App) */
+const VIDEO_AUTOHIDE_MS = 3000;
 /** So lange gleitet das alte Foto beim Blättern hinaus (ms, wie die CSS-Animation) */
 const LEAVE_MS = 300;
 
@@ -222,6 +225,10 @@ export default function Viewer({
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
   const isVideo = !!item.mime_type?.startsWith("video/");
   const [video, setVideo] = useState<{ state: "idle" | "loading" | "ready" | "error"; url?: string; stream?: boolean }>({ state: "idle" });
+  const player = useRef<VideoHandle | null>(null);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  /** Erstes Videobild ist da → Vorschaubild darunter ausblenden */
+  const [videoShown, setVideoShown] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const g = useRef<Gesture | null>(null);
   const lastTap = useRef<{ t: number; x: number; y: number } | null>(null);
@@ -384,6 +391,7 @@ export default function Viewer({
     setFullState("idle");
     setDims(null);
     setVideo({ state: "idle" });
+    setVideoShown(false);
     setLow(peekThumb(item));
     setHigh(peekThumb(item, VIEW_SIZE));
     if (!peekThumb(item)) void getThumb(item).then((u) => alive && setLow(u)).catch(() => undefined);
@@ -503,6 +511,12 @@ export default function Viewer({
 
   const onTouchStart = (e: React.TouchEvent) => {
     lastTouch.current = Date.now();
+    setActivity((n) => n + 1);
+    // Steuerleiste des Videos (Spulen …) gehört dem Video: kein Blättern, kein Ausblenden
+    if ((e.target as HTMLElement).closest(".video-bar")) {
+      g.current = null;
+      return;
+    }
     const t = e.touches;
     if (t.length >= 2) {
       // Zweiter Finger: laufendes Wischen (seitwärts oder zum Schliessen nach unten) abbrechen – sonst bleibt
@@ -529,7 +543,7 @@ export default function Viewer({
     }
     if (t.length !== 1) return;
     const z0 = zRef.current;
-    const onButton = !!(e.target as HTMLElement).closest("button, video");
+    const onButton = !!(e.target as HTMLElement).closest("button");
     g.current = { mode: z0.s > 1.01 ? "pan" : "swipe", d0: 0, m0: { x: 0, y: 0 }, z0, sx: t[0].clientX, sy: t[0].clientY, moved: false, onButton };
     if (z0.s > 1.01) setZooming(true);
     else {
@@ -638,7 +652,8 @@ export default function Viewer({
     }
   };
   const toggleZoom = (p: { x: number; y: number }) => {
-    if (isVideo) return;
+    // Video: Doppeltippen links/rechts spult 10 s zurück/vor
+    if (isVideo) return player.current?.seekBy(p.x < 0 ? -10 : 10);
     if (zRef.current.s > 1.01) commitZ(NO_ZOOM);
     else {
       loadFull();
@@ -661,7 +676,9 @@ export default function Viewer({
         .then((token) => {
           if (key !== itemKeyRef.current) return;
           sw.postMessage({ type: "video-token", accountId: item.account_id, token });
-          const q = new URLSearchParams({ size: String(item.size ?? 0), type: item.mime_type ?? "video/mp4" });
+          // n: jedes Abspielen eine eigene Adresse – Safari verwendete sonst beim nächsten Mal den Stand vom
+          // letzten Mal weiter und blieb hängen (der Service Worker beachtet n nicht)
+          const q = new URLSearchParams({ size: String(item.size ?? 0), type: item.mime_type ?? "video/mp4", n: String(Date.now()) });
           setVideo({ state: "ready", url: `./__video/${encodeURIComponent(item.account_id)}/${encodeURIComponent(item.drive_id)}?${q}`, stream: true });
         })
         .catch(() => downloadVideo(key));
@@ -686,6 +703,41 @@ export default function Viewer({
   const itemKeyRef = useRef(itemKey);
   itemKeyRef.current = itemKey;
 
+  // Video läuft und niemand berührt etwas → Leisten und Steuerung ausblenden (Antippen holt sie zurück)
+  const [activity, setActivity] = useState(0);
+  const lastMouse = useRef(0);
+  const overlayOpen = menu || sharing || moving || info || tagging || similar;
+  useEffect(() => {
+    if (!videoPlaying || immersive || overlayOpen) return;
+    const t = setTimeout(() => setImmersive(true), VIDEO_AUTOHIDE_MS);
+    return () => clearTimeout(t);
+  }, [videoPlaying, immersive, overlayOpen, activity]);
+
+  // Handy gedreht: eine angefangene Geste kann ohne „Finger los“ enden – dann hinge die Ansicht verschoben
+  // fest und nähme keine Tipps mehr an. Also alles zurücksetzen.
+  useEffect(() => {
+    const reset = () => {
+      g.current = null;
+      startX.current = null;
+      lastTap.current = null;
+      setDragging(false);
+      setZooming(false);
+      setDx(0);
+      setDy(0);
+      if (zRef.current.s > 1.01) commitZ(NO_ZOOM);
+      // iOS lässt die gesperrte Seite nach dem Drehen manchmal verrutscht stehen
+      if (document.documentElement.scrollTop || document.documentElement.scrollLeft) document.documentElement.scrollTo(0, 0);
+    };
+    const so = screen.orientation;
+    so?.addEventListener?.("change", reset);
+    window.addEventListener("orientationchange", reset);
+    return () => {
+      so?.removeEventListener?.("change", reset);
+      window.removeEventListener("orientationchange", reset);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const close = () => {
     setClosing(true);
     setTimeout(onClose, 180);
@@ -697,7 +749,10 @@ export default function Viewer({
   keys.current = (e) => {
     if (e.defaultPrevented || topOverlay() !== rootEl.current) return;
     if ((e.target as HTMLElement | null)?.closest?.("input, textarea, video")) return;
-    if (e.key === "Escape") {
+    if (e.key === " " && player.current && !(e.target as HTMLElement | null)?.closest?.("button")) {
+      e.preventDefault();
+      player.current.toggle();
+    } else if (e.key === "Escape") {
       e.preventDefault();
       close();
     } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && zRef.current.s <= 1.01) {
@@ -738,7 +793,20 @@ export default function Viewer({
   // Direkt an <body>: so liegt das Foto immer über dem ganzen Bildschirm – auch wenn es aus einem Fenster
   // (Suche, KI-Treffer) geöffnet wird, das seinen Inhalt sonst abschneidet oder darüber liegt.
   return createPortal(
-    <div ref={rootEl} role="dialog" aria-modal="true" aria-label={item.name} className={`viewer ${closing ? "closing" : ""} ${immersive ? "immersive" : ""} ${light ? "light" : ""} ${dy ? "dismissing" : ""}`}>
+    <div
+      ref={rootEl}
+      role="dialog"
+      aria-modal="true"
+      aria-label={item.name}
+      className={`viewer ${closing ? "closing" : ""} ${immersive ? "immersive" : ""} ${light ? "light" : ""} ${dy ? "dismissing" : ""}`}
+      // Maus bewegt bei laufendem Video → Steuerung wieder zeigen bzw. Ausblenden aufschieben
+      onMouseMove={() => {
+        if (!videoPlaying || Date.now() - lastTouch.current < 800 || Date.now() - lastMouse.current < 400) return;
+        lastMouse.current = Date.now();
+        if (immersive) setImmersive(false);
+        else setActivity((n) => n + 1);
+      }}
+    >
       <div className="viewer-bg" style={{ opacity: bgOpacity }} />
       <div ref={topEl} className="viewer-top" inert={immersive}>
         <button className="icon-btn glass" onClick={close} aria-label="Schliessen">
@@ -802,7 +870,7 @@ export default function Viewer({
         onTransitionEnd={(e) => e.target === e.currentTarget && zRef.current.s > 1.01 && commitZ(clampZ(zRef.current))}
         onClick={(e) => {
           // Maus: Klick blendet die Leisten um, Doppelklick zoomt
-          if (Date.now() - lastTouch.current < 800 || (e.target as HTMLElement).closest("button, video")) return;
+          if (Date.now() - lastTouch.current < 800 || (e.target as HTMLElement).closest("button, .video-bar")) return;
           if (e.detail === 1) scheduleToggle();
           else cancelToggle();
         }}
@@ -839,7 +907,7 @@ export default function Viewer({
             className={`viewer-frame ${dragging ? "dragging" : ""} ${enter === 1 ? "enter-next" : enter === -1 ? "enter-prev" : ""}`}
             style={style}
           >
-            <div ref={zoomEl} className={`viewer-zoom ${zooming ? "live" : ""}`}>
+            <div ref={zoomEl} className={`viewer-zoom ${zooming ? "live" : ""} ${videoShown ? "under-video" : ""}`}>
               {low && <img className={`viewer-low ${high || full ? "hide" : ""}`} src={low} alt="" />}
               {high && (
                 <img
@@ -858,14 +926,13 @@ export default function Viewer({
                 />
               )}
             </div>
-            {isVideo && video.state === "ready" && (
-              <video
-                className="viewer-video"
+            {isVideo && video.state === "ready" && video.url && (
+              <VideoPlayer
                 src={video.url}
-                controls
-                autoPlay
-                playsInline
-                onTouchStart={(e) => e.stopPropagation()}
+                hidden={immersive}
+                handle={player}
+                onShown={() => setVideoShown(true)}
+                onPlaying={setVideoPlaying}
                 onError={() => {
                   if (!video.stream) return setVideo({ state: "error" });
                   streamFailed.current.add(itemKey);

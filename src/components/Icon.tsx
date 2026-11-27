@@ -204,6 +204,24 @@ const P: Record<string, ReactNode> = {
     </>
   ),
   play: <path d="M8 5.5v13l11-6.5z" fill="currentColor" />,
+  pause: (
+    <>
+      <rect x="6.5" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none" />
+      <rect x="13.9" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  volume: (
+    <>
+      <path d="M11 5 6 9H2v6h4l5 4z" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </>
+  ),
+  volumeOff: (
+    <>
+      <path d="M11 5 6 9H2v6h4l5 4z" />
+      <path d="m22 9-6 6M16 9l6 6" />
+    </>
+  ),
   info: (
     <>
       <circle cx="12" cy="12" r="10" />
