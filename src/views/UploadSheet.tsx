@@ -30,6 +30,10 @@ interface Batch {
 
 const NO_MEDIA: MediaCount = { photos: 0, videos: 0 };
 
+const NO_SCAN = { list: [] as PlanFile[], time: new Map<string, number>() };
+/** Gemerkte Sortierung der Upload-Vorschau: „1“ = neueste zuerst */
+const NEWEST_KEY = "drivepool.upload.neuesteZuerst";
+
 const REASON: Record<string, string> = {
   reihenfolge: "Reihenfolge",
   zahlenschutz: "Zahlen-Schutz",
@@ -57,9 +61,10 @@ export default function UploadSheet({
   const [phase, setPhase] = useState<Phase>("analyse");
   useKeepAwake(phase === "analyse" || phase === "upload"); // Bildschirm bleibt an, solange es läuft
   const [analysed, setAnalysed] = useState(0);
-  const [planFiles, setPlanFiles] = useState<PlanFile[]>([]);
-  /** Sind die Fotos nach Aufnahmezeit sortiert (mind. 2 mit Datum)? */
-  const [byTime, setByTime] = useState(false);
+  // Geprüfte Dateien in iOS-Reihenfolge + Aufnahmezeiten; angezeigt wird nach Aufnahmezeit sortiert
+  const [scanned, setScanned] = useState<{ list: PlanFile[]; time: Map<string, number> }>(NO_SCAN);
+  /** Neueste zuerst statt älteste zuerst (wird gemerkt) */
+  const [newestFirst, setNewestFirst] = useState(() => localStorage.getItem(NEWEST_KEY) === "1");
   const [known, setKnown] = useState<Set<string>>(new Set());
   const [orderMode, setOrderMode] = useState(false);
   const [order, setOrder] = useState<string[]>([]);
@@ -113,9 +118,7 @@ export default function UploadSheet({
         }
         const k = await knownMd5(list.map((f) => f.md5));
         if (cancelled) return;
-        // iOS liefert die Auswahl durcheinander → wie in der Fotos-App nach Aufnahmezeit, Videos weiterhin unten
-        setPlanFiles(byCaptureTime(list, (f) => time.get(f.id) ?? null, (f) => isVideo(byId.get(f.id)!)));
-        setByTime(time.size > 1);
+        setScanned({ list, time });
         setKnown(k);
         setPhase("review");
       } catch (e) {
@@ -126,6 +129,23 @@ export default function UploadSheet({
       cancelled = true;
     };
   }, [byId]);
+
+  // iOS liefert die Auswahl durcheinander → wie in der Fotos-App nach Aufnahmezeit, Videos weiterhin unten
+  const planFiles = useMemo(() => {
+    const t = (f: PlanFile) => {
+      const ms = scanned.time.get(f.id);
+      return ms === undefined ? null : newestFirst ? -ms : ms;
+    };
+    return byCaptureTime(scanned.list, t, (f) => isVideo(byId.get(f.id)!));
+  }, [scanned, newestFirst, byId]);
+  /** Sind die Fotos nach Aufnahmezeit sortiert (mind. 2 mit Datum)? */
+  const byTime = scanned.time.size > 1;
+  const flipOrder = () => {
+    const v = !newestFirst;
+    setNewestFirst(v);
+    if (v) localStorage.setItem(NEWEST_KEY, "1");
+    else localStorage.removeItem(NEWEST_KEY);
+  };
 
   const baseInput: PlanInput = useMemo(
     () => ({
@@ -185,8 +205,7 @@ export default function UploadSheet({
     setForceDups(false); // Häkchen gilt nur für die eben vorgemerkte Auswahl
     setPhase("analyse");
     setAnalysed(0);
-    setPlanFiles([]);
-    setByTime(false);
+    setScanned(NO_SCAN);
     setKnown(new Set());
     setOrderMode(false);
     setOrder([]);
@@ -542,7 +561,16 @@ export default function UploadSheet({
                 </div>
               )}
 
-              {byTime && <span className="faint small">Nach Aufnahmezeit sortiert – wie in der Fotos-App</span>}
+              {byTime && (
+                <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
+                  <span className="faint small">
+                    Nach Aufnahmezeit – {newestFirst ? "neueste" : "älteste"} zuerst
+                  </span>
+                  <button className="btn small ghost" onClick={flipOrder} aria-label="Reihenfolge umdrehen">
+                    <Icon name="sortNum" size={15} /> {newestFirst ? "Älteste zuerst" : "Neueste zuerst"}
+                  </button>
+                </div>
+              )}
 
               <div className="grid stagger">
                 {planFiles.map((f, i) => {
