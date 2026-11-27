@@ -11,6 +11,8 @@ export interface Account {
   status: "active" | "error";
   status_message: string | null;
   last_sync_at: string | null;
+  /** Zuletzt selbst direkt bei Google eingeloggt (vom Nutzer bestätigt); leer = seit dem Verbinden */
+  last_login_at?: string | null;
   created_at: string;
 }
 
@@ -24,6 +26,9 @@ export interface Item {
   size: number | null;
   md5: string | null;
   taken_at: string | null;
+  /** Bildmasse wie angezeigt (aus Drive; leer bei älteren Einträgen bis zum nächsten Abgleich) */
+  width?: number | null;
+  height?: number | null;
   description: string | null;
   path: string | null;
   parent_key: string | null;
@@ -40,6 +45,8 @@ export interface LogicalFolder {
 export interface FolderContent {
   folders: LogicalFolder[];
   files: Item[];
+  /** Ohne Netz: gespeicherter Stand eines offline verfügbaren Ordners (Zeitpunkt der Sicherung) */
+  offlineAt?: string;
 }
 
 /** Position im Drive (Pfad aus Ordnernamen, Schlüssel in Kleinbuchstaben). */

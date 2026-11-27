@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { offerUndo, undoFolderMove, undoFolderRename } from "../lib/undo";
 import { useAiEnabled } from "../ai/flag"; // KI-SUCHE
 import { tagsOf, useTags } from "../lib/tags";
+import { isOfflineFolder } from "../lib/offline";
 import { customHue, FOLDER_HUES, hueOf, setFolderHue, useFolderColors } from "../lib/folderColors";
 import { moveLogicalFolder, renameLogicalFolder, SEALED_MESSAGE } from "../lib/folders";
 import { childPath, validFolderName } from "../lib/naming";
@@ -13,6 +14,7 @@ import { useUI } from "./ui";
 
 const TagSheet = lazy(() => import("./TagSheet"));
 const FolderAiSheet = lazy(() => import("../ai/FolderAiSheet")); // KI-SUCHE
+const OfflineSheet = lazy(() => import("./OfflineSheet"));
 
 /** Menü beim Gedrückthalten eines Ordners: öffnen, Farbe, umbenennen, verschieben, ZIP, löschen. */
 export default function FolderActions({
@@ -40,6 +42,7 @@ export default function FolderActions({
   const [picking, setPicking] = useState(false);
   const [tagging, setTagging] = useState(false);
   const [aiOpen, setAiOpen] = useState(false); // KI-SUCHE
+  const [offlineOpen, setOfflineOpen] = useState(false);
   const ai = useAiEnabled(); // KI-SUCHE
   useTags();
   const folderTagCount = new Set(folder.parts.flatMap((p) => tagsOf(p).map((t) => t.toLowerCase()))).size;
@@ -94,6 +97,13 @@ export default function FolderActions({
     return (
       <Suspense fallback={null}>
         <FolderAiSheet folder={folder} accounts={accounts} onClose={() => setAiOpen(false)} />
+      </Suspense>
+    );
+  }
+  if (offlineOpen) {
+    return (
+      <Suspense fallback={null}>
+        <OfflineSheet folder={folder} onClose={() => setOfflineOpen(false)} />
       </Suspense>
     );
   }
@@ -187,6 +197,10 @@ export default function FolderActions({
             )}
             <button className="action" onClick={onZip}>
               <Icon name="download" size={18} /> Als ZIP sichern
+            </button>
+            <button className="action" onClick={() => setOfflineOpen(true)}>
+              <Icon name="cloud" size={18} /> Offline verfügbar
+              {isOfflineFolder(folder.key) && <span className="faint small" style={{ marginLeft: "auto" }}>aktiv</span>}
             </button>
             {!protectedFolder && (
               <button className="action danger" onClick={onDelete} disabled={busy}>

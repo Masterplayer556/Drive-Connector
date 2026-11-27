@@ -136,6 +136,23 @@ export async function thumbnailLinks(accountId: string, folderId: string | null,
   return links;
 }
 
+/**
+ * IDs der Dateien, auf die eine Drive-Abfrage passt – in Googles Reihenfolge (bei „fullText“ nach Relevanz).
+ * Höchstens `max` Treffer.
+ */
+export async function queryIds(accountId: string, q: string, max = 300): Promise<string[]> {
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const p = new URLSearchParams({ q, fields: "nextPageToken,files(id)", pageSize: String(Math.min(100, max)), spaces: "drive" });
+    if (pageToken) p.set("pageToken", pageToken);
+    const r = await driveJson<{ nextPageToken?: string; files: { id: string }[] }>(accountId, `${DRIVE}/files?${p}`);
+    ids.push(...r.files.map((f) => f.id));
+    pageToken = r.nextPageToken;
+  } while (pageToken && ids.length < max);
+  return ids.slice(0, max);
+}
+
 export function createFolder(accountId: string, name: string, parentId: string): Promise<DriveFile> {
   return driveJson(accountId, `${DRIVE}/files?fields=${FIELDS}`, {
     method: "POST",

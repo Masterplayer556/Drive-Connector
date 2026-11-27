@@ -7,13 +7,14 @@ import Topbar from "../components/Topbar";
 import { useUI } from "../components/ui";
 import { AREA_LABEL, ROLES } from "../lib/areas";
 import { invalidateAll } from "../lib/cache";
-import { setAccountRole, syncAccounts } from "../lib/db";
+import { markLoggedIn, setAccountRole, syncAccounts } from "../lib/db";
 import { formatBytes, formatDateTime } from "../lib/format";
 import { clearParams } from "../lib/route";
 import { callFunction } from "../lib/supabase";
 import { accountColor } from "../lib/theme";
 import type { Account, Role } from "../lib/types";
 import { fetchGrowth, healthOf } from "../lib/health";
+import { inactivityOf } from "../lib/inactivity";
 
 /** Ampel pro Konto: Zugriff, letzter Abgleich, Füllstand und wann es beim aktuellen Tempo voll ist. */
 function HealthLight({ account, added30, ready }: { account: Account; added30: number; ready: boolean }) {
@@ -39,6 +40,56 @@ function HealthLight({ account, added30, ready }: { account: Account; added30: n
         </span>
       )}
     </button>
+  );
+}
+
+/** Google-Login für genau dieses Konto (Kontoauswahl mit vorausgefüllter Adresse), danach Drive. */
+const googleLoginUrl = (email: string) =>
+  `https://accounts.google.com/AccountChooser?${new URLSearchParams({ Email: email, continue: "https://drive.google.com/drive/my-drive" })}`;
+
+/**
+ * Erinnerung gegen das Löschen inaktiver Konten: wann zuletzt selbst eingeloggt, Link zum Einloggen und
+ * „Heute eingeloggt“ zum Bestätigen. Ob die Zugriffe der App bei Google als Aktivität zählen, ist unklar.
+ */
+function LoginReminder({ account, onMarked }: { account: Account; onMarked: () => Promise<void> }) {
+  const ui = useUI();
+  const [busy, setBusy] = useState(false);
+  const idle = inactivityOf(account);
+  const date = idle.since ? new Date(idle.since).toLocaleDateString("de-CH") : "unbekannt";
+  const color = idle.level === "bad" ? "var(--red)" : idle.level === "warn" ? "var(--amber)" : undefined;
+  const mark = async () => {
+    setBusy(true);
+    try {
+      await markLoggedIn(account.id);
+      await onMarked();
+      ui.toast(`${account.email}: Login vermerkt`, "ok");
+    } catch (e) {
+      ui.toast(e instanceof Error ? e.message : String(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <div className="row between" style={{ gap: 8, flexWrap: "wrap" }}>
+        <span className="small muted" style={color ? { color } : undefined}>
+          Selbst eingeloggt: {account.last_login_at ? date : `beim Verbinden (${date})`}
+        </span>
+        <span className="row" style={{ gap: 6 }}>
+          <a className="btn small ghost" href={googleLoginUrl(account.email)} target="_blank" rel="noopener noreferrer">
+            Einloggen
+          </a>
+          <button className="btn small" onClick={mark} disabled={busy}>
+            {busy ? <span className="spinner" /> : "Heute eingeloggt"}
+          </button>
+        </span>
+      </div>
+      {idle.text && (
+        <span className="small" style={{ color }}>
+          {idle.text}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -181,6 +232,7 @@ export default function KontenView({
                 options={ROLES.map((r) => ({ value: r, label: AREA_LABEL[r] }))}
               />
             </div>
+            <LoginReminder account={a} onMarked={reload} />
             {a.status === "error" && (
               <>
                 <div className="error small">{a.status_message ?? "Fehler"}</div>

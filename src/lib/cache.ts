@@ -1,6 +1,7 @@
 // Zwischenspeicher für Ordnerinhalte und Vorschau-Links:
 // Ordner erscheinen sofort aus dem Speicher und werden im Hintergrund aktualisiert.
 import { fetchFolder } from "./db";
+import { readSnapshot } from "./offlineStore";
 import type { Account, FolderContent } from "./types";
 
 interface Entry {
@@ -33,9 +34,16 @@ export function loadFolder(key: string): Promise<FolderContent> {
   const running = inflight.get(key);
   if (running) return running;
   const p = fetchFolder(key)
+    // Kein Netz? Offline gesicherten Stand zeigen (Ordner „offline verfügbar“), sonst den Fehler
+    .catch(async (e) => {
+      const snap = await readSnapshot(key);
+      if (!snap) throw e;
+      return snap;
+    })
     .then((content) => {
-      folders.set(key, { ...folders.get(key), content, at: Date.now() });
-      if (key === "") {
+      // Gesicherter Stand gilt nicht als frisch – beim nächsten Mal wieder übers Netz versuchen
+      folders.set(key, { ...folders.get(key), content, at: content.offlineAt ? 0 : Date.now() });
+      if (key === "" && !content.offlineAt) {
         try {
           localStorage.setItem(ROOT_KEY, JSON.stringify(content));
         } catch {

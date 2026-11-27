@@ -2,6 +2,7 @@
 // Ordner nahe 15 GB (Regel 4), Duplikate.
 import { AREA_LABEL, ROLES } from "./areas";
 import { formatBytes } from "./format";
+import { inactivityOf } from "./inactivity";
 import type { Account } from "./types";
 
 export type InsightLevel = "info" | "warn" | "crit";
@@ -69,6 +70,19 @@ export function computeInsights(accounts: Account[], stats: PoolStats | null, bi
     } else {
       out.push({ id: `big-${f.parent_key}`, level: "warn", title: `„${f.path}“ ist fast bei 15 GB`, text: `${formatBytes(f.bytes)} – bald in Unterordner aufteilen.`, action: { kind: "folder", path: f.path } });
     }
+  }
+
+  // Google löscht Konten nach 2 Jahren Inaktivität – rechtzeitig ans eigene Einloggen erinnern
+  for (const a of accounts) {
+    const idle = inactivityOf(a);
+    if (idle.level === "ok") continue;
+    out.push({
+      id: `idle-${a.id}`,
+      level: idle.level === "bad" ? "crit" : "warn",
+      title: `Bei ${a.email} einloggen`,
+      text: `Seit ${idle.months} Monaten nicht selbst eingeloggt – Google löscht inaktive Konten nach 2 Jahren.`,
+      action: { kind: "route", to: "konten" },
+    });
   }
 
   if (stats && stats.duplicates > 0) {

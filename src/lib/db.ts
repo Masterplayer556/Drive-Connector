@@ -3,12 +3,13 @@ import { videosLast } from "./media";
 import type { Plan, Step, Unit } from "./rebalance";
 import type { BigFolder, PoolStats } from "./insights";
 import { childKey, naturalCompare } from "./naming";
-import { deleteIfTrashed } from "./google";
+import { deleteIfTrashed, queryIds } from "./google";
+import { fullTextQuery, interleave } from "./textSearch";
 import { callFunction, supabase } from "./supabase";
 import type { Account, FolderContent, Item, LogEntry, LogicalFolder, LogKind, Role } from "./types";
 
 const ITEM_COLS =
-  "account_id,drive_id,name,is_folder,mime_type,parent_drive_id,size,md5,taken_at,description,path,parent_key";
+  "account_id,drive_id,name,is_folder,mime_type,parent_drive_id,size,md5,taken_at,width,height,description,path,parent_key";
 const PAGE = 1000;
 
 type PageResult<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
@@ -36,10 +37,16 @@ const inSubtree = (p: string | null | undefined, base: string) => (p ?? "").toLo
 export async function fetchAccounts(): Promise<Account[]> {
   const { data, error } = await supabase
     .from("accounts")
-    .select("id,email,role,root_folder_id,quota_limit,quota_usage,status,status_message,last_sync_at,created_at")
+    .select("id,email,role,root_folder_id,quota_limit,quota_usage,status,status_message,last_sync_at,last_login_at,created_at")
     .order("created_at");
   if (error) throw new Error(error.message);
   return (data ?? []) as Account[];
+}
+
+/** „Heute eingeloggt“: Nutzer war gerade selbst bei Google in diesem Konto (gegen das Löschen inaktiver Konten). */
+export async function markLoggedIn(id: string, at = new Date()): Promise<void> {
+  const { error } = await supabase.from("accounts").update({ last_login_at: at.toISOString() }).eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function setAccountRole(id: string, role: Role): Promise<void> {
@@ -337,6 +344,50 @@ export async function searchItems(query: string, limit = 200): Promise<Item[]> {
   const { data, error } = await supabase.rpc("search_items", { p_query: query, p_limit: limit });
   if (error) throw new Error(error.message);
   return videosLast((data ?? []) as Item[]);
+}
+
+/**
+ * Text in Fotos (Drive-OCR) in allen Konten suchen, ausser in `exclude` (z. B. private Konten).
+ * Treffer ausserhalb des Pools (ohne Pfad im Index) fallen weg. Fehler einzelner Konten werden gemeldet,
+ * solange ein anderes Konto Treffer liefert.
+ */
+export async function searchTextInPhotos(
+  query: string,
+  accounts: Account[],
+  exclude: Set<string> = new Set(),
+): Promise<{ items: Item[]; failed: string[] }> {
+  const q = fullTextQuery(query);
+  if (!q) return { items: [], failed: [] };
+  const failed: string[] = [];
+  const perAccount = await Promise.all(
+    accounts
+      .filter((a) => a.status === "active" && !exclude.has(a.id))
+      .map(async (a) => {
+        try {
+          const ids = await queryIds(a.id, q);
+          const rows: Item[] = [];
+          for (let i = 0; i < ids.length; i += 100) {
+            const { data, error } = await supabase
+              .from("items")
+              .select(ITEM_COLS)
+              .eq("account_id", a.id)
+              .in("drive_id", ids.slice(i, i + 100))
+              .not("path", "is", null);
+            if (error) throw new Error(error.message);
+            rows.push(...((data ?? []) as Item[]));
+          }
+          // Googles Reihenfolge (Relevanz) beibehalten
+          const rank = new Map(ids.map((id, i) => [id, i]));
+          return rows.sort((x, y) => (rank.get(x.drive_id) ?? 0) - (rank.get(y.drive_id) ?? 0));
+        } catch (e) {
+          failed.push(`${a.email}: ${e instanceof Error ? e.message : String(e)}`);
+          return [];
+        }
+      }),
+  );
+  const items = interleave(perAccount);
+  if (!items.length && failed.length) throw new Error(failed.join(" · "));
+  return { items, failed };
 }
 
 export async function fetchFavoriteKeys(): Promise<Set<string>> {

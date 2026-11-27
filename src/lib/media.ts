@@ -23,6 +23,8 @@ export interface MediaCount {
   videos: number;
 }
 
+export const addMedia = (a: MediaCount, b: MediaCount): MediaCount => ({ photos: a.photos + b.photos, videos: a.videos + b.videos });
+
 export function countMedia(list: { name: string; type?: string | null; mime_type?: string | null }[]): MediaCount {
   const videos = list.filter((f) => isVideo(f)).length;
   return { photos: list.length - videos, videos };

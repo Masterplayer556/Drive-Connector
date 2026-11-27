@@ -5,7 +5,7 @@ import { DRIVE, FOLDER_MIME, getAccessToken, gfetch } from "./google.ts";
 import { HttpError } from "./http.ts";
 
 const FILE_FIELDS =
-  "id,name,mimeType,parents,size,md5Checksum,imageMediaMetadata(time),createdTime,modifiedTime,description,trashed,ownedByMe";
+  "id,name,mimeType,parents,size,md5Checksum,imageMediaMetadata(time,width,height,rotation),videoMediaMetadata(width,height),createdTime,modifiedTime,description,trashed,ownedByMe";
 
 interface DriveFile {
   id: string;
@@ -14,7 +14,8 @@ interface DriveFile {
   parents?: string[];
   size?: string;
   md5Checksum?: string;
-  imageMediaMetadata?: { time?: string };
+  imageMediaMetadata?: { time?: string; width?: number; height?: number; rotation?: number };
+  videoMediaMetadata?: { width?: number; height?: number };
   createdTime?: string;
   modifiedTime?: string;
   description?: string;
@@ -42,6 +43,19 @@ function exifToIso(value?: string): string | null {
   return Number.isNaN(Date.parse(iso)) ? null : iso;
 }
 
+/**
+ * Breite × Höhe wie angezeigt. Drive liefert die gespeicherten Pixel; „rotation“ (in 90°-Schritten, aus EXIF)
+ * dreht das Bild beim Anzeigen – bei 90°/270° sind Breite und Höhe vertauscht.
+ */
+function dimensionsOf(f: Pick<DriveFile, "imageMediaMetadata" | "videoMediaMetadata">): { width: number | null; height: number | null } {
+  const m = f.imageMediaMetadata ?? f.videoMediaMetadata;
+  const w = Number(m?.width) || null;
+  const h = Number(m?.height) || null;
+  if (!w || !h) return { width: null, height: null };
+  const turned = (Number(f.imageMediaMetadata?.rotation) || 0) % 2 === 1;
+  return turned ? { width: h, height: w } : { width: w, height: h };
+}
+
 function toRow(f: DriveFile, acc: Account) {
   return {
     account_id: acc.id,
@@ -54,6 +68,7 @@ function toRow(f: DriveFile, acc: Account) {
     size: f.size ? Number(f.size) : null,
     md5: f.md5Checksum ?? null,
     taken_at: exifToIso(f.imageMediaMetadata?.time),
+    ...dimensionsOf(f),
     created_time: f.createdTime ?? null,
     modified_time: f.modifiedTime ?? null,
     description: f.description ?? null,

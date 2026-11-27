@@ -1,5 +1,6 @@
 // Vorschaubilder: Speicher → Cache auf dem Gerät → im Paket vom Server.
 // Jedes Bild wird nur einmal übers Netz geladen; danach kommt es sofort aus dem Gerätespeicher.
+import { offlineCache } from "./offlineStore";
 import { pickEvictions } from "./thumbEvict";
 import { fetchThumbBlobs } from "./thumbSource";
 import type { Item } from "./types";
@@ -47,6 +48,8 @@ let running = 0;
 
 const keyOf = (item: Item, size: number) => `${item.account_id}/${item.drive_id}/${size}`;
 const cacheUrl = (key: string) => new URL(`./__thumbs/${key}`, document.baseURI).toString();
+/** Adresse eines Vorschaubilds im Gerätespeicher (gleich im Vorschau- und im Offline-Cache). */
+export const thumbCacheUrl = (item: Pick<Item, "account_id" | "drive_id">, size: number) => cacheUrl(`${item.account_id}/${item.drive_id}/${size}`);
 
 let cachePromise: Promise<Cache | null> | null = null;
 function deviceCache(): Promise<Cache | null> {
@@ -83,7 +86,10 @@ export function getThumb(item: Item, size = GRID_SIZE, { urgent = false }: { urg
 
   const p = (async () => {
     const cache = await deviceCache();
-    const cached = await cache?.match(cacheUrl(key)).catch(() => undefined);
+    // Erst der normale Vorschau-Cache, dann die offline gesicherten Ordner
+    const cached =
+      (await cache?.match(cacheUrl(key)).catch(() => undefined)) ??
+      (await offlineCache().then((c) => c?.match(cacheUrl(key))).catch(() => undefined));
     if (cached) {
       urgentKeys.delete(key);
       const blob = await cached.blob();
@@ -179,6 +185,12 @@ async function runBatch(batch: Pending[]) {
  * Alte Vorschaubilder vom Gerät räumen, wenn die Obergrenzen überschritten sind (siehe thumbEvict.ts).
  * Die Bilder sind nur ein Zwischenspeicher – was fehlt, wird beim nächsten Ansehen neu geholt.
  */
+/** Bild aus dem Vorschau-Cache (falls schon einmal angesehen) – spart beim Offline-Sichern den Download. */
+export async function cachedThumbBlob(item: Item, size: number): Promise<Blob | null> {
+  const res = await (await deviceCache())?.match(cacheUrl(keyOf(item, size))).catch(() => undefined);
+  return res ? res.blob() : null;
+}
+
 export async function pruneThumbCache(): Promise<number> {
   const cache = await deviceCache();
   if (!cache) return 0;

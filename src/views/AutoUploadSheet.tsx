@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { countMedia, isVideo, mediaCount, type MediaCount } from "../lib/media";
+import { addMedia, countMedia, isVideo, mediaCount, type MediaCount } from "../lib/media";
 import Icon from "../components/Icon";
 import Ring from "../components/Ring";
 import { loadFolder } from "../lib/cache";
@@ -10,7 +10,8 @@ import { md5OfFile } from "../lib/md5";
 import { childKey } from "../lib/naming";
 import { planUpload, summarize, type PlanEntry, type PlanFile } from "../lib/plan";
 import type { Account, Crumb } from "../lib/types";
-import { executeUpload } from "../lib/upload";
+import type { FailedUpload } from "../lib/retryUpload";
+import { executeUpload, retryFailedUploads } from "../lib/upload";
 import { useKeepAwake } from "../lib/wakelock";
 
 /** Wurzel der automatischen Ablage (Regel 8). */
@@ -53,7 +54,7 @@ export default function AutoUploadSheet({
   const [groups, setGroups] = useState<Group[]>([]);
   const [conflictMode, setConflictMode] = useState<"skip" | "rename">("skip");
   const [done, setDone] = useState(0);
-  const [result, setResult] = useState<{ uploaded: number; failed: string[]; media: MediaCount } | null>(null);
+  const [result, setResult] = useState<{ uploaded: number; failed: FailedUpload[]; media: MediaCount } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const background = useRef<Promise<unknown> | null>(null);
@@ -152,7 +153,7 @@ export default function AutoUploadSheet({
     setPhase("upload");
     let uploaded = 0;
     const uploadedIds: string[] = [];
-    const failed: string[] = [];
+    const failed: FailedUpload[] = [];
     const logs: LogInput[] = [];
     const touched = new Set<string>();
     // Kontostände zwischen den Monaten mitführen
@@ -169,7 +170,7 @@ export default function AutoUploadSheet({
         });
         uploaded += r.uploaded.length;
         uploadedIds.push(...r.uploaded.map((u) => u.id));
-        for (const f of r.failed) failed.push(`${f.entry.originalName}: ${f.error}`);
+        for (const f of r.failed) failed.push({ ...f, target: g.target, files: byId });
         for (const id of r.accountIds) touched.add(id);
         accs = accs.map((a) => ({
           ...a,
@@ -183,7 +184,9 @@ export default function AutoUploadSheet({
         }
         for (const c of r.createdFolders) logs.push({ kind: "folder", message: `Ordner „${c.path}“ angelegt` });
       } catch (e) {
-        failed.push(`${g.label}: ${e instanceof Error ? e.message : String(e)}`);
+        // Ganzer Monat gescheitert (z. B. kurz offline): alle seine Fotos lassen sich nochmals versuchen
+        const error = e instanceof Error ? e.message : String(e);
+        for (const entry of g.plan.filter((x) => x.status === "upload")) failed.push({ entry, error, target: g.target, files: byId });
       }
     }
     background.current = Promise.all([writeLogs(logs), touched.size ? syncAccounts([...touched]) : Promise.resolve()]).catch(
@@ -191,6 +194,33 @@ export default function AutoUploadSheet({
     );
     setResult({ uploaded, failed, media: countMedia(filesOf(uploadedIds)) });
     setPhase("done");
+  };
+
+  /** Nur die fehlgeschlagenen Fotos nochmals sichern (sie sind noch im Speicher). */
+  const retry = async () => {
+    if (!result || !result.failed.length) return;
+    const items = result.failed;
+    setPhase("upload");
+    setDone(0);
+    try {
+      if (background.current) await background.current;
+      const r = await retryFailedUploads({ items, accounts, onProgress: (p) => setDone(p.done) });
+      const logs: LogInput[] = [];
+      for (const path of new Set(r.uploaded.map((u) => u.target.path))) {
+        const here = r.uploaded.filter((u) => u.target.path === path);
+        logs.push({ kind: "upload", message: `${mediaCount(countMedia(filesOf(here.map((u) => u.id))), "Fotos/Videos")} nach „${path}“ abgelegt (automatisch, nochmals versucht)` });
+      }
+      for (const c of r.createdFolders) logs.push({ kind: "folder", message: `Ordner „${c.path}“ angelegt` });
+      background.current = Promise.all([writeLogs(logs), r.accountIds.length ? syncAccounts(r.accountIds) : Promise.resolve()]).catch(
+        () => undefined,
+      );
+      const ok = [...r.uploaded, ...r.present].map((u) => u.id);
+      setResult({ uploaded: result.uploaded + ok.length, failed: r.failed, media: addMedia(result.media, countMedia(filesOf(ok))) });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPhase("done");
+    }
   };
 
   const close = async () => {
@@ -298,7 +328,7 @@ export default function AutoUploadSheet({
 
           {phase === "upload" && (
             <>
-              <Ring value={done} total={sum.upload} label="gesichert" />
+              <Ring value={done} total={result ? result.failed.length : sum.upload} label="gesichert" />
               <p className="muted small" style={{ textAlign: "center" }}>
                 Bitte die App offen lassen – der Bildschirm bleibt an.
               </p>
@@ -327,9 +357,15 @@ export default function AutoUploadSheet({
                   <strong>{result.failed.length} fehlgeschlagen</strong>
                   <ul className="names">
                     {result.failed.map((f) => (
-                      <li key={f}>{f}</li>
+                      <li key={f.entry.id}>
+                        {f.entry.originalName}: {f.error}
+                      </li>
                     ))}
                   </ul>
+                  <button className="btn block" style={{ marginTop: 10 }} onClick={retry} disabled={closing}>
+                    <Icon name="upload" size={17} /> {result.failed.length === 1 ? "Fehlgeschlagenes" : `${result.failed.length} fehlgeschlagene`}{" "}
+                    nochmals sichern
+                  </button>
                 </div>
               )}
               <button className="btn primary block" onClick={close} disabled={closing}>

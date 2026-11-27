@@ -20,7 +20,7 @@ import { countSubtreeFiles, fetchBigFolders, fetchDuplicates, fetchStats, fetchS
 import { suggestRemoval } from "../lib/duplicates";
 import { isScrollLocked } from "../lib/scrollLock";
 import { createLogicalFolder, trashFiles, trashLogicalFolder } from "../lib/folders";
-import { formatBytes } from "../lib/format";
+import { formatBytes, formatDateTime } from "../lib/format";
 import { renameItem } from "../lib/google";
 import { warmThumbs } from "../lib/thumbs";
 import { childKey, childPath, validFolderName } from "../lib/naming";
@@ -625,6 +625,12 @@ export default function DriveView({ accounts }: { accounts: Account[] }) {
         />
       )}
 
+      {content?.offlineAt && (
+        <div className="banner">
+          <Icon name="cloud" size={18} />
+          <span>Ohne Netz – offline gesicherter Stand vom {formatDateTime(content.offlineAt)}</span>
+        </div>
+      )}
       {error && (
         <div className="banner error" onClick={() => setError(null)}>
           <Icon name="alert" size={18} />
