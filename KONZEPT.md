@@ -111,12 +111,14 @@ Ordner können gesperrt werden. Gesperrte Ordner werden **nie** verschoben oder 
 - Upload über die Google-Drive-App bleibt möglich; solche Fotos erscheinen automatisch im Pool.
 
 ### Regel 9 – Duplikate
-- Erkennung über **MD5-Prüfsumme + Grösse** (von Google geliefert, keine Datei wird geöffnet).
-- **Vor jedem Upload** wird geprüft, ob das Foto schon im Pool ist → wird übersprungen.
+- Erkennung über **MD5-Prüfsumme + Grösse** (von Google geliefert, keine Datei wird geöffnet). Die Datenbank gruppiert genau so (`find_duplicates`: gleiche Prüfsumme und gleiche Grösse).
+- **Vor jedem Upload** wird geprüft, ob das Foto schon im Pool ist → wird übersprungen. Zusätzlich wird geprüft, ob es **gleich aussieht** wie ein Foto im Zielordner (bzw. beim automatischen Upload im Monatsordner) oder wie ein früheres in der Auswahl – z. B. dasselbe Foto einmal als HEIC, einmal von Safari als JPEG umgewandelt. Solche Fotos sind als „Sieht gleich aus“ markiert und werden übersprungen; mit „Duplikate trotzdem hochladen“ kommen sie mit.
 - Duplikat-Liste mit Vorschaubildern nebeneinander (einzige „Ansehen“-Ausnahme), ich entscheide, welche Kopien bleiben (antippen = behalten/entfernen, mindestens eine bleibt).
 - Fokus: gleiche Fotos **im selben Ordner** (eine bleibt) und – als Ausnahme – Kopien im Ordner **„Random“**, wenn das Foto auch woanders liegt (die Random-Kopie kommt weg). Kopien in verschiedenen normalen Ordnern sind eingeklappt („In verschiedenen Ordnern“).
 - Ab 3 gleichen Fotos: „Nur 1 entfernen“ (zuerst die Random-Kopie bzw. die doppelte im selben Ordner).
-- **„Sieht gleich aus“**: dasselbe Bild als andere Datei (zweimal gespeichert, anders benannt, andere Auflösung) hat eine andere Prüfsumme. Dafür wird auf dem Gerät von jedem Foto ein winziges Abbild aus der Vorschau verglichen (ohne KI, einmalig alle Fotos, danach nur neue). Gleiche Fokus-Regeln wie oben; im Ordner bleibt die grösste Datei, entfernt wird nur pro Gruppe (kein „Alle aufräumen“). Das Auge auf der Kachel zeigt die Fotos gross zum Vergleichen.
+- **„Sieht gleich aus“**: dasselbe Bild als andere Datei (zweimal gespeichert, anders benannt, andere Auflösung) hat eine andere Prüfsumme. Dafür wird von jedem Foto einmal ein winziges Abbild aus der Vorschau berechnet (ohne KI) und **auf dem Server gespeichert** (`look_sigs`, eines pro Prüfsumme) – jedes Foto wird nur einmal geprüft, alle Geräte nutzen dasselbe. Welche Fotos noch fehlen, sagt der Server – unabhängig vom Erstelldatum (auch Fotos mit altem Datum, z. B. über die Drive-App hochgeladen, werden gefunden). Beim Öffnen der Duplikate werden bis 400 fehlende Fotos von selbst geprüft, mehr auf Knopfdruck.
+- Welches bleibt bei „Sieht gleich aus“: zuerst die **höhere Auflösung** (Pixel, nicht Dateigrösse), dann das **Originalformat** (Fotos: HEIC/JPEG vor PNG; Screenshots: PNG vor JPEG), dann das mit **Aufnahmedatum**, dann die grössere Datei. Gleiche Fokus-Regeln wie oben; entfernt wird nur pro Gruppe (kein „Alle aufräumen“). Das Auge auf der Kachel zeigt die Fotos gross zum Vergleichen.
+- **Screenshot-Schutz**: Bei Screenshots und PNG-Grafiken reicht das winzige Abbild nicht (andere Uhrzeit, ein geändertes Wort, ein Häkchen gehen darin unter). Sie werden zusätzlich an einer grossen Vorschau Block für Block verglichen; nur wenn auch das passt, gelten sie als gleich. Liess sich die grosse Vorschau nicht laden, ist die Gruppe „nicht sicher“ – ohne Vorauswahl zum Löschen.
 
 ### Regel 10 – Speicher und Warnungen
 - Jedes Konto wird bis **100 %** gefüllt. Gmail und Google Fotos müssen nicht funktionieren.

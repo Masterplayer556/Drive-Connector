@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { biggerFirst, dupKey, inRandom, lookKey, pickOne, suggestRemoval } from "./duplicates";
+import { dupKey, inRandom, lookKey, needsFine, pickOne, qualityFirst, suggestRemoval } from "./duplicates";
 import type { Item } from "./types";
 
 const it_ = (id: string, path: string): Item => {
@@ -48,10 +48,34 @@ describe("Duplikate", () => {
     expect(pickOne([it_("1", "A/x.jpg"), it_("2", "B/x.jpg"), it_("3", "Random/x.jpg")])).toBe("a|3");
     expect(pickOne([it_("1", "A/x.jpg"), it_("2", "A/x (1).jpg"), it_("3", "B/x.jpg")])).toBe("a|2");
   });
-  it("sieht gleich aus: im selben Ordner bleibt die grösste Datei", () => {
+  it("sieht gleich aus: ohne Bildmasse bleibt im selben Ordner die grösste Datei", () => {
     const g = [{ ...it_("1", "A/klein.jpg"), size: 100 }, { ...it_("2", "A/gross-kopie.jpg"), size: 900 }, { ...it_("3", "B/x.jpg"), size: 50 }];
-    expect(keys(suggestRemoval(g, biggerFirst))).toEqual([dupKey(g[0])]);
-    expect(pickOne(g, biggerFirst)).toBe("a|1");
+    expect(keys(suggestRemoval(g, qualityFirst))).toEqual([dupKey(g[0])]);
+    expect(pickOne(g, qualityFirst)).toBe("a|1");
+  });
+  it("sieht gleich aus: höhere Auflösung schlägt grössere Datei", () => {
+    const png = { ...it_("1", "A/x.png"), mime_type: "image/png", size: 5_000_000, width: 1000, height: 750 };
+    const jpg = { ...it_("2", "A/x.jpg"), size: 900_000, width: 4000, height: 3000 };
+    expect([png, jpg].sort(qualityFirst)[0]).toBe(jpg);
+  });
+  it("sieht gleich aus: gleiche Auflösung → Originalformat, dann Aufnahmedatum", () => {
+    const png = { ...it_("1", "A/x.png"), mime_type: "image/png", size: 5_000_000, width: 4000, height: 3000 };
+    const jpg = { ...it_("2", "A/x.jpg"), size: 900_000, width: 3000, height: 4000 }; // gedreht: gleich viele Pixel
+    const heic = { ...it_("3", "A/x.heic"), mime_type: "image/heic", size: 800_000, width: 4000, height: 3000 };
+    expect([png, jpg, heic].sort(qualityFirst).map((i) => i.drive_id)).toEqual(["3", "2", "1"]);
+    const plain = { ...it_("4", "A/a.jpg"), width: 4000, height: 3000, size: 2 };
+    const dated = { ...it_("5", "A/b.jpg"), width: 4000, height: 3000, size: 1, taken_at: "2024-05-01T10:00:00Z" };
+    expect([plain, dated].sort(qualityFirst)[0]).toBe(dated);
+  });
+  it("Screenshots: das PNG ist das Original", () => {
+    const png = { ...it_("1", "A/IMG_1.PNG"), mime_type: "image/png", width: 1170, height: 2532, size: 2_000_000 };
+    const jpg = { ...it_("2", "A/IMG_1.JPG"), width: 1170, height: 2532, size: 400_000 };
+    expect([jpg, png].sort(qualityFirst)[0]).toBe(png);
+  });
+  it("Feinprüfung für Screenshots und PNG-Grafiken, nicht für Kamerafotos", () => {
+    expect(needsFine({ ...it_("1", "A/IMG_1.JPG"), width: 1170, height: 2532 })).toBe(true);
+    expect(needsFine({ ...it_("2", "A/logo.png"), mime_type: "image/png" })).toBe(true);
+    expect(needsFine({ ...it_("3", "A/IMG_2.JPG"), width: 4032, height: 3024 })).toBe(false);
   });
   it("Schlüssel einer „Sieht gleich aus“-Gruppe hängt nicht von der Reihenfolge ab", () => {
     expect(lookKey(["b", "a", "b"])).toBe("look:a+b");

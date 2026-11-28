@@ -7,6 +7,7 @@ import { knownMd5, syncAccounts, writeLogs, type LogInput } from "../lib/db";
 import { byCaptureTime, captureDate } from "../lib/exif";
 import { formatBytes } from "../lib/format";
 import { md5OfFile } from "../lib/md5";
+import { localLook, lookDuplicates, rememberLooks, type LocalFile } from "../lib/lookUpload";
 import { childKey } from "../lib/naming";
 import { planUpload, summarize, type PlanEntry, type PlanFile } from "../lib/plan";
 import type { Account, Crumb } from "../lib/types";
@@ -60,6 +61,8 @@ export default function AutoUploadSheet({
   const background = useRef<Promise<unknown> | null>(null);
   const known = useRef<Set<string>>(new Set());
   const contents = useRef(new Map<string, Awaited<ReturnType<typeof loadFolder>> | null>());
+  /** Sieht gleich aus wie ein Foto im Monatsordner (andere Datei, z. B. HEIC ↔ JPEG) */
+  const lookDup = useRef(new Set<string>());
 
   const byId = useMemo(() => new Map(files.map((f, i) => [`f${i}`, f])), [files]);
 
@@ -69,14 +72,17 @@ export default function AutoUploadSheet({
     (async () => {
       try {
         const list: Analysed[] = [];
+        const locals = new Map<string, LocalFile>();
         let i = 0;
         for (const [id, f] of byId) {
           if (cancelled) return;
-          const [md5, exif] = await Promise.all([md5OfFile(f), captureDate(f)]);
+          const [md5, exif, look] = await Promise.all([md5OfFile(f), captureDate(f), localLook(f)]);
           list.push({ id, name: f.name, size: f.size, md5, date: exif ?? new Date(f.lastModified || Date.now()), dated: !!exif });
+          locals.set(id, { id, file: f, md5, look });
           setAnalysed(++i);
         }
         known.current = await knownMd5(list.map((f) => f.md5));
+        rememberLooks([...locals.values()]);
         const byMonth = new Map<string, Analysed[]>();
         // Innerhalb des Monats wie in der Fotos-App: nach Aufnahmezeit (Videos bleiben unten)
         const sorted = byCaptureTime(list, (f) => (f.dated ? f.date.getTime() : null), (f) => isVideo(byId.get(f.id)!));
@@ -86,7 +92,14 @@ export default function AutoUploadSheet({
         }
         for (const groupFiles of byMonth.values()) {
           const target = crumbFor(groupFiles[0].date);
-          contents.current.set(target.key, await loadFolder(target.key).catch(() => null));
+          const content = await loadFolder(target.key).catch(() => null);
+          contents.current.set(target.key, content);
+          // Gleich aussehende Fotos im selben Monatsordner (dort landet dasselbe Foto wieder – gleiches Aufnahmedatum)
+          const found = await lookDuplicates(
+            groupFiles.map((g) => locals.get(g.id)!),
+            content?.files ?? [],
+          ).catch(() => new Map<string, string>());
+          for (const id of found.keys()) lookDup.current.add(id);
         }
         if (cancelled) return;
         setGroups(
@@ -116,6 +129,7 @@ export default function AutoUploadSheet({
         startNumber: 1,
         existingNames: content?.files.map((f) => f.name) ?? [],
         knownMd5: new Set(seen),
+        lookDup: lookDup.current,
         folderBytes: content?.files.reduce((s, f) => s + (f.size ?? 0), 0) ?? 0,
         folderHasSubfolders: (content?.folders.length ?? 0) > 0,
         conflictMode,

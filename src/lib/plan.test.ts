@@ -31,6 +31,15 @@ describe("planUpload", () => {
     expect(r.map((e) => e.status)).toEqual(["duplicate", "upload", "duplicate"]);
   });
 
+  it("sieht gleich aus wie ein Foto im Ordner → Duplikat (ausser „trotzdem hochladen“)", () => {
+    const input = { ...base, lookDup: new Set(["b"]), files: [f("a", "A.jpg"), f("b", "B.jpg")] };
+    const r = planUpload(input);
+    expect(r.map((e) => e.status)).toEqual(["upload", "duplicate"]);
+    expect(r[1].look).toBe(true);
+    expect(r[0].look).toBeUndefined();
+    expect(planUpload({ ...input, allowDuplicates: true }).map((e) => e.status)).toEqual(["upload", "upload"]);
+  });
+
   it("Zahlen-Schutz benennt reine Zahlennamen um (Regel 14)", () => {
     const r = planUpload({ ...base, files: [f("a", "0001.png"), f("b", "5.jpg")] });
     expect(r[0]).toMatchObject({ targetName: "Foto_2026-11-02_14-32-05.png", renamed: "zahlenschutz" });

@@ -18,11 +18,12 @@ import {
 } from "../lib/db";
 import { formatBytes } from "../lib/format";
 import { trashItem } from "../lib/google";
-import { lookCount, lookGroups, lookState, scanLook, type LookState, type ScanProgress } from "../lib/lookScan";
+import { fineFor, lookCount, lookGroups, lookMissingCount, scanLook, syncLook, type ScanProgress } from "../lib/lookScan";
+import { applyFine, fineTodo } from "../lib/lookVerify";
 import { DRIVE_PARALLEL, mapPool } from "../lib/pool";
 import { navigate } from "../lib/route";
 import { accountColor } from "../lib/theme";
-import { biggerFirst, dupKey as key, inRandom, lookKey, pickOne, suggestRemoval } from "../lib/duplicates";
+import { dupKey as key, inRandom, lookKey, pickOne, qualityFirst, suggestRemoval } from "../lib/duplicates";
 import type { Account, Item } from "../lib/types";
 import { AUTO_ROOT } from "./AutoUploadSheet";
 import { useKeepAwake } from "../lib/wakelock";
@@ -30,6 +31,26 @@ import { useKeepAwake } from "../lib/wakelock";
 const Viewer = lazy(() => import("../components/Viewer"));
 
 const PAGE = 20;
+/** So viele noch nicht geprüfte Fotos werden beim Öffnen von selbst geprüft (mehr nur auf Knopfdruck) */
+const AUTO_SCAN = 400;
+const FINE_CACHE = "drivepool.look.fine";
+
+/** Gemerkte Urteile der Feinprüfung (Paar von Prüfsummen → gleich?) */
+function readFineCache(): Map<string, boolean> {
+  try {
+    return new Map(Object.entries(JSON.parse(localStorage.getItem(FINE_CACHE) ?? "{}") as Record<string, boolean>));
+  } catch {
+    return new Map();
+  }
+}
+function writeFineCache(m: Map<string, boolean>) {
+  try {
+    // Nur die neuesten behalten (Map behält die Reihenfolge des Eintragens)
+    localStorage.setItem(FINE_CACHE, JSON.stringify(Object.fromEntries([...m].slice(-5000))));
+  } catch {
+    /* ignorieren */
+  }
+}
 
 /** Eine Gruppe gleicher Fotos: exakt dieselbe Datei (Prüfsumme) oder nur gleich aussehend (andere Datei). */
 interface Group {
@@ -40,6 +61,8 @@ interface Group {
   ignored: boolean;
   /** Sieht gleich aus, ist aber nicht dieselbe Datei */
   look: boolean;
+  /** Screenshot/Grafik, die sich nicht genau vergleichen liess → keine Vorauswahl */
+  unsure?: boolean;
 }
 
 /** Standard: das Foto in einem selbst sortierten Ordner behalten (nicht in der automatischen Ablage). */
@@ -62,8 +85,8 @@ const breakable = (path: string) =>
     </span>
   ));
 
-/** Bei nur gleich aussehenden Fotos bleibt im Ordner die grösste Datei (meist die beste Qualität). */
-const preferOf = (g: Pick<Group, "look">) => (g.look ? biggerFirst : undefined);
+/** Bei nur gleich aussehenden Fotos bleibt im Ordner das beste (höchste Auflösung, Originalformat …). */
+const preferOf = (g: Pick<Group, "look">) => (g.look ? qualityFirst : undefined);
 const suggest = (g: Group) => suggestRemoval(g.items, preferOf(g));
 const sizeOf = (g: Group) => Math.max(0, ...g.items.map((i) => i.size ?? 0));
 const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -73,8 +96,9 @@ const folderKeys = (items: Item[]) => items.map((i) => i.parent_key ?? "").sort(
 function defaults(groups: Group[]): Record<string, string[]> {
   return Object.fromEntries(
     groups.map((g) => {
+      if (g.unsure) return [g.id, []]; // nicht sicher gleich → selbst vergleichen und antippen
       const s = suggest(g);
-      const k = g.look ? key([...g.items].sort(biggerFirst)[0]) : defaultKeep(g.items);
+      const k = g.look ? key([...g.items].sort(qualityFirst)[0]) : defaultKeep(g.items);
       return [g.id, s.size ? [...s] : g.items.map(key).filter((i) => i !== k)];
     }),
   );
@@ -103,8 +127,11 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
   /** Fotos gross ansehen und vergleichen */
   const [viewing, setViewing] = useState<{ items: Item[]; index: number } | null>(null);
   // „Sieht gleich aus“: Stand auf diesem Gerät und laufende Prüfung
-  const [lookInfo, setLookInfo] = useState<{ state: LookState; count: number }>(() => ({ state: lookState(), count: 0 }));
+  /** count = auf diesem Gerät bekannte Abbilder, missing = Fotos im Pool ohne Abbild (null = noch unbekannt) */
+  const [lookInfo, setLookInfo] = useState<{ count: number; missing: number | null }>({ count: 0, missing: null });
   const [scan, setScan] = useState<ScanProgress | null>(null);
+  /** Screenshots werden gerade genauer verglichen */
+  const [fining, setFining] = useState(0);
   const abort = useRef<AbortController | null>(null);
   useKeepAwake(!!progress || (!!scan && scan.total > 200)); // Bildschirm bleibt an, solange es läuft
 
@@ -120,43 +147,70 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
   /** Gruppen gleich aussehender Fotos aus den Abbildern auf diesem Gerät (ohne Netz bis auf die Fundstellen). */
   const loadLooks = async () => {
     const sets = await lookGroups();
-    setLookInfo({ state: lookState(), count: await lookCount() });
+    const count = await lookCount();
+    setLookInfo((i) => ({ ...i, count }));
     if (!sets.length) return setLooks([]);
     const [items, ignores] = await Promise.all([fetchItemsByMd5(sets.flat()), fetchLookIgnores()]);
     const byMd5 = new Map<string, Item[]>();
     for (const it of items) if (it.md5) byMd5.set(it.md5, [...(byMd5.get(it.md5) ?? []), it]);
-    const g = sets
-      .map((set): Group | null => {
-        const its = set.flatMap((m) => byMd5.get(m) ?? []).sort((a, b) => (a.path ?? "").localeCompare(b.path ?? ""));
-        const md5s = [...new Set(its.map((i) => i.md5!))];
-        // Nur noch eine Datei übrig (Rest gelöscht) → keine Gruppe mehr; byte-gleiche Kopien zeigt die Liste oben
-        if (md5s.length < 2) return null;
-        const id = lookKey(md5s);
-        const ig = ignores.get(id);
-        return { id, items: its, total: its.length, look: true, ignored: !!ig && sameList([...ig].sort(), folderKeys(its)) };
-      })
-      .filter((x): x is Group => !!x)
-      .sort((a, b) => sizeOf(b) - sizeOf(a));
-    setLooks(g);
-    setRemove((r) => ({ ...r, ...defaults(g) }));
+    // Nur noch eine Datei übrig (Rest gelöscht) → keine Gruppe mehr; byte-gleiche Kopien zeigt die Liste oben
+    const raw = sets
+      .map((set) => set.flatMap((m) => byMd5.get(m) ?? []).sort((a, b) => (a.path ?? "").localeCompare(b.path ?? "")))
+      .filter((its) => new Set(its.map((i) => i.md5)).size >= 2);
+    const build = (checked: ReturnType<typeof applyFine>) =>
+      checked
+        .filter((c): c is NonNullable<typeof c> => !!c)
+        .map((c): Group => {
+          const id = lookKey(c.items.map((i) => i.md5!));
+          const ig = ignores.get(id);
+          return {
+            id,
+            items: c.items,
+            total: c.items.length,
+            look: true,
+            unsure: c.unsure,
+            ignored: !!ig && sameList([...ig].sort(), folderKeys(c.items)),
+          };
+        })
+        .sort((a, b) => sizeOf(b) - sizeOf(a));
+    const show = (g: Group[]) => {
+      setLooks(g);
+      setRemove((r) => ({ ...r, ...defaults(g) }));
+    };
+    // Screenshots/Grafiken genauer vergleichen – bis dahin nur zeigen, was schon entschieden ist
+    const cache = readFineCache();
+    const todo = fineTodo(raw, cache);
+    if (!todo.length) return show(build(applyFine(raw, new Map(), cache)));
+    const pending = new Set(fineTodo(raw, cache).map((i) => i.md5));
+    show(build(applyFine(raw.filter((its) => !its.some((i) => pending.has(i.md5))), new Map(), cache)));
+    setFining((n) => n + 1);
+    try {
+      const fine = await fineFor(todo);
+      const checked = applyFine(raw, fine, cache);
+      writeFineCache(cache);
+      show(build(checked));
+    } finally {
+      setFining((n) => n - 1);
+    }
   };
 
-  /** Fotos prüfen, die noch kein Abbild haben (`full` = alle durchgehen, sonst nur neue seit dem letzten Mal). */
-  const runScan = async (full: boolean) => {
+  /** Fotos prüfen, die noch kein Abbild haben (egal wie alt – der Server weiss, welche fehlen). */
+  const runScan = async () => {
     abort.current?.abort();
     const ac = new AbortController();
     abort.current = ac;
-    if (full) setScan({ done: 0, total: 0 });
+    setScan({ done: 0, total: 0 });
     try {
-      await scanLook({ full, signal: ac.signal, onProgress: (p) => !ac.signal.aborted && setScan(p) });
+      await scanLook({ signal: ac.signal, onProgress: (p) => !ac.signal.aborted && setScan(p) });
       await loadLooks();
     } catch (e) {
-      if (full && !ac.signal.aborted) ui.toast(e instanceof Error ? e.message : String(e), "error");
+      if (!ac.signal.aborted) ui.toast(e instanceof Error ? e.message : String(e), "error");
     } finally {
       if (abort.current === ac) {
         abort.current = null;
         setScan(null);
-        setLookInfo({ state: lookState(), count: await lookCount() });
+        const missing = await lookMissingCount().catch(() => null);
+        setLookInfo({ count: await lookCount(), missing });
       }
     }
   };
@@ -165,14 +219,24 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
     abort.current = null;
     setScan(null);
     void loadLooks().catch(() => undefined);
+    void lookMissingCount()
+      .then((missing) => setLookInfo((i) => ({ ...i, missing })))
+      .catch(() => undefined);
   };
 
   useEffect(() => {
     void load();
-    // Sofort zeigen, was schon bekannt ist – dann neu dazugekommene Fotos nachprüfen (falls schon einmal alle geprüft wurden)
-    void loadLooks()
-      .catch(() => undefined)
-      .then(() => (lookState().full ? runScan(false) : undefined));
+    // Sofort zeigen, was auf dem Gerät schon bekannt ist – dann vom Server nachholen (andere Geräte) und
+    // fehlende Fotos prüfen: wenige von selbst, viele erst auf Knopfdruck
+    void (async () => {
+      await loadLooks().catch(() => undefined);
+      const before = await lookCount();
+      await syncLook().catch(() => undefined);
+      if ((await lookCount()) !== before) await loadLooks().catch(() => undefined);
+      const missing = await lookMissingCount().catch(() => null);
+      setLookInfo({ count: await lookCount(), missing });
+      if (missing && missing <= AUTO_SCAN) await runScan();
+    })();
     return () => abort.current?.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -274,6 +338,7 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
           <span className="muted">
             {g.total}×{g.look ? " · sieht gleich aus" : ` · ${formatBytes(g.items[0]?.size)}`}
             {g.items.some(inRandom) && " · Random"}
+            {g.unsure && " · nicht sicher, bitte vergleichen"}
           </span>
           <span className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
             {(g.look || distinctFolders(g)) && (
@@ -309,7 +374,7 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
                     <span className="dup-path-text">
                       <span className="dup-folder">{breakable(folderOf(it))}</span>
                       <span className="dup-file">
-                        {g.look && `${formatBytes(it.size)} · `}
+                        {g.look && `${it.width && it.height ? `${it.width}×${it.height} · ` : ""}${formatBytes(it.size)} · `}
                         {it.name}
                       </span>
                     </span>
@@ -328,6 +393,7 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
 
   // Gleiches Bild als andere Datei (neu gespeichert, andere Auflösung …) – ohne KI, über kleine Abbilder auf dem Gerät
   const scanned = lookInfo.count.toLocaleString("de-CH");
+  const missing = (lookInfo.missing ?? 0).toLocaleString("de-CH");
   const LookSection = () => (
     <>
       <div className="section-title">
@@ -336,11 +402,11 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
         </span>
         {lookFocus.length > 0 && <span>{lookFocus.length}</span>}
       </div>
-      {scan && (scan.total > 0 || !lookInfo.state.full) ? (
+      {scan ? (
         <div className="card glass stack look-scan" style={{ gap: 10 }}>
           <div className="row between small">
             <span>
-              {scan.total ? `Fotos werden geprüft … ${scan.done.toLocaleString("de-CH")} von ${scan.total.toLocaleString("de-CH")}` : "Fotos werden gezählt …"}
+              {scan.total ? `Fotos werden geprüft … ${scan.done.toLocaleString("de-CH")} von ${scan.total.toLocaleString("de-CH")}` : "Neue Fotos werden gesucht …"}
             </span>
             <button className="link small" onClick={stopScan}>
               Anhalten
@@ -349,29 +415,30 @@ export default function DuplikateView({ accounts }: { accounts: Account[] }) {
           <div className="look-bar">
             <i style={{ width: `${scan.total ? (scan.done / scan.total) * 100 : 0}%` }} />
           </div>
-          <span className="faint small">Du kannst anhalten und später weitermachen – das Geprüfte bleibt.</span>
+          <span className="faint small">Du kannst anhalten und später weitermachen – das Geprüfte bleibt (auch für deine anderen Geräte).</span>
         </div>
-      ) : !lookInfo.state.full ? (
+      ) : lookInfo.missing ? (
         <div className="stack pad" style={{ gap: 8 }}>
           <p className="muted small" style={{ margin: 0 }}>
             Findet dasselbe Bild auch als andere Datei – z. B. zweimal gespeichert, anders benannt oder in anderer Auflösung. Dafür wird
-            einmal von jedem Foto eine kleine Vorschau geladen und verglichen (nur auf diesem Gerät, ohne KI). Neue Fotos werden danach
-            von selbst geprüft.{lookInfo.count > 0 && ` Schon geprüft: ${scanned}.`}
+            von jedem Foto einmal eine kleine Vorschau geladen und verglichen (ohne KI, gilt danach für alle Geräte).{" "}
+            {missing} Foto{lookInfo.missing === 1 ? "" : "s"} noch nicht geprüft{lookInfo.count > 0 && `, ${scanned} schon`}.
           </p>
-          <button className="btn block" onClick={() => runScan(true)}>
-            <Icon name="search" size={18} /> {lookInfo.count > 0 ? "Weiter prüfen" : "Alle Fotos prüfen"}
+          <button className="btn block" onClick={runScan}>
+            <Icon name="search" size={18} /> {lookInfo.count > 0 ? `Weiter prüfen (${missing})` : "Alle Fotos prüfen"}
           </button>
         </div>
-      ) : (
+      ) : null}
+      {!scan && (
         <>
           <p className="muted small pad">
             {lookFocus.length > 0
-              ? "Gleiches Bild, aber andere Datei (z. B. neu gespeichert oder andere Auflösung). Vorausgewählt bleibt die grösste Datei – mit dem Auge kannst du die Fotos gross vergleichen. "
-              : "Keine gleich aussehenden Fotos im selben Ordner. "}
-            {scanned} Fotos geprüft ·{" "}
-            <button className="link small" onClick={() => runScan(true)}>
-              Nochmals alle prüfen
-            </button>
+              ? "Gleiches Bild, aber andere Datei (z. B. neu gespeichert oder andere Auflösung). Vorausgewählt bleibt das beste: höchste Auflösung, dann Originalformat – mit dem Auge kannst du die Fotos gross vergleichen. Screenshots werden zusätzlich genau verglichen. "
+              : lookInfo.count > 0
+                ? "Keine gleich aussehenden Fotos im selben Ordner. "
+                : ""}
+            {lookInfo.count > 0 && `${scanned} Fotos geprüft.`}
+            {fining > 0 && " Screenshots werden genau verglichen …"}
           </p>
           <div className="stagger">{lookFocus.slice(0, shownLook).map((g, gi) => groupCard(g, gi))}</div>
           {shownLook < lookFocus.length && (

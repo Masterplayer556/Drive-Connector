@@ -23,6 +23,8 @@ export interface PlanEntry {
   renamed: RenameReason | null;
   /** Nummer bei Reihenfolge-Upload */
   number: number | null;
+  /** Duplikat nur, weil es gleich aussieht wie ein Foto im Zielordner (andere Datei) */
+  look?: boolean;
 }
 
 export interface PlanInput {
@@ -43,6 +45,8 @@ export interface PlanInput {
   folderMd5?: Set<string>;
   /** Alle Duplikate trotzdem hochladen (auch solche im Zielordner und doppelte in der Auswahl) */
   allowDuplicates?: boolean;
+  /** Datei-IDs, die gleich aussehen wie ein Foto im Zielordner oder ein früheres in der Auswahl (andere Datei) */
+  lookDup?: Set<string>;
   /** Gesamtgrösse der Fotos, die direkt im Zielordner liegen */
   folderBytes: number;
   folderHasSubfolders: boolean;
@@ -87,7 +91,10 @@ export function planUpload(input: PlanInput): PlanEntry[] {
   if (!input.allowDuplicates) {
     for (const e of entries) {
       if (seenMd5.has(e.md5)) e.status = "duplicate";
-      else seenMd5.add(e.md5);
+      else if (input.lookDup?.has(e.id)) {
+        e.status = "duplicate";
+        e.look = true;
+      } else seenMd5.add(e.md5);
     }
   }
 
