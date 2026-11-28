@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupLookalikes, sameLook, signature, SOURCE, type Sig } from "./lookalike";
+import { decodeSig, encodeSig, FINE, fineDiff, groupLookalikes, sameFine, sameLook, signature, SOURCE, type Sig } from "./lookalike";
 
 /** Kleiner, fester Zufallsgenerator */
 const rng = (seed: number) => () => {
@@ -93,4 +93,65 @@ describe("Sieht gleich aus", () => {
       for (const a of g) for (const b of g) if (a !== b) expect(sameLook(sig.get(a)!, sig.get(b)!)).toBe(true);
     }
   });
+  it("Gruppen: schnelle Suche (Helligkeits-Fenster) findet dasselbe wie der Vergleich aller Paare", async () => {
+    const entries: { id: string; sig: Sig }[] = [];
+    for (let s = 1; s <= 30; s++) {
+      entries.push({ id: `p${s}`, sig: sigOf(photo(s)) });
+      if (s % 3 === 0) entries.push({ id: `p${s}b`, sig: sigOf(photo(s), { noise: 6, seed: s }) });
+      // heller/dunkler: knapp innerhalb bzw. ausserhalb der erlaubten Abweichung
+      if (s % 5 === 0) entries.push({ id: `p${s}h`, sig: sigOf((x, y) => photo(s)(x, y).map((v) => Math.min(255, v + 2)) as [number, number, number]) });
+    }
+    const groups = await groupLookalikes(entries);
+    const inGroup = new Set(groups.flat());
+    for (let i = 0; i < entries.length; i++) {
+      for (let j = i + 1; j < entries.length; j++) {
+        if (sameLook(entries[i].sig, entries[j].sig)) {
+          expect(inGroup.has(entries[i].id)).toBe(true);
+          expect(inGroup.has(entries[j].id)).toBe(true);
+        }
+      }
+    }
+    expect(groups.some((g) => g.includes("p3") && g.includes("p3b"))).toBe(true);
+  });
 });
+
+describe("Abbild für den Server", () => {
+  it("kodieren und zurück ergibt dasselbe Abbild", () => {
+    const sig = sigOf(photo(4), { ar: 1.3333 });
+    const back = decodeSig(encodeSig(sig), sig.ar)!;
+    expect([...back.g]).toEqual([...sig.g]);
+    expect([...back.c]).toEqual([...sig.c]);
+    expect(back.ar).toBeCloseTo(1.3333);
+  });
+  it("kaputter Text → null", () => {
+    expect(decodeSig("abc", 1)).toBeNull();
+    expect(decodeSig("%%%", 1)).toBeNull();
+    expect(decodeSig(encodeSig(sigOf(photo(1))), 0)).toBeNull();
+  });
+});
+
+describe("Feinprüfung", () => {
+  /** Feinabbild einer „Textseite“: Zeilen aus Balken, optional ein Wort anders */
+  const page = ({ change = false, noise = 0, seed = 1 } = {}) => {
+    const r = rng(seed);
+    const g = new Uint8Array(FINE * FINE).fill(250);
+    for (let line = 0; line < 20; line++) {
+      const y0 = 10 + line * 12;
+      for (let w = 0; w < 6; w++) {
+        const x0 = 8 + w * 40;
+        const len = change && line === 7 && w === 3 ? 12 : 30;
+        for (let y = y0; y < y0 + 6; y++) for (let x = x0; x < x0 + len; x++) g[y * FINE + x] = 30;
+      }
+    }
+    if (noise) for (let i = 0; i < g.length; i++) g[i] = Math.max(0, Math.min(255, g[i] + Math.round((r() - 0.5) * 2 * noise)));
+    return g;
+  };
+  it("gleiche Seite, leicht verrauscht → gleich", () => {
+    expect(sameFine(page(), page({ noise: 4, seed: 3 }))).toBe(true);
+  });
+  it("ein Wort anders → nicht gleich (auch wenn das grobe Abbild es nicht sieht)", () => {
+    expect(fineDiff(page(), page({ change: true }))).toBeGreaterThan(7);
+    expect(sameFine(page(), page({ change: true, noise: 4, seed: 5 }))).toBe(false);
+  });
+});
+

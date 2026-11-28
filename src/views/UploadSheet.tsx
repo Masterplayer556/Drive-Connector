@@ -8,6 +8,8 @@ import { invalidateFolder, loadFolder } from "../lib/cache";
 import { formatBytes } from "../lib/format";
 import { byCaptureTime, captureDate } from "../lib/exif";
 import { md5OfFile } from "../lib/md5";
+import { localLook, lookDuplicates, rememberLooks, type LocalFile } from "../lib/lookUpload";
+import type { LocalLook } from "../lib/lookScan";
 import { maxNumber } from "../lib/naming";
 import { planUpload, summarize, type PlanEntry, type PlanFile, type PlanInput } from "../lib/plan";
 import { executeUpload, retryFailedUploads, type UploadProgress, type UploadResult } from "../lib/upload";
@@ -30,7 +32,7 @@ interface Batch {
 
 const NO_MEDIA: MediaCount = { photos: 0, videos: 0 };
 
-const NO_SCAN = { list: [] as PlanFile[], time: new Map<string, number>() };
+const NO_SCAN = { list: [] as PlanFile[], time: new Map<string, number>(), looks: new Map<string, LocalLook | null>() };
 /** Gemerkte Sortierung der Upload-Vorschau: „1“ = neueste zuerst */
 const NEWEST_KEY = "drivepool.upload.neuesteZuerst";
 
@@ -62,7 +64,11 @@ export default function UploadSheet({
   useKeepAwake(phase === "analyse" || phase === "upload"); // Bildschirm bleibt an, solange es läuft
   const [analysed, setAnalysed] = useState(0);
   // Geprüfte Dateien in iOS-Reihenfolge + Aufnahmezeiten; angezeigt wird nach Aufnahmezeit sortiert
-  const [scanned, setScanned] = useState<{ list: PlanFile[]; time: Map<string, number> }>(NO_SCAN);
+  const [scanned, setScanned] = useState<{ list: PlanFile[]; time: Map<string, number>; looks: Map<string, LocalLook | null> }>(NO_SCAN);
+  /** Sieht gleich aus wie ein Foto im Zielordner (andere Datei): Datei-ID → Name des Fotos */
+  const [lookDup, setLookDup] = useState<Map<string, string>>(new Map());
+  /** Wird gerade mit dem Zielordner verglichen? */
+  const [lookBusy, setLookBusy] = useState(false);
   /** Neueste zuerst statt älteste zuerst (wird gemerkt) */
   const [newestFirst, setNewestFirst] = useState(() => localStorage.getItem(NEWEST_KEY) === "1");
   const [known, setKnown] = useState<Set<string>>(new Set());
@@ -108,17 +114,21 @@ export default function UploadSheet({
       try {
         const list: PlanFile[] = [];
         const time = new Map<string, number>();
+        const looks = new Map<string, LocalLook | null>();
         let i = 0;
         for (const [id, f] of byId) {
           if (cancelled) return;
-          const [md5, date] = await Promise.all([md5OfFile(f), captureDate(f)]);
+          // Prüfsumme (byte-gleich) und Abbild („sieht gleich aus“, z. B. HEIC und JPEG desselben Fotos)
+          const [md5, date, look] = await Promise.all([md5OfFile(f), captureDate(f), localLook(f)]);
           list.push({ id, name: f.name, size: f.size, md5 });
           if (date) time.set(id, date.getTime());
+          looks.set(id, look);
           setAnalysed(++i);
         }
         const k = await knownMd5(list.map((f) => f.md5));
         if (cancelled) return;
-        setScanned({ list, time });
+        rememberLooks(list.map((f) => ({ id: f.id, file: byId.get(f.id)!, md5: f.md5, look: looks.get(f.id) ?? null })));
+        setScanned({ list, time, looks });
         setKnown(k);
         setPhase("review");
       } catch (e) {
@@ -138,6 +148,24 @@ export default function UploadSheet({
     };
     return byCaptureTime(scanned.list, t, (f) => isVideo(byId.get(f.id)!));
   }, [scanned, newestFirst, byId]);
+  // Gleich aussehende Fotos im Zielordner suchen (bei jedem Wechsel des Ziels neu)
+  useEffect(() => {
+    if (!content || !scanned.list.length) {
+      setLookBusy(false);
+      return;
+    }
+    const ac = new AbortController();
+    setLookBusy(true);
+    const locals: LocalFile[] = planFiles.map((f) => ({ id: f.id, file: byId.get(f.id)!, md5: f.md5, look: scanned.looks.get(f.id) ?? null }));
+    lookDuplicates(locals, content.files, ac.signal)
+      .then((m) => !ac.signal.aborted && setLookDup(m))
+      .catch(() => !ac.signal.aborted && setLookDup(new Map()))
+      .finally(() => !ac.signal.aborted && setLookBusy(false));
+    return () => ac.abort();
+    // Reihenfolge der Anzeige ändert nichts daran, welches Foto in der Auswahl zuerst kommt
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, scanned, byId]);
+
   /** Sind die Fotos nach Aufnahmezeit sortiert (mind. 2 mit Datum)? */
   const byTime = scanned.time.size > 1;
   const flipOrder = () => {
@@ -158,12 +186,13 @@ export default function UploadSheet({
       // Duplikate nur im gewählten Ordner suchen (gleiches Foto in anderen Ordnern ist erlaubt)
       allowPoolDuplicates: true,
       folderMd5: new Set((content?.files ?? []).map((f) => f.md5).filter((m): m is string => !!m)),
+      lookDup: new Set(lookDup.keys()),
       folderBytes: (content?.files ?? []).reduce((s, f) => s + (f.size ?? 0), 0),
       folderHasSubfolders: (content?.folders.length ?? 0) > 0,
       conflictMode,
       now: new Date(),
     }),
-    [planFiles, orderMode, order, content, known, conflictMode],
+    [planFiles, orderMode, order, content, known, conflictMode, lookDup],
   );
   /** Gilt „Duplikate trotzdem hochladen“ für die aktuelle Auswahl bzw. einen vorgemerkten Stapel? */
   const forceNow = more ? forceDups : forceAll;
@@ -206,6 +235,7 @@ export default function UploadSheet({
     setPhase("analyse");
     setAnalysed(0);
     setScanned(NO_SCAN);
+    setLookDup(new Map());
     setKnown(new Set());
     setOrderMode(false);
     setOrder([]);
@@ -227,9 +257,10 @@ export default function UploadSheet({
       } else {
         finalPlan = planUpload({ ...input, now: new Date() });
       }
-      // Duplikate, die ohne Häkchen/Regler übersprungen worden wären
+      // Duplikate, die ohne Häkchen/Regler übersprungen worden wären (nur byte-gleiche – „sieht gleich aus“ hat keine
+      // gemeinsame Prüfsumme, die man als „bewusst behalten“ merken könnte)
       const forcedMd5 = force
-        ? new Set(planUpload({ ...b.input, allowDuplicates: false }).filter((e) => e.status === "duplicate").map((e) => e.md5))
+        ? new Set(planUpload({ ...b.input, allowDuplicates: false }).filter((e) => e.status === "duplicate" && !e.look).map((e) => e.md5))
         : new Set<string>();
 
       const upload = await executeUpload({ target: b.target, entries: finalPlan, files: b.byId, accounts: accs, onProgress });
@@ -584,7 +615,14 @@ export default function UploadSheet({
                       onClick={() => orderMode && entry.status === "upload" && toggleOrder(f.id)}
                     >
                       <LocalThumb file={byId.get(f.id)!}>
-                        {dupIds.has(f.id) && <span className="tag">Duplikat</span>}
+                        {dupIds.has(f.id) &&
+                          (rawPlan.find((e) => e.id === f.id)?.look ? (
+                            <span className="tag" title={`Sieht gleich aus wie „${lookDup.get(f.id)}“`}>
+                              Sieht gleich aus
+                            </span>
+                          ) : (
+                            <span className="tag">Duplikat</span>
+                          ))}
                         {entry.status === "conflict" && <span className="tag">Konflikt</span>}
                         {entry.status === "limit" && <span className="tag">15 GB</span>}
                       </LocalThumb>
@@ -664,14 +702,14 @@ export default function UploadSheet({
               )}
 
               {more ? (
-                <label className={`btn primary block ${!content || usedKeys.has(target.key) ? "disabled" : ""}`}>
+                <label className={`btn primary block ${!content || lookBusy || usedKeys.has(target.key) ? "disabled" : ""}`}>
                   Weiter – Fotos für einen anderen Ordner <Icon name="chevronRight" size={19} />
                   <input
                     type="file"
                     accept="image/*,video/*"
                     multiple
                     hidden
-                    disabled={!content || usedKeys.has(target.key)}
+                    disabled={!content || lookBusy || usedKeys.has(target.key)}
                     onChange={(e) => {
                       const list = e.target.files ? [...e.target.files] : [];
                       e.target.value = "";
@@ -682,11 +720,13 @@ export default function UploadSheet({
               ) : (
                 <button
                   className="btn primary block"
-                  disabled={allMedia.photos + allMedia.videos === 0 || !content || usedKeys.has(target.key)}
+                  disabled={allMedia.photos + allMedia.videos === 0 || !content || lookBusy || usedKeys.has(target.key)}
                   onClick={start}
                 >
                   <Icon name="upload" size={19} />{" "}
-                  {batches.length
+                  {lookBusy
+                    ? "Vergleiche mit dem Ordner …"
+                    : batches.length
                     ? `${mediaCount(allMedia)} in ${batches.length + 1} Ordner hochladen`
                     : `${mediaCount(upMedia)} hochladen`}
                 </button>

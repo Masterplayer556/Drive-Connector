@@ -5,6 +5,9 @@
 // Pro Foto: 32×32 Graustufen (Struktur), 4×4 Farbe (gleiche Zeichnung in anderen Farben ≠ gleich) und das
 // Seitenverhältnis. Zwei Fotos gelten als gleich, wenn Format, Helligkeit, Struktur und Farbe übereinstimmen.
 
+/** Version der Rechnung – ändert sie sich, werden alle Abbilder neu erstellt (Server: look_sigs.v) */
+export const LOOK_VERSION = 1;
+
 /** Kantenlänge des Graustufen-Abbilds */
 export const GRID = 32;
 /** Kantenlänge des Farb-Abbilds */
@@ -142,15 +145,41 @@ export function sameLook(a: Sig, b: Sig): boolean {
 }
 
 /**
- * Gruppen gleich aussehender Fotos (nur Gruppen ab 2). Verglichen wird nur, was dasselbe Seitenverhältnis hat –
- * so bleibt es auch bei zehntausenden Fotos schnell. `pause` gibt zwischendurch die Oberfläche frei.
+ * Lockerer Vorfilter – nur zusammen mit der Feinprüfung verwenden. Für Screenshots beim Upload: die Datei vom
+ * Handy und Googles Vorschau sind verschieden verkleinert, bei feinem Text weicht das 32×32-Abbild darum etwas
+ * mehr ab als bei Fotos (gemessen: Abweichung 3,3 statt ≤ 1,5). Ob es wirklich dasselbe Bild ist, entscheidet
+ * danach der Feinvergleich.
+ */
+export function nearLook(a: Sig, b: Sig): boolean {
+  if (!arClose(a.ar, b.ar)) return false;
+  const pa = prepare("a", a);
+  const pb = prepare("b", b);
+  if (Math.abs(pa.mean - pb.mean) > MEAN_TOLERANCE * 2) return false;
+  if (pa.dev < MIN_CONTRAST || pb.dev < MIN_CONTRAST) return false;
+  let mad = 0;
+  let cov = 0;
+  for (let i = 0; i < a.g.length; i++) {
+    mad += Math.abs(a.g[i] - b.g[i]);
+    cov += (a.g[i] - pa.mean) * (b.g[i] - pb.mean);
+  }
+  if (mad > MAX_MAD * 2.4 * a.g.length) return false;
+  if (cov / a.g.length / (pa.dev * pb.dev) < 0.98) return false;
+  let cd = 0;
+  for (let i = 0; i < a.c.length; i++) cd += Math.abs(a.c[i] - b.c[i]);
+  return cd <= MAX_COLOR * 2 * a.c.length;
+}
+
+/**
+ * Gruppen gleich aussehender Fotos (nur Gruppen ab 2). Verglichen wird nur, was fast dieselbe mittlere Helligkeit
+ * (±3) und dasselbe Seitenverhältnis hat – beides muss für „gleich“ ohnehin stimmen, es geht also nichts verloren.
+ * So bleibt es auch bei zehntausenden Fotos schnell. `pause` gibt zwischendurch die Oberfläche frei.
  *
  * In einer Gruppe sieht jedes Foto jedem anderen gleich (nicht nur über eine Kette A≈B≈C): sonst landen bei
  * schrittweise veränderten Bildern (Serienbilder, Bearbeitungsstufen) ganz verschiedene Fotos in einer Gruppe,
  * und die Vorauswahl schlägt Fotos zum Löschen vor, die dem behaltenen gar nicht gleichen.
  */
 export async function groupLookalikes(entries: { id: string; sig: Sig }[], pause?: () => Promise<void>): Promise<string[][]> {
-  const list = entries.map((e) => prepare(e.id, e.sig)).sort((a, b) => a.sig.ar - b.sig.ar);
+  const list = entries.map((e) => prepare(e.id, e.sig)).sort((a, b) => a.mean - b.mean);
   const parent = list.map((_, i) => i);
   const find = (i: number): number => {
     while (parent[i] !== i) {
@@ -168,8 +197,8 @@ export async function groupLookalikes(entries: { id: string; sig: Sig }[], pause
   let work = 0;
   for (let i = 0; i < list.length; i++) {
     const a = list[i];
-    const maxAr = a.sig.ar * (1 + AR_TOLERANCE * 1.05);
-    for (let j = i + 1; j < list.length && list[j].sig.ar <= maxAr; j++) {
+    const maxMean = a.mean + MEAN_TOLERANCE;
+    for (let j = i + 1; j < list.length && list[j].mean <= maxMean; j++) {
       work++;
       const b = list[j];
       if (!arClose(a.sig.ar, b.sig.ar) || !sameLookPrepared(a, b)) continue;
@@ -212,3 +241,75 @@ export async function groupLookalikes(entries: { id: string; sig: Sig }[], pause
   }
   return out.map((g) => g.sort());
 }
+
+// ---- Für den Server: Abbild als Text (Base64 von 1024 Graustufen + 48 Farbwerten) ----
+
+const SIG_BYTES = GRID * GRID + COLOR_GRID * COLOR_GRID * 3;
+
+function toBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+export function encodeSig(sig: Sig): string {
+  const out = new Uint8Array(SIG_BYTES);
+  out.set(sig.g, 0);
+  out.set(sig.c, sig.g.length);
+  return toBase64(out);
+}
+
+/** null = kaputt oder falsche Länge */
+export function decodeSig(s: string, ar: number): Sig | null {
+  try {
+    const bin = atob(s);
+    if (bin.length !== SIG_BYTES || !(ar > 0)) return null;
+    const bytes = new Uint8Array(SIG_BYTES);
+    for (let i = 0; i < SIG_BYTES; i++) bytes[i] = bin.charCodeAt(i);
+    return { g: bytes.slice(0, GRID * GRID), c: bytes.slice(GRID * GRID), ar };
+  } catch {
+    return null;
+  }
+}
+
+// ---- Feinprüfung (Screenshots, Grafiken mit Text) ----
+//
+// Im 32×32-Abbild gehen kleine Unterschiede verloren: andere Uhrzeit, ein geändertes Wort, ein Häkchen.
+// Darum werden solche Bilder zusätzlich in 256×256 verglichen (aus einer 1024er-Vorschau), Block für Block
+// (8×8 Punkte). Schon ein einziger Block mit deutlichem Unterschied heisst: nicht dasselbe Bild.
+// Gemessen an Test-Screenshots (Chat): gleiches Bild neu komprimiert/verkleinert/als PNG → grösster Block ≤ 3,3;
+// geänderte Uhrzeit, Akku, Wort, Zähler, Häkchen, Zeile „Gelesen“ → ≥ 13,9.
+
+/** Kantenlänge des Feinabbilds */
+export const FINE = 256;
+/** So gross wird die Vorschau dafür geladen */
+export const FINE_THUMB = 1024;
+const FINE_BLOCK = 8;
+/** Grösste erlaubte mittlere Abweichung in einem Block (0–255) */
+const FINE_MAX = 7;
+
+/** Feinabbild (Graustufen FINE×FINE) aus FINE×FINE Bildpunkten (RGBA). */
+export function fineGrid(rgba: ArrayLike<number>): Uint8Array {
+  const g = new Uint8Array(FINE * FINE);
+  for (let i = 0; i < g.length; i++) g[i] = Math.round(0.299 * rgba[i * 4] + 0.587 * rgba[i * 4 + 1] + 0.114 * rgba[i * 4 + 2]);
+  return g;
+}
+
+/** Grösste mittlere Abweichung eines Blocks zwischen zwei Feinabbildern. */
+export function fineDiff(a: Uint8Array, b: Uint8Array): number {
+  let worst = 0;
+  for (let by = 0; by < FINE; by += FINE_BLOCK) {
+    for (let bx = 0; bx < FINE; bx += FINE_BLOCK) {
+      let s = 0;
+      for (let y = by; y < by + FINE_BLOCK; y++) {
+        const row = y * FINE;
+        for (let x = bx; x < bx + FINE_BLOCK; x++) s += Math.abs(a[row + x] - b[row + x]);
+      }
+      if (s > worst) worst = s;
+    }
+  }
+  return worst / (FINE_BLOCK * FINE_BLOCK);
+}
+
+/** Auch im Feinvergleich gleich? */
+export const sameFine = (a: Uint8Array, b: Uint8Array) => fineDiff(a, b) <= FINE_MAX;
